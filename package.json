@@ -1,0 +1,37 @@
+{
+  "name": "illusiv",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx tsx src/index.ts",
+    "drizzle": "npx drizzle-kit push",
+    "test": "vitest run"
+  },
+  "description": "",
+  "homepage": "https://github.com/Illusion137/Illusi-api#readme",
+  "bugs": {
+    "url": "https://github.com/Illusion137/Illusi-api/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Illusion137/Illusi-api.git"
+  },
+  "license": "MIT",
+  "author": "Sumi!",
+  "type": "commonjs",
+  "main": "index.ts",
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "drizzle-orm": "^1.0.0-rc.4",
+    "express": "^5.3.0",
+    "mysql2": "^3.24.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "drizzle-kit": "^1.0.0-rc.4",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.13.0",
+    "tsx": "^4.23.15",
+    "typescript-eslint": "^8.71.2"
+  }
+}
