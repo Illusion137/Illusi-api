@@ -1,0 +1,15 @@
+{
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "never",
+		"source.fixAll.eslint": "explicit"
+	},
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "dbaeumer.vscode-eslint",
+	"editor.wordWrap": "on",
+	"editor.formatOnSaveMode": "file",
+	"eslint.format.enable": true,
+	"cmake.ignoreCMakeListsMissing": true,
+	"clangd.fallbackFlags": ["-std=c++23"],
+	"[typescript]": { "editor.defaultFormatter": "dbaeumer.vscode-eslint" },
+	"[typescriptreact]": { "editor.defaultFormatter": "dbaeumer.vscode-eslint" }
+}
