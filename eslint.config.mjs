@@ -4,42 +4,12 @@ import tseslint from "typescript-eslint";
 import stylistic from "@stylistic/eslint-plugin";
 import unusedImports from "eslint-plugin-unused-imports";
 
-const SOURCE = [
-	"common/**/*.{ts,tsx}",
-	"origin/**/*.{ts,tsx}",
-	"roze/**/*.{ts,tsx}",
-	"Illusive/**/*.{ts,tsx}",
-	"illusicord/**/*.{ts,tsx}",
-];
-
 export default tseslint.config(
 	{
-		ignores: [
-			"**/node_modules/**",
-			"dist/**",
-			"out/**",
-			"bin/**",
-			"**/dist-roze-native/**",
-			"examples/**",
-			"ignore/**",
-			"nodejs-assets/**",
-			"patches/**",
-			"sample/**",
-			"scripts/**",
-			"shumil/**",
-			"supabase/**",
-			"tests/**",
-			"tools/**",
-			"translate_m/**",
-			"vendor/**",
-			"scratch*",
-			"origin/src/youtube_dl/PATCH/sax/sax.js",
-			"origin/src/manga_reader/deob.js",
-			"origin/src/manga_reader/deob2.js",
-		],
+		ignores: ["**/node_modules/**"],
 	},
 	{
-		files: SOURCE,
+		files: ["src/**/*.ts"],
 		extends: [
 			js.configs.recommended,
 			...tseslint.configs.strictTypeChecked,
