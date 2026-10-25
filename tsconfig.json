@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": ["node"],
-    "rootDir": "src",
+    "types": [
+      "node"
+    ],
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
@@ -17,8 +20,40 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@native/*": [
+        "./lib-origin/roze/native/*"
+      ],
+      "@lib/*": [
+        "./lib-origin/roze/lib/*"
+      ],
+      "@roze/*": [
+        "./lib-origin/roze/src/*",
+        "./lib-origin/roze/*"
+      ],
+      "@origin/*": [
+        "./lib-origin/origin/src/*"
+      ],
+      "@illusive/*": [
+        "./lib-origin/Illusive/src/*"
+      ],
+      "@common/*": [
+        "./lib-origin/common/*"
+      ],
+      "@sample/*": [
+        "./lib-origin/sample/*"
+      ],
+      "react-native-quick-crypto": [
+        "./src/shims/quick_crypto.ts"
+      ]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

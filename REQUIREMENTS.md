@@ -7,6 +7,13 @@ External service clients come from `lib-origin` (`~/dev/Illusi/lib-origin`).
 
 ## 0. Conventions
 
+### 0.0 Paths and versioning
+
+- Every client-facing endpoint lives under **`/api/v1`**. Paths in this document are written without the prefix: `POST /sync/push` means `POST /api/v1/sync/push`.
+- `GET /health` and `GET /health/live` stay at the root. They are for infrastructure (Docker healthchecks, deploys, nginx), not a client contract.
+- A breaking change to a request or response shape ships as `/api/v2` next to `/api/v1`. Old app builds keep working until they age out. Additive changes (new optional fields, new action types) stay in `v1`.
+- Unknown paths return `404` JSON. The rest of the host is free for a future web frontend.
+
 ### 0.1 Client actions (polite data requests)
 
 Sometimes the server asks the client to fetch data the server can't or won't
@@ -19,6 +26,7 @@ type ActionType = { token: string } & (
 	| { type: 'CHECK_GENIUS'; track_id: string; query: string }
 	| { type: 'CHECK_YOUTUBE_MUSIC'; track_id: string; query: string; youtube_id?: string }
 	| { type: 'UPLOAD_MEDIA'; track_id: string }
+	| { type: 'FETCH_NEW_RELEASES'; artist_id: string; service: string; service_artist_id: string; since: string }
 	// more action types get added as services need them
 );
 ```
@@ -34,6 +42,7 @@ type ActionType = { token: string } & (
 | `CHECK_GENIUS` | Search Genius for the track and fetch its page state | `POST /ingest/genius` (§6) |
 | `CHECK_YOUTUBE_MUSIC` | Fetch YouTube Music lyrics for the track | `POST /ingest/youtube_music_lyrics` (§7) |
 | `UPLOAD_MEDIA` | Upload the audio file the user already downloaded for the track | `POST /tracks/:id/media` (§13) |
+| `FETCH_NEW_RELEASES` | Fetch an artist's recent releases from a service the user is logged into | `POST /ingest/new_releases` (§15) |
 
 ### 0.2 Action attestation
 
@@ -1060,3 +1069,45 @@ The shape matches lib-origin's `IllusiveThumbnail { url, width, height }`.
 - **URLs only**: the server stores URLs. It doesn't download or host images.
 - Merges re-point `thumbnails_table.id` (§4.5).
 
+---
+
+## 15. New Releases
+
+Albums, singles and EPs, plus SoundCloud tracks, released in the last
+`NEW_RELEASES_WINDOW_DAYS` (default 7) days. Both endpoints only read the
+database. Clients keep it current by fulfilling `FETCH_NEW_RELEASES` actions.
+
+### 15.1 Endpoints
+
+- `GET /new-releases`: everything in the window.
+- `GET /new-releases/me`: only releases by artists in the user's library.
+  - An artist is in the library when they're credited on any non-deleted `user_tracks_table` track.
+  - Albums match on `albums_table.artist_id` or an `artist_albums_table` credit, so features count.
+  - SoundCloud tracks match when the uploader is linked to a library artist (`soundcloud_id`), or uploaded a SoundCloud track that is in the library.
+- Query: `limit` (1–500, default 200), applied to each list.
+- Response: `{ since, until, albums: [{ id, name, album_type, release_date, track_count, explicit, artists[], thumbnails[] }], soundcloud_tracks: [{ id, illusi_id, title, permalink, artwork_url, duration, genre, explicit, release_date, user }] }`, newest first.
+
+### 15.2 Release dates
+
+- **Albums**: `albums_table.release_date` falls within `[now - window, now]`. Future (pre-release) dates are excluded.
+- **SoundCloud**: `coalesce(release_date, display_date, soundcloud_created_at)`, using the same window. Only public tracks are included.
+
+### 15.3 Client checks (`FETCH_NEW_RELEASES`)
+
+- `GET /new-releases/me?services=spotify,soundcloud,...` names the services the client is logged into.
+  - Supported services: `applemusic`, `spotify`, `soundcloud`, `youtube_music`, `deezer`, `tidal`, `amazonmusic`, `audiomack`, `bandlab`, `pandora`.
+- For each named service, the response adds one action per library artist that has an ID on that service and is due a check.
+  - **Due**: never checked, or the last check is older than `NEW_RELEASES_RECHECK_HOURS`.
+  - **Not re-issued**: once handed out, an artist isn't handed out again for `NEW_RELEASES_REQUEST_COOLDOWN_MIN`.
+  - **Limit**: at most `NEW_RELEASES_MAX_ACTIONS` actions in total, taking turns between services.
+- New table `artist_release_checks_table (artist_id, service, requested_at, checked_at, checked_by)`.
+- **Fulfilment**: `POST /ingest/new_releases` with `{ token, artist_id, service, contribution_id?, releases?, soundcloud_items? }`.
+  - The token target is `service:artist_id` (§0.2).
+  - `releases` is a §9.1 contribution graph. It is scoped to the target artist (§0.2.5):
+    - albums credited to the artist (its `illusi_id` used as the ref),
+    - tracks on those albums,
+    - artists credited on those albums and tracks.
+    Everything else is rejected, and `similar_artists` is dropped. What remains goes through the shared contribution engine (§9.3).
+  - `soundcloud_items` is the §5.1 shape. Only the target's SoundCloud user and their uploads are written.
+  - An empty submission is valid: it records that the artist had nothing new.
+  - The check is marked done in the same transaction. Provenance records the token's `jti` (§9.5).
