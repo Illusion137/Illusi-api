@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, check, date, doublePrecision, index, integer, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, date, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, varchar, vector } from 'drizzle-orm/pg-core';
 
 const ITUNES_EXPLICITNESS = ['explicit', 'cleaned', 'notExplicit'] as const;
 export const itunes_explicitness = pgEnum('itunes_explicitness', ITUNES_EXPLICITNESS);
@@ -32,6 +32,39 @@ export const sort_type = pgEnum('sort_type', SORT_TYPES);
 
 const INHERITANCE_MODES = ['INCLUDE', 'EXCLUDE', 'MASK', 'INTERSECTION'] as const;
 export const inheritance_mode = pgEnum('inheritance_mode', INHERITANCE_MODES);
+
+export const LYRICS_FORMATS = ['TTML', 'MXM_RICHSYNC_JSON', 'LRC', 'ELRC', 'PLAIN', 'GENIUS_BODY_JSON', 'YTM_JSON'] as const;
+export const lyrics_format = pgEnum('lyrics_format', LYRICS_FORMATS);
+
+export const LYRICS_LOOKUP_STATUSES = ['FOUND', 'NOT_FOUND', 'INSTRUMENTAL', 'ERROR', 'SKIPPED'] as const;
+export const lyrics_lookup_status = pgEnum('lyrics_lookup_status', LYRICS_LOOKUP_STATUSES);
+
+export const ITUNES_ENTITY_TYPES = ['track', 'album', 'artist'] as const;
+export const itunes_entity_type = pgEnum('itunes_entity_type', ITUNES_ENTITY_TYPES);
+
+export const ITUNES_LOOKUP_STATUSES = ['FOUND', 'NOT_FOUND', 'ERROR'] as const;
+export const itunes_lookup_status = pgEnum('itunes_lookup_status', ITUNES_LOOKUP_STATUSES);
+
+export const SAMPLE_SOURCES = ['itunes_preview', 'media'] as const;
+export const sample_source = pgEnum('sample_source', SAMPLE_SOURCES);
+
+export const SAMPLE_LOOKUP_STATUSES = ['DONE', 'BAD_FILE', 'NOT_FOUND', 'ERROR'] as const;
+export const sample_lookup_status = pgEnum('sample_lookup_status', SAMPLE_LOOKUP_STATUSES);
+
+export const CONFLICT_STATUSES = ['open', 'deferred', 'merged', 'split', 'dismissed'] as const;
+export const conflict_status = pgEnum('conflict_status', CONFLICT_STATUSES);
+
+export const USER_ROLES = ['USER', 'ADMIN'] as const;
+export const user_role = pgEnum('user_role', USER_ROLES);
+
+export const REVIEW_KINDS = ['FIELD_CONFLICT', 'SERVICE_ID_CONFLICT', 'LYRICS_PARSE_FAILURE', 'GENIUS_MATCH_REJECTED', 'AUTO_MERGE', 'AUTO_SPLIT'] as const;
+export const review_kind = pgEnum('review_kind', REVIEW_KINDS);
+
+export const REVIEW_STATUSES = ['OPEN', 'APPLIED', 'DISMISSED'] as const;
+export const review_status = pgEnum('review_status', REVIEW_STATUSES);
+
+export const PROVENANCE_SOURCES = ['contribute', 'sync_push', 'soundcloud', 'genius', 'youtube_music', 'media'] as const;
+export const provenance_source = pgEnum('provenance_source', PROVENANCE_SOURCES);
 
 const timestamptz = () => timestamp({ withTimezone: true });
 
@@ -183,7 +216,10 @@ export const soundcloud_tracks_table = pgTable('soundcloud_tracks_table', {
 	soundcloud_created_at: timestamptz(),
 	soundcloud_last_modified: timestamptz(),
 	...timestamps
-}, table => [index('soundcloud_tracks_user_id_idx').on(table.user_id)]);
+}, table => [
+	index('soundcloud_tracks_user_id_idx').on(table.user_id),
+	index('soundcloud_tracks_released_at_idx').on(sql`coalesce(${table.release_date}, ${table.display_date}, ${table.soundcloud_created_at})`)
+]);
 export const soundcloud_transcodings_table = pgTable('soundcloud_transcodings_table', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	track_id: bigint({ mode: 'number' }).notNull().references(() => soundcloud_tracks_table.id, { onDelete: 'cascade' }),
@@ -194,6 +230,7 @@ export const soundcloud_transcodings_table = pgTable('soundcloud_transcodings_ta
 	quality: varchar({ length: 8 }),
 	duration: integer(),
 	snipped: boolean(),
+	last_seen_at: timestamptz(),
 	...timestamps
 }, table => [
 	uniqueIndex('soundcloud_transcodings_url_idx').on(table.url),
@@ -349,8 +386,52 @@ export const service_ids_table = pgTable('service_ids_table', {
 	deezer_id: varchar({ length: 64 }).unique(),
 	pandora_id: varchar({ length: 64 }).unique(),
 	tidal_id: varchar({ length: 64 }).unique(),
+	genius_id: bigint({ mode: 'number' }).unique(),
+	isrc: varchar({ length: 12 }),
 	...timestamps
-});
+}, table => [
+	index('service_ids_isrc_idx').on(table.isrc),
+	index('service_ids_modified_at_idx').on(table.modified_at)
+]);
+
+export const illusi_id_redirects_table = pgTable('illusi_id_redirects_table', {
+	old_id: uuid().primaryKey(),
+	new_id: uuid().notNull().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [
+	index('illusi_id_redirects_new_id_idx').on(table.new_id),
+	index('illusi_id_redirects_created_at_idx').on(table.created_at)
+]);
+
+export const service_id_conflicts_table = pgTable('service_id_conflicts_table', {
+	id: integer().primaryKey().generatedAlwaysAsIdentity(),
+	illusi_id: uuid().notNull().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
+	column: varchar({ length: 64 }).notNull(),
+	existing_value: varchar({ length: 512 }),
+	incoming_value: varchar({ length: 512 }).notNull(),
+	other_illusi_id: uuid().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
+	source: varchar({ length: 32 }).notNull(),
+	source_user_id: uuid(),
+	source_token_jti: varchar({ length: 64 }),
+	status: conflict_status().notNull().default('open'),
+	...timestamps
+}, table => [
+	index('service_id_conflicts_illusi_id_idx').on(table.illusi_id),
+	index('service_id_conflicts_other_illusi_id_idx').on(table.other_illusi_id),
+	index('service_id_conflicts_status_idx').on(table.status)
+]);
+
+export const audit_log_table = pgTable('audit_log_table', {
+	id: integer().primaryKey().generatedAlwaysAsIdentity(),
+	action: varchar({ length: 32 }).notNull(),
+	actor: varchar({ length: 32 }).notNull(),
+	actor_user_id: uuid(),
+	entity_table: varchar({ length: 64 }),
+	entity_id: varchar({ length: 64 }),
+	details: jsonb().notNull(),
+	undo: jsonb(),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [index('audit_log_entity_idx').on(table.entity_table, table.entity_id)]);
 
 export const thumbnails_table = pgTable('thumbnails_table', {
 	id: uuid(),
@@ -365,7 +446,11 @@ export const artists_table = pgTable('artists_table', {
 	description: text(),
 	primary_genre_name: varchar({ length: 80 }),
 	...timestamps
-});
+}, table => [
+	index('artists_modified_at_idx').on(table.modified_at),
+	index('artists_name_key_idx').on(sql`illusi_name_key(${table.name})`),
+	index('artists_search_trgm_idx').using('gin', sql`illusi_search_text(${table.name}) gin_trgm_ops`)
+]);
 export const albums_table = pgTable('albums_table', {
 	id: uuid().primaryKey().references(() => service_ids_table.illusi_id),
 	artist_id: uuid().references(() => artists_table.id, { onDelete: 'set null' }),
@@ -375,9 +460,15 @@ export const albums_table = pgTable('albums_table', {
 	track_count: integer(),
 	explicit: boolean(),
 	...timestamps
-}, table => [index('albums_artist_id_idx').on(table.artist_id)]);
+}, table => [
+	index('albums_artist_id_idx').on(table.artist_id),
+	index('albums_modified_at_idx').on(table.modified_at),
+	index('albums_release_date_idx').on(table.release_date),
+	index('albums_name_key_idx').on(sql`illusi_name_key(${table.name})`),
+	index('albums_search_trgm_idx').using('gin', sql`illusi_search_text(${table.name}) gin_trgm_ops`)
+]);
 export const tracks_table = pgTable('tracks_table', {
-	id: uuid().primaryKey().defaultRandom(),
+	id: uuid().primaryKey().references(() => service_ids_table.illusi_id),
 	title: varchar({ length: 256 }).notNull(),
 	album_id: uuid().references(() => albums_table.id, { onDelete: 'set null' }),
 	duration_ms: bigint({ mode: 'number' }),
@@ -385,7 +476,11 @@ export const tracks_table = pgTable('tracks_table', {
 	imported: boolean().notNull().default(false),
 	backpacked: boolean().notNull().default(false),
 	...timestamps
-}, table => [index('tracks_album_id_idx').on(table.album_id)]);
+}, table => [
+	index('tracks_album_id_idx').on(table.album_id),
+	index('tracks_modified_at_idx').on(table.modified_at),
+	index('tracks_search_trgm_idx').using('gin', sql`illusi_search_text(${table.title}) gin_trgm_ops`)
+]);
 export const tracks_artists_table = pgTable('tracks_artists_table', {
 	artist_id: uuid().notNull().references(() => artists_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
@@ -408,9 +503,12 @@ export const media_table = pgTable('media_table', {
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
 	resource_id: varchar({ length: 256 }).notNull(),
 	quality: varchar({ length: 32 }),
+	content_hash: varchar({ length: 64 }).notNull(),
+	uploaded_by: uuid(),
 	...timestamps
 }, table => [
 	uniqueIndex('media_track_id_resource_id_idx').on(table.track_id, table.resource_id),
+	uniqueIndex('media_track_id_content_hash_idx').on(table.track_id, table.content_hash),
 	index('media_resource_id_idx').on(table.resource_id)
 ]);
 
@@ -428,6 +526,36 @@ export const track_sample_data_table = pgTable('track_sample_data_table', {
 	valence: real().notNull(),
 	speechiness: real().notNull(),
 	...timestamps
+}, table => [index('track_sample_data_modified_at_idx').on(table.modified_at)]);
+
+export const track_sample_lookups_table = pgTable('track_sample_lookups_table', {
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	source: sample_source().notNull(),
+	status: sample_lookup_status().notNull(),
+	attempts: integer().notNull().default(0),
+	attempted_at: timestamptz().notNull().defaultNow(),
+	retry_after: timestamptz(),
+	/** What the source was when it failed (preview_url / media resource_id), so a changed source resets BAD_FILE / NOT_FOUND. */
+	source_ref: varchar({ length: 512 })
+}, table => [primaryKey({ columns: [table.track_id, table.source] })]);
+
+/** Dimensions of `track_vectors_table.embedding`. Must match the encoding in the vector service. */
+export const TRACK_VECTOR_DIMENSIONS = 40;
+
+export const track_vectors_table = pgTable('track_vectors_table', {
+	track_id: uuid().primaryKey().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	embedding: vector({ dimensions: TRACK_VECTOR_DIMENSIONS }).notNull(),
+	version: integer().notNull(),
+	...timestamps
+}, table => [index('track_vectors_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops'))]);
+
+export const itunes_lookups_table = pgTable('itunes_lookups_table', {
+	illusi_id: uuid().primaryKey().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
+	entity_type: itunes_entity_type().notNull(),
+	status: itunes_lookup_status().notNull(),
+	attempts: integer().notNull().default(0),
+	attempted_at: timestamptz().notNull().defaultNow(),
+	retry_after: timestamptz()
 });
 
 export const track_lyrics_table = pgTable('track_lyrics_table', {
@@ -435,17 +563,68 @@ export const track_lyrics_table = pgTable('track_lyrics_table', {
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
 	service: lyrics_services().notNull(),
 	sync_type: lyrics_sync_type().notNull(),
+	format: lyrics_format().notNull(),
 	raw_content: text().notNull(),
+	/** SHA-256 hex of the exact `raw_content`. */
+	content_hash: varchar({ length: 64 }).notNull(),
+	/** Disposable parse result; cleared whenever `parser_version` no longer matches the current parser. */
+	parsed_cache: jsonb(),
+	parser_version: integer(),
+	source_user_id: uuid(),
+	source_token_jti: varchar({ length: 64 }),
 	...timestamps
-}, table => [index('track_lyrics_track_id_idx').on(table.track_id)]);
+}, table => [
+	index('track_lyrics_track_id_idx').on(table.track_id),
+	uniqueIndex('track_lyrics_track_id_content_hash_idx').on(table.track_id, table.content_hash),
+	index('track_lyrics_modified_at_idx').on(table.modified_at)
+]);
+
+export const track_lyrics_lookups_table = pgTable('track_lyrics_lookups_table', {
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	service: lyrics_services().notNull(),
+	status: lyrics_lookup_status().notNull(),
+	attempts: integer().notNull().default(1),
+	attempted_at: timestamptz().notNull().defaultNow(),
+	retry_after: timestamptz(),
+	source_user_id: uuid()
+}, table => [primaryKey({ columns: [table.track_id, table.service] })]);
 
 export const users_table = pgTable('users_table', {
 	id: uuid().primaryKey().defaultRandom(),
 	username: varchar({ length: 64 }).notNull(),
 	email: varchar({ length: 256 }).notNull().unique(),
 	password_hash: varchar({ length: 255 }).notNull(),
+	role: user_role().notNull().default('USER'),
+	edited_at: timestamptz(),
 	...timestamps
 }, table => [check('users_email_lowercase_check', sql`${table.email} = lower(${table.email})`)]);
+
+export const sessions_table = pgTable('sessions_table', {
+	id: uuid().primaryKey().defaultRandom(),
+	/** The login this session row descends from. Access/action tokens carry it as `sid`, so it survives rotation. */
+	family_id: uuid().notNull(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	token_hash: varchar({ length: 64 }).notNull().unique(),
+	device_name: varchar({ length: 128 }),
+	created_at: timestamptz().notNull().defaultNow(),
+	last_used_at: timestamptz(),
+	expires_at: timestamptz().notNull(),
+	revoked_at: timestamptz(),
+	replaced_by: uuid()
+}, table => [
+	index('sessions_user_id_idx').on(table.user_id),
+	index('sessions_family_id_idx').on(table.family_id)
+]);
+
+/** Single-use `jti`s of action tokens. Rows can be purged after `expires_at`. */
+export const action_token_uses_table = pgTable('action_token_uses_table', {
+	jti: varchar({ length: 64 }).primaryKey(),
+	user_id: uuid().notNull(),
+	type: varchar({ length: 32 }).notNull(),
+	target: varchar({ length: 64 }).notNull(),
+	used_at: timestamptz().notNull().defaultNow(),
+	expires_at: timestamptz().notNull()
+}, table => [index('action_token_uses_expires_at_idx').on(table.expires_at)]);
 export const user_tracks_table = pgTable('user_tracks_table', {
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
@@ -454,15 +633,18 @@ export const user_tracks_table = pgTable('user_tracks_table', {
 	start_at: bigint({ mode: 'number' }),
 	end_at: bigint({ mode: 'number' }),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
 }, table => [
 	primaryKey({ columns: [table.user_id, table.track_id] }),
-	index('user_tracks_track_id_idx').on(table.track_id)
+	index('user_tracks_track_id_idx').on(table.track_id),
+	index('user_tracks_user_id_modified_at_idx').on(table.user_id, table.modified_at)
 ]);
 export const user_recent_searches = pgTable('user_recent_searches', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	user_id: uuid().references(() => users_table.id, { onDelete: 'cascade' }),
 	text: varchar({ length: 128 }),
+	client_id: uuid().unique(),
 	created_at: timestamptz().notNull().defaultNow()
 }, table => [index('user_recent_searches_user_id_idx').on(table.user_id)]);
 
@@ -470,6 +652,7 @@ export const track_plays_table = pgTable('track_plays_table', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	client_id: uuid().unique(),
 	created_at: timestamptz().notNull().defaultNow()
 }, table => [
 	index('track_plays_user_id_idx').on(table.user_id),
@@ -480,8 +663,12 @@ export const linked_playlists_table = pgTable('linked_playlists_table', {
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
 	service_uri: varchar({ length: 256 }).notNull(),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
-}, table => [primaryKey({ columns: [table.user_id, table.service_uri] })]);
+}, table => [
+	primaryKey({ columns: [table.user_id, table.service_uri] }),
+	index('linked_playlists_user_id_modified_at_idx').on(table.user_id, table.modified_at)
+]);
 
 export const playlists_table = pgTable('playlists_table', {
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
@@ -493,14 +680,20 @@ export const playlists_table = pgTable('playlists_table', {
 	public: boolean().notNull().default(false),
 	sort_mode: sort_type().notNull().default('OLDEST'),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
-}, table => [index('playlists_user_id_idx').on(table.user_id)]);
+}, table => [
+	index('playlists_user_id_idx').on(table.user_id),
+	index('playlists_user_id_modified_at_idx').on(table.user_id, table.modified_at),
+	index('playlists_search_trgm_idx').using('gin', sql`illusi_search_text(${table.title}) gin_trgm_ops`)
+]);
 export const playlist_inherited_searches_table = pgTable('playlist_inherited_searches_table', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	playlist_id: uuid().notNull().references(() => playlists_table.id, { onDelete: 'cascade' }),
 	query: varchar({ length: 256 }),
 	mode: inheritance_mode(),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
 }, table => [index('playlist_inherited_searches_playlist_id_idx').on(table.playlist_id)]);
 export const playlist_inherited_playlists_table = pgTable('playlist_inherited_playlists_table', {
@@ -509,6 +702,7 @@ export const playlist_inherited_playlists_table = pgTable('playlist_inherited_pl
 	ref_id: uuid().notNull().references(() => playlists_table.id, { onDelete: 'cascade' }),
 	mode: inheritance_mode(),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
 }, table => [
 	index('playlist_inherited_playlists_playlist_id_idx').on(table.playlist_id),
@@ -519,9 +713,11 @@ export const playlist_tracks_table = pgTable('playlist_tracks_table', {
 	playlist_id: uuid().notNull().references(() => playlists_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
 	deleted: boolean().notNull().default(false),
+	edited_at: timestamptz(),
 	...timestamps
 }, table => [
 	primaryKey({ columns: [table.playlist_id, table.track_id] }),
+	index('playlist_tracks_modified_at_idx').on(table.modified_at),
 	index('playlist_tracks_track_id_idx').on(table.track_id)
 ]);
 
@@ -552,3 +748,61 @@ export const similar_artists_table = pgTable('similar_artists_table', {
 	index('similar_artists_similar_artist_id_idx').on(table.similar_artist_id),
 	check('similar_artists_distinct_check', sql`${table.artist_id} <> ${table.similar_artist_id}`)
 ]);
+
+export const contributions_log_table = pgTable('contributions_log_table', {
+	id: uuid().primaryKey().defaultRandom(),
+	/** Client UUID for `/contribute` (idempotency key). Null for ingests that have none. */
+	contribution_id: uuid().unique(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	source: provenance_source().notNull(),
+	token_jti: varchar({ length: 64 }),
+	/** `[{ table, id, filled: string[] }]`: every entity touched and the fields it filled. */
+	entities: jsonb().notNull().default([]),
+	/** The response that was returned, replayed if the same `contribution_id` is retried. */
+	response: jsonb(),
+	received_at: timestamptz().notNull().defaultNow()
+}, table => [index('contributions_log_user_id_idx').on(table.user_id, table.received_at)]);
+
+/** Idempotency for `/sync/push`: a retried `push_id` replays the stored response. */
+export const sync_pushes_table = pgTable('sync_pushes_table', {
+	push_id: uuid().primaryKey(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	response: jsonb().notNull(),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [index('sync_pushes_user_id_idx').on(table.user_id)]);
+
+export const review_items_table = pgTable('review_items_table', {
+	id: integer().primaryKey().generatedAlwaysAsIdentity(),
+	kind: review_kind().notNull(),
+	entity_table: varchar({ length: 64 }).notNull(),
+	entity_id: varchar({ length: 64 }).notNull(),
+	field: varchar({ length: 64 }),
+	current_value: jsonb(),
+	/** `[{ value, source_user_ids, occurrences, plan?, evidence? }]` */
+	proposed_values: jsonb().notNull().default([]),
+	source_user_ids: uuid().array().notNull().default(sql`'{}'::uuid[]`),
+	occurrences: integer().notNull().default(1),
+	/** Free-form context (plan, evidence, error message) for the reviewer. */
+	details: jsonb(),
+	/** Dedup key: hash of (kind, entity_table, entity_id, field, proposed value). */
+	dedupe_key: varchar({ length: 64 }).notNull(),
+	status: review_status().notNull().default('OPEN'),
+	resolved_by: uuid().references(() => users_table.id, { onDelete: 'set null' }),
+	resolved_at: timestamptz(),
+	...timestamps
+}, table => [
+	uniqueIndex('review_items_dedupe_key_open_idx').on(table.dedupe_key).where(sql`${table.status} = 'OPEN'`),
+	index('review_items_status_kind_idx').on(table.status, table.kind),
+	index('review_items_entity_idx').on(table.entity_table, table.entity_id)
+]);
+
+/** When each library artist was last checked for new releases on a client-side service. */
+export const artist_release_checks_table = pgTable('artist_release_checks_table', {
+	artist_id: uuid().notNull().references(() => artists_table.id, { onDelete: 'cascade' }),
+	service: varchar({ length: 32 }).notNull(),
+	/** Last time a FETCH_NEW_RELEASES action was handed out, so the same check isn't requested on every load. */
+	requested_at: timestamptz(),
+	checked_at: timestamptz(),
+	checked_by: uuid().references(() => users_table.id, { onDelete: 'set null' }),
+	...timestamps
+}, table => [primaryKey({ columns: [table.artist_id, table.service] })]);

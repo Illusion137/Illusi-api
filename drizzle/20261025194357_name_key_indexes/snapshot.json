@@ -1,0 +1,99 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "f94c67a5-a0e5-4a55-9913-28a11179b4ed",
+  "prevIds": [
+    "2a550c9a-16be-447e-a0c0-f6563cce6d6d"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "albums_table",
+        "albums_name_key_idx"
+      ],
+      "writes": [
+        "s|idx|public.albums_name_key_idx",
+        "n|idx|public.albums_name_key_idx",
+        "e|idx|public.albums_name_key_idx",
+        "n|rel|public.albums_name_key_idx"
+      ],
+      "reads": [
+        "n|tbl|public.albums_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "artists_table",
+        "artists_name_key_idx"
+      ],
+      "writes": [
+        "s|idx|public.artists_name_key_idx",
+        "n|idx|public.artists_name_key_idx",
+        "e|idx|public.artists_name_key_idx",
+        "n|rel|public.artists_name_key_idx"
+      ],
+      "reads": [
+        "n|tbl|public.artists_table",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "albums_table",
+        "name": "albums_name_key_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "illusi_name_key(\"name\")",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "artists_table",
+        "name": "artists_name_key_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "illusi_name_key(\"name\")",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    }
+  ]
+}
