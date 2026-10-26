@@ -1,0 +1,25 @@
+# systemd unit (sample). Install to /etc/systemd/system/illusi-analyzer.service, adjust paths/user, then:
+#   systemctl daemon-reload && systemctl enable --now illusi-analyzer
+[Unit]
+Description=Illusi music analyzer (Mood-Detector + VibeNet)
+After=network.target
+
+[Service]
+Type=simple
+User=illusi
+WorkingDirectory=/opt/illusi-api/analyzer
+Environment=ANALYZER_URL=http://127.0.0.1:8765
+# Same absolute paths the API uses for ANALYZER_TMP_DIR and MEDIA_DIR.
+Environment=ANALYZER_PATH_ROOTS=/opt/illusi-api/data/analyzer_tmp:/opt/illusi-api/data/media
+ExecStart=/opt/illusi-api/analyzer/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=5
+# The analyzer only reads audio; it never writes or deletes input files.
+ProtectSystem=strict
+# ffmpeg decodes each input to a temporary WAV under /tmp.
+PrivateTmp=true
+ReadOnlyPaths=/opt/illusi-api/data
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

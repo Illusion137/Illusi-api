@@ -1,0 +1,9 @@
+# Python >= 3.12 (VibeNet requires it). The ffmpeg binary must be installed: it decodes every input (audio.py).
+# Both libraries are pinned to the commits the integration in models.py was written against.
+mood-detector @ git+https://github.com/usr-wwelsh/Mood-Detector@0ab4aafb576722d5182279a2ffa9dfa77e755abc
+vibenet @ git+https://github.com/jaeheonshim/vibenet@6c4e7498db98a38de80675e64e281848ead9c568
+librosa>=0.11.0,<0.12.0
+numpy>=1.24.0
+soundfile>=0.12
+soxr>=0.3
+onnxruntime>=1.22.1,<2.0.0

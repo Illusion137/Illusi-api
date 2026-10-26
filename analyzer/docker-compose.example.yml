@@ -1,0 +1,20 @@
+# Sample service for the analyzer (§2.9: a separate process; Express never spawns it, it only polls /health).
+# network_mode: host keeps it on 127.0.0.1 (§2.2 "listens on localhost only").
+# Data directories are mounted read-only at the SAME absolute paths the API uses, because the API sends
+# absolute file paths (ANALYZER_TMP_DIR downloads and MEDIA_DIR/<resource_id>).
+services:
+  analyzer:
+    build: ./analyzer
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      ANALYZER_URL: http://127.0.0.1:8765
+      ANALYZER_PATH_ROOTS: /srv/illusi/data/analyzer_tmp:/srv/illusi/data/media
+    volumes:
+      - /srv/illusi/data/analyzer_tmp:/srv/illusi/data/analyzer_tmp:ro
+      - /srv/illusi/data/media:/srv/illusi/data/media:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
