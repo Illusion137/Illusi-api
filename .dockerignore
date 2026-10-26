@@ -1,0 +1,15 @@
+.git
+.github
+.env*
+!.env.example
+node_modules
+lib-origin/**/node_modules
+data
+analyzer
+deploy
+scripts
+dist
+coverage
+**/*.test.ts
+**/__pycache__
+.secrets

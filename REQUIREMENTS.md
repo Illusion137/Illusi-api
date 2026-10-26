@@ -1111,3 +1111,96 @@ database. Clients keep it current by fulfilling `FETCH_NEW_RELEASES` actions.
   - `soundcloud_items` is the §5.1 shape. Only the target's SoundCloud user and their uploads are written.
   - An empty submission is valid: it records that the artist had nothing new.
   - The check is marked done in the same transaction. Provenance records the token's `jti` (§9.5).
+
+---
+
+## 16. Read API
+
+Sync (§8) is the local-first path: a client that keeps a full local copy never
+needs these endpoints. They exist so a client can browse what it hasn't synced:
+a fresh device before its first pull finishes, an online-only client, another
+user's public playlist, or the global catalog (search, artists, albums).
+
+### 16.1 Conventions
+
+- **Read-only.** These endpoints never write. Library, playlist and profile changes still go through `POST /sync/push` (§8.3), and catalog additions through `POST /contribute` (§9).
+- **Authenticated** (§12), mounted under `/api/v1` (§0.0), rate limited per user.
+- **Same column names as sync rows** (§8.1), so a client can upsert anything it reads straight into its local database.
+- **Merged ids are followed.** If a requested id was merged (§4.5), the response describes the surviving entity and adds `redirected_from: <requested id>`. Clients should rewrite their local reference.
+- **Soft-deleted rows are never returned**, except where an endpoint has an explicit `include_deleted` flag.
+- **Paging**: `?limit&cursor` → `{ items, next_cursor }`. `limit` defaults to 50, maximum 200. The cursor is opaque, and `next_cursor` is `null` on the last page.
+- **Lyrics are not inlined.** Clients call `GET /tracks/:id/lyrics` (§7.2), which also handles the client lyrics actions.
+
+### 16.2 Views
+
+Every list and detail endpoint returns these shapes:
+
+- `ArtistRef`: `{ id, name }`. `AlbumRef`: `{ id, name, album_type, release_date }`.
+- `TrackView`: the `tracks_table` row, plus:
+  - `artists: ArtistRef[]` in credit order, `album: AlbumRef | null`, `track_number`;
+  - `service_ids`, `thumbnails[]`, `itunes` (§8.1 `ItunesFields`, or `null`), `sample_data` (or `null`);
+  - `producers: { id, name }[]`;
+  - `has_media` and `has_lyrics` flags;
+  - `user`: the caller's own overlay, or `null` when the track isn't in their library: `{ title, downloaded_at, start_at, end_at, added_at, plays, last_played_at }`.
+- `AlbumView`: the `albums_table` row, plus `artist: ArtistRef | null`, `artists: ArtistRef[]` (every `artist_albums_table` credit), `service_ids`, `thumbnails[]`, `itunes`.
+- `ArtistView`: the `artists_table` row, plus `service_ids`, `thumbnails[]`, `itunes`, `album_count`, `track_count`, and `in_library` (the caller has a library track crediting this artist).
+- `PlaylistView`: the `playlists_table` row, plus `owner: { id, username }`, `is_owner`, `track_count` (resolved, §10.3) and `thumbnails[]` (the best thumbnail of each of the first four resolved tracks).
+  - For the owner only, it also includes `inherited_searches[]` and `inherited_playlists[]` (the rows from the inheritance tables). Other users never see them (§10.1).
+
+### 16.3 The caller
+
+- `GET /me` → `{ user, stats: { tracks, playlists, plays } }`. `user` is the §8.1 `SyncUser`, without `password_hash`.
+- `GET /me/library`: the caller's non-deleted `user_tracks_table` tracks, as paged `TrackView`s.
+  - `sort`: any `sort_type` value, using `sort_playlist_tracks` (the same rules as §10.3). Default `ADDED_DATE_HILOW`.
+  - `q`: optional. Filtered with `track_query_filter` and lib-origin's `TRACK_QUERY_FLAGS`, exactly like a search-inherited playlist (§10.3).
+- `GET /me/playlists?include_archived&include_deleted` → `{ items: PlaylistView[] }`, not paged. Archived playlists are included by default, and deleted ones are not.
+- `GET /me/plays`: `track_plays_table`, newest first, as paged `{ id, client_id, created_at, track: TrackView }`.
+- `GET /me/recent_searches?limit` → `{ items }`, newest first.
+- `GET /me/linked_playlists` → `{ items }`.
+
+### 16.4 Playlists
+
+- `GET /playlists/:id` → `PlaylistView`.
+  - Readable by its owner, or by anyone when it is `public` and not `deleted`. Otherwise `404`, so a private playlist's existence isn't revealed (same as §10.2).
+- `GET /playlists/:id/tracks`: the **resolved** track list (§10.3) in the playlist's `sort_mode`, as paged `TrackView`s.
+  - Search inheritance always runs against the **owner's** library. A public playlist therefore shows everyone what its owner sees.
+  - The `user` overlay on each track is always the **caller's** own.
+- `GET /playlists/public?q&limit&cursor`: public, non-deleted playlists from every user, as paged `PlaylistView`s. `q` matches the title.
+  - The route is registered before `/playlists/:id`, and `:id` must be a UUID.
+- `GET /users/:id/playlists`: one user's public playlists, as paged `PlaylistView`s. For the caller's own id it behaves like `GET /me/playlists`.
+
+### 16.5 Catalog
+
+- `GET /tracks/:id` → `TrackView`.
+- `POST /tracks/batch` with `{ ids }` (at most 500) → `{ items: TrackView[], missing: string[] }`.
+  - Items follow `ids` order.
+  - A merged id comes back as its survivor, with `redirected_from` set.
+  - `missing` lists ids that don't exist.
+- `GET /tracks/:id/similar?limit` → `{ items: TrackView[] }`: nearest neighbours by track vector (§3). If the track has no vector yet, `items` is empty.
+- `GET /albums/:id` → `{ album: AlbumView, tracks: TrackView[] }`. Tracks are ordered by `album_tracks_table.track_number`, then title.
+- `GET /artists/:id` → `ArtistView`.
+- `GET /artists/:id/albums?album_type`: albums credited to the artist (`albums_table.artist_id` or `artist_albums_table`), as paged `AlbumView`s. Ordered by `artist_albums_table.position`, then newest `release_date` first.
+- `GET /artists/:id/tracks?sort=popular|newest|title`: tracks crediting the artist, as paged `TrackView`s.
+  - `popular` (the default) counts `track_plays_table` rows across all users.
+- `GET /artists/:id/similar?limit` → `{ items: ArtistView[] }`.
+  - `similar_artists_table` rows in either direction come first. They are treated as bidirectional, whether a pair is stored as one row or two.
+  - The list is then filled with artist-vector neighbours (§3), if there are any.
+
+### 16.6 Search: `GET /search`
+
+- Query:
+  - `q` (required, 1–256 characters);
+  - `types`: a comma-separated subset of `track,album,artist,playlist`, default all four;
+  - `scope`: `global` (default) or `library`;
+  - `limit`, and `cursor` (only valid when `types` names a single type).
+- Response: `{ tracks?, albums?, artists?, playlists? }`, one `{ items, next_cursor }` page per requested type. To page further through one type, repeat the query with `types=<that type>&cursor=…`.
+- **Matching**:
+  - Case- and accent-insensitive trigram matching on `tracks_table.title`, `albums_table.name`, `artists_table.name` and `playlists_table.title`.
+  - Tracks also match on their credited artists' names, so `artist title` queries work.
+  - Ranking: exact match, then prefix match, then trigram similarity. Ties are broken by total plays.
+- **Links and IDs**: if `q` is a recognisable service URL or ID (Spotify, Apple Music, YouTube or YouTube Music, SoundCloud, Deezer or Tidal links, or an ISRC), the server first looks it up in `service_ids_table`. Any hit is ranked first.
+- **Scope**:
+  - `library` limits tracks to the caller's non-deleted library, albums and artists to those of library tracks, and playlists to the caller's own.
+  - `global` searches the whole catalog, and playlists are public ones plus the caller's own.
+- Searching doesn't write `user_recent_searches`. Clients record searches themselves and push them through sync (§8.3).
+- **Schema change**: enable `pg_trgm` and `unaccent`, and add GIN trigram indexes on the four searched columns.
