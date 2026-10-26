@@ -27,6 +27,7 @@ type ActionType = { token: string } & (
 	| { type: 'CHECK_YOUTUBE_MUSIC'; track_id: string; query: string; youtube_id?: string }
 	| { type: 'UPLOAD_MEDIA'; track_id: string }
 	| { type: 'FETCH_NEW_RELEASES'; artist_id: string; service: string; service_artist_id: string; since: string }
+	| { type: 'RESEARCH_TRACK'; track_id: string; service: string; query: string; title: string; artists: string[]; duration_ms: number | null }
 	// more action types get added as services need them
 );
 ```
@@ -43,6 +44,7 @@ type ActionType = { token: string } & (
 | `CHECK_YOUTUBE_MUSIC` | Fetch YouTube Music lyrics for the track | `POST /ingest/youtube_music_lyrics` (§7) |
 | `UPLOAD_MEDIA` | Upload the audio file the user already downloaded for the track | `POST /tracks/:id/media` (§13) |
 | `FETCH_NEW_RELEASES` | Fetch an artist's recent releases from a service the user is logged into | `POST /ingest/new_releases` (§15) |
+| `RESEARCH_TRACK` | Look for an unavailable track on a download service | `POST /ingest/track_research` (§17) |
 
 ### 0.2 Action attestation
 
@@ -1040,6 +1042,7 @@ The server asks clients to upload audio they've **already downloaded locally**.
   - `GET /media/requests`, which returns `{ actions: [...] }` with every pending `UPLOAD_MEDIA` request for the user, in pages.
 - The upload (`POST /tracks/:id/media`) includes the action `token`, checked as in §0.2. Uploads without a token are still accepted, because uploading is open to any logged-in user.
 - As with every action, the client may ignore it. Once any user uploads media for a track, requests stop going out for that track to everyone.
+- Backpacked tracks (§17) are requested first.
 
 ---
 
@@ -1204,3 +1207,61 @@ Every list and detail endpoint returns these shapes:
   - `global` searches the whole catalog, and playlists are public ones plus the caller's own.
 - Searching doesn't write `user_recent_searches`. Clients record searches themselves and push them through sync (§8.3).
 - **Schema change**: enable `pg_trgm` and `unaccent`, and add GIN trigram indexes on the four searched columns.
+
+---
+
+## 17. Backpacked Tracks
+
+A track is **backpacked** when it can't be played or downloaded from the service a client uses for it (the video
+was removed, the upload was taken down). `tracks_table.backpacked` marks it for everyone, and `backpacked_at` records
+when it was first reported. The server then tries to get the track playable again: first by asking users who
+already downloaded it for a copy, then by asking users who have it in their library to find it somewhere else.
+
+### 17.1 Reporting: `POST /tracks/:id/unavailable`
+
+- Body: `{ service, reason? }`. `service` is one of `youtube`, `soundcloud`, `bandlab`, `audiomack`; `reason` is free text, up to 256 characters.
+- Follows merge redirects. Unknown tracks return `404`.
+- Each report is stored in `track_unavailable_reports_table`, one row per (track, user, service).
+- If the track already has a `media_table` row, it's playable through `GET /media`, so it isn't flagged. The response is `{ track_id, backpacked: false, has_media: true }`.
+- Otherwise it sets `backpacked = true` and bumps `modified_at` so the flag syncs to every client. `backpacked_at` is set on the first report and kept on later ones. The response is `{ track_id, backpacked: true, backpacked_at, has_media: false }`.
+
+### 17.2 Asking for a copy
+
+For the first `BACKPACK_UPLOAD_WINDOW_HOURS` (default 48) after `backpacked_at`, the only requests are `UPLOAD_MEDIA`
+actions (§13.4), with backpacked tracks put ahead of the user's other pending uploads.
+
+### 17.3 Research: `RESEARCH_TRACK`
+
+After the upload window, users who have the track in their library (and no media exists) get
+`{ type: 'RESEARCH_TRACK', token, track_id, service, query, title, artists, duration_ms }`. `query` is
+`Artist, Artist - Title`, ready to type into the service's search.
+
+- **Where requests come from**: up to 5 per `/sync/pull` (on the last page), and `GET /backpack/requests?limit=` (1–50, default 10).
+- **Service order**: services whose id column in `service_ids_table` is empty come first, since a result there can be written right away. Services that already hold a (dead) id come last.
+- **Pacing**, tracked per (track, service) in `track_research_table`:
+  - a handed-out request isn't repeated for `BACKPACK_RESEARCH_COOLDOWN_MIN` (default 60);
+  - a `NOT_FOUND` answer is retried after `BACKPACK_RESEARCH_RETRY_DAYS` (default 30);
+  - a `FOUND` service is never asked again.
+
+### 17.4 Submitting: `POST /ingest/track_research`
+
+- Body: `{ token, track_id, service, service_id }` when found, or `{ token, track_id, service, result: 'NOT_FOUND' }`.
+- The token must be a `RESEARCH_TRACK` token for that exact track and service (§0.2).
+- `service_id` may be an id or a link. It's normalized for the service's column: `youtube_id`, `soundcloud_permalink`, `bandlab_id` or `audiomack_id`. An unrecognisable value returns `422` and leaves the token unused.
+- A found id goes through the shared service-id writer (§4.4), with provenance source `research`:
+  - an empty column is filled and the track stops being backpacked (`backpacked = false`, `backpacked_at = null`);
+  - a different value on a filled column becomes a service id conflict for admin review, and the track stays backpacked.
+- Response: `{ track_id, service, status, applied, backpacked, conflict? }`.
+
+### 17.5 Clearing
+
+The flag is cleared when media is uploaded for the track (§13) or when a research result fills an empty column.
+Clients treat `backpacked` as "don't try the original service": they play the server copy if there is one, and
+otherwise show the track as unavailable.
+
+### 17.6 Schema
+
+- `tracks_table.backpacked_at` (nullable), with a partial index on it where `backpacked`.
+- `track_unavailable_reports_table (track_id, user_id, service, reason)`.
+- `track_research_table (track_id, service, status PENDING | FOUND | NOT_FOUND, requested_at, checked_at, checked_by, found_value)`.
+- `research` added to `provenance_source`.
