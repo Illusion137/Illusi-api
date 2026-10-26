@@ -1,5 +1,5 @@
-# Sample service for the analyzer (§2.9: a separate process; Express never spawns it, it only polls /health).
-# network_mode: host keeps it on 127.0.0.1 (§2.2 "listens on localhost only").
+# Sample service for the analyzer (a separate process; Express never spawns it, it only polls /health).
+# network_mode: host keeps it on 127.0.0.1 ("listens on localhost only").
 # Data directories are mounted read-only at the SAME absolute paths the API uses, because the API sends
 # absolute file paths (ANALYZER_TMP_DIR downloads and MEDIA_DIR/<resource_id>).
 services:

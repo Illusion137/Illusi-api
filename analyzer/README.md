@@ -1,7 +1,7 @@
 # Illusi music analyzer
 
 A small localhost HTTP API around [Mood-Detector](https://github.com/usr-wwelsh/Mood-Detector) and
-[VibeNet](https://github.com/jaeheonshim/vibenet) (REQUIREMENTS.md §2). It runs as its **own process**.
+[VibeNet](https://github.com/jaeheonshim/vibenet). It runs as its **own process**.
 Express never spawns it. Express only polls `GET /health` and sends file paths to `POST /analyze`.
 The analyzer has no database access and never deletes or modifies its input files.
 

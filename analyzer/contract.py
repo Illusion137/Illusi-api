@@ -1,4 +1,4 @@
-"""Pure helpers for the analyzer API contract (REQUIREMENTS.md §2.2). No third-party imports."""
+"""Pure helpers for the analyzer API contract. No third-party imports."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import re
 from typing import Any, Mapping, Optional, Sequence
 
-# VibeNet attribute -> response field. VibeNet `energy` is stored as `arousal` (§2.9).
+# VibeNet attribute -> response field. VibeNet `energy` is stored as `arousal`.
 VIBENET_FIELDS = {
     "acousticness": "acousticness",
     "instrumentalness": "instrumentalness",
@@ -62,7 +62,7 @@ def _unit(name: str, value: Any) -> float:
 
 
 def build_response(mood: str, tempo: Any, brightness_hz: Any, key: str, vibenet: Mapping[str, Any]) -> dict:
-    """Combines Mood-Detector and VibeNet output into the §2.2 response body."""
+    """Combines Mood-Detector and VibeNet output into the response body."""
     if not isinstance(mood, str) or not mood.strip():
         raise ModelError("empty mood")
     out = {

@@ -1,4 +1,4 @@
-"""Illusi music analyzer: a small localhost HTTP API around Mood-Detector + VibeNet (REQUIREMENTS.md §2).
+"""Illusi music analyzer: a small localhost HTTP API around Mood-Detector + VibeNet.
 
 GET  /health   -> 200 {"status":"ok"} once both models are loaded, 503 while loading / if loading failed.
 POST /analyze  {"path": "/abs/file"} -> 200 combined JSON | 400 bad path | 422 undecodable | 500 model failure
