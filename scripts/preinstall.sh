@@ -7,12 +7,13 @@
 #   bash preinstall.sh
 #
 # Installs Docker + compose + docker-rollout, a firewall, fail2ban, unattended upgrades and swap;
-# creates the `illusi` deploy user (the CI SSH target) and /opt/illusi with .env and random secrets;
+# creates the `illusi` deploy user (the CI SSH target) and /opt/illusi with .env, generating any secret it lacks
+# (run scripts/upload-env.sh from your machine first to use your own .env, database password included);
 # installs systemd timers for certificate renewal, nightly Postgres backups and image cleanup; then
 # runs the first deploy and issues the TLS certificate. Re-running only fills in what's missing.
 #
 # Env:
-#   DOMAIN, LETSENCRYPT_EMAIL   required on the first run (stored in .env afterwards)
+#   DOMAIN, LETSENCRYPT_EMAIL   required on the first run unless .env was uploaded first (stored in .env afterwards)
 #   DEPLOY_SSH_PUBKEY           public key CI uses to SSH in as `illusi`
 #   GHCR_USER, GHCR_TOKEN       registry login if the ghcr packages are private (read:packages)
 #   APP_DIR (/opt/illusi), APP_USER (illusi), REPO_URL, DOCKER_ROLLOUT_VERSION (v0.14)
@@ -95,9 +96,13 @@ fi
 
 log "app $APP_DIR"
 if [[ ! -d "$APP_DIR/.git" ]]; then
-	git clone --quiet "$REPO_URL" "$APP_DIR"
+	# init + fetch instead of clone: the directory may already hold a .env sent by scripts/upload-env.sh.
+	mkdir -p "$APP_DIR"
+	git -C "$APP_DIR" init --quiet
+	git -C "$APP_DIR" remote add origin "$REPO_URL"
 fi
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+[[ ! -f "$APP_DIR/.env" ]] || chmod 600 "$APP_DIR/.env"
 as_app() { sudo -u "$APP_USER" -H "$@"; }
 as_app git -C "$APP_DIR" fetch --quiet origin main
 as_app git -C "$APP_DIR" checkout --quiet --detach origin/main

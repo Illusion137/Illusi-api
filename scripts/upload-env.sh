@@ -5,6 +5,8 @@
 #
 #   scripts/upload-env.sh [--yes] [--no-apply] [--allow-db-password-change]
 #
+# On a fresh VPS run this before scripts/preinstall.sh: the database is then created with your POSTGRES_PASSWORD.
+#
 # SSH settings come from .secrets (see .secrets.example): IP, USER, SSH_KEY, SSH_PORT, DEPLOY_DIR.
 #
 # POSTGRES_PASSWORD is only read by Postgres when the data directory is first created, so changing it
@@ -60,7 +62,11 @@ fi
 # --- compare with the remote file ---
 echo "==> $USER@$IP:$dir/.env"
 remote_n true || die "cannot ssh to $USER@$IP (check IP, USER, SSH_KEY and SSH_PORT in .secrets)"
-remote_n "test -d $(printf %q "$dir")" || die "$dir does not exist on the VPS (run scripts/preinstall.sh there first)"
+if ! remote_n "test -d $(printf %q "$dir")"; then
+	# Before scripts/preinstall.sh: it keeps this .env (and its POSTGRES_PASSWORD) and fills in only what's empty.
+	echo "  $dir does not exist yet; creating it (run scripts/preinstall.sh on the VPS afterwards)"
+	remote_n "mkdir -p $(printf %q "$dir")" || die "cannot create $dir as $USER (use root, or run scripts/preinstall.sh first)"
+fi
 remote_n "cat $(printf %q "$dir/.env") 2>/dev/null" > "$tmp/remote" || true
 
 is_secret() { [[ "$1" =~ (SECRET|PASSWORD|TOKEN|KEY) ]]; }
