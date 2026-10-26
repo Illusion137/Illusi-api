@@ -1,0 +1,182 @@
+name: CI / Deploy
+
+# Secrets (environment "production"):
+#   DEPLOY_HOST           VPS hostname or IP
+#   DEPLOY_USER           ssh user created by scripts/preinstall.sh (default illusi)
+#   DEPLOY_SSH_KEY        private key whose public half was given to preinstall (DEPLOY_SSH_PUBKEY)
+#   DEPLOY_KNOWN_HOSTS    output of `ssh-keyscan -t ed25519 <host>`
+# Variables (optional): LIB_ORIGIN_REF (default main), DEPLOY_DIR (default /opt/illusi)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LIB_ORIGIN_REF: ${{ vars.LIB_ORIGIN_REF || 'main' }}
+  API_IMAGE: ghcr.io/illusion137/illusi-api
+  ANALYZER_IMAGE: ghcr.io/illusion137/illusi-analyzer
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Fetch lib-origin
+        run: scripts/fetch-lib-origin.sh
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck (src against lib-origin)
+        run: |
+          npx tsc --noEmit -p . > tsc.log || true
+          if grep -E '^src/' tsc.log; then exit 1; fi
+          echo "src: no type errors ($(grep -c 'error TS' tsc.log || true) lib-origin errors under this tsconfig, ignored)"
+      - run: npm run lint
+      - run: npm test
+      - name: Migrations match the schema
+        run: |
+          npx drizzle-kit generate --name=ci_drift_check
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::src/db/schema.ts has changes without a migration. Run npm run db:generate and commit drizzle/."
+            git status --porcelain drizzle
+            exit 1
+          fi
+        env:
+          DATABASE_URL: postgres://unused@localhost/unused
+      - name: Shell scripts
+        run: shellcheck -S warning scripts/*.sh scripts/lib/*.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Analyzer compiles
+        run: python -m py_compile analyzer/*.py
+      - name: Compose file is valid
+        run: |
+          cp deploy/.env.production.example .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=x/' .env
+          touch .env.deploy
+          docker compose --env-file .env --env-file .env.deploy config --quiet
+
+  # API + Postgres end to end (tests/integration). Runs locally with `act -j integration` (see tests/integration/README.md).
+  integration:
+    runs-on: ubuntu-latest
+    # A job container puts the postgres service on the same network, reachable by name (also under act).
+    container: node:24-bookworm
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-bookworm
+        env:
+          POSTGRES_USER: illusi
+          POSTGRES_PASSWORD: illusi
+          POSTGRES_DB: illusi
+        options: >-
+          --health-cmd "pg_isready -U illusi -d illusi"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://illusi:illusi@postgres:5432/illusi
+      JWT_ACCESS_SECRET: integration-access-secret-0000000000000000
+      ACTION_TOKEN_SECRET: integration-action-secret-0000000000000000
+      BACKGROUND_SERVICES: 'false'
+      LYRICS_SERVERS_STUB: not_found
+      MEDIA_DIR: /tmp/illusi/media
+      ANALYZER_TMP_DIR: /tmp/illusi/analyzer_tmp
+      PORT: '3000'
+      API_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: apt-get update -qq && apt-get install -y -qq rsync postgresql-client > /dev/null
+      - name: Fetch lib-origin
+        # act runs against a working copy that already has ./lib-origin: --env LIB_ORIGIN_SOURCE=workspace skips this.
+        if: env.LIB_ORIGIN_SOURCE != 'workspace'
+        run: scripts/fetch-lib-origin.sh
+      - run: npm ci --no-audit --no-fund
+      - name: Migrate (twice, to prove it is idempotent)
+        run: npm run db:migrate && npm run db:migrate
+      - name: Start the API
+        run: |
+          mkdir -p "$MEDIA_DIR" "$ANALYZER_TMP_DIR"
+          nohup node --import tsx src/index.ts > api.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -sf "$API_URL/health" > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat api.log
+          exit 1
+      - run: npm run test:integration
+      - name: API warnings and errors
+        if: always()
+        run: |
+          grep -E ' (WARN|ERROR) \[' api.log || echo "no warnings or errors logged"
+      - name: API log tail
+        if: failure()
+        run: tail -n 200 api.log
+
+  build:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [check, integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch lib-origin
+        run: scripts/fetch-lib-origin.sh
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: |
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+            ${{ env.API_IMAGE }}:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Analyzer image
+        uses: docker/build-push-action@v6
+        with:
+          context: analyzer
+          push: true
+          tags: |
+            ${{ env.ANALYZER_IMAGE }}:${{ github.sha }}
+            ${{ env.ANALYZER_IMAGE }}:latest
+          cache-from: type=gha,scope=analyzer
+          cache-to: type=gha,mode=max,scope=analyzer
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Configure ssh
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "${{ secrets.DEPLOY_USER || 'illusi' }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd ${{ vars.DEPLOY_DIR || '/opt/illusi' }} && scripts/deploy.sh ${{ github.sha }}"
