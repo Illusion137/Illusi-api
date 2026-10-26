@@ -28,6 +28,7 @@
   "main": "index.ts",
   "dependencies": {
     "@sentry/node": "^11.9.0",
+    "@sentry/profiling-node": "^11.9.0",
     "argon2": "^0.45.1",
     "buffer": "^6.0.3",
     "busboy": "^1.6.0",
