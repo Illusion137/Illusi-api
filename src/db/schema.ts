@@ -63,7 +63,7 @@ export const review_kind = pgEnum('review_kind', REVIEW_KINDS);
 export const REVIEW_STATUSES = ['OPEN', 'APPLIED', 'DISMISSED'] as const;
 export const review_status = pgEnum('review_status', REVIEW_STATUSES);
 
-export const PROVENANCE_SOURCES = ['contribute', 'sync_push', 'soundcloud', 'genius', 'youtube_music', 'media'] as const;
+export const PROVENANCE_SOURCES = ['contribute', 'sync_push', 'soundcloud', 'genius', 'youtube_music', 'media', 'research'] as const;
 export const provenance_source = pgEnum('provenance_source', PROVENANCE_SOURCES);
 
 const timestamptz = () => timestamp({ withTimezone: true });
@@ -474,11 +474,14 @@ export const tracks_table = pgTable('tracks_table', {
 	duration_ms: bigint({ mode: 'number' }),
 	explicit: boolean(),
 	imported: boolean().notNull().default(false),
+	/** No client could play or download it; set by an unavailable report, cleared by media or a research result. */
 	backpacked: boolean().notNull().default(false),
+	backpacked_at: timestamptz(),
 	...timestamps
 }, table => [
 	index('tracks_album_id_idx').on(table.album_id),
 	index('tracks_modified_at_idx').on(table.modified_at),
+	index('tracks_backpacked_at_idx').on(table.backpacked_at).where(sql`${table.backpacked}`),
 	index('tracks_search_trgm_idx').using('gin', sql`illusi_search_text(${table.title}) gin_trgm_ops`)
 ]);
 export const tracks_artists_table = pgTable('tracks_artists_table', {
@@ -806,3 +809,31 @@ export const artist_release_checks_table = pgTable('artist_release_checks_table'
 	checked_by: uuid().references(() => users_table.id, { onDelete: 'set null' }),
 	...timestamps
 }, table => [primaryKey({ columns: [table.artist_id, table.service] })]);
+
+/** Services a backpacked track can be researched on: the ones clients download from. */
+export const RESEARCH_SERVICES = ['youtube', 'soundcloud', 'bandlab', 'audiomack'] as const;
+export const RESEARCH_STATUSES = ['PENDING', 'FOUND', 'NOT_FOUND'] as const;
+export const research_status = pgEnum('research_status', RESEARCH_STATUSES);
+
+/** One row per user and service that reported a track unplayable. */
+export const track_unavailable_reports_table = pgTable('track_unavailable_reports_table', {
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	service: varchar({ length: 32 }).notNull(),
+	reason: varchar({ length: 256 }),
+	...timestamps
+}, table => [primaryKey({ columns: [table.track_id, table.user_id, table.service] })]);
+
+/** RESEARCH_TRACK progress for a backpacked track on one service. */
+export const track_research_table = pgTable('track_research_table', {
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	service: varchar({ length: 32 }).notNull(),
+	status: research_status().notNull().default('PENDING'),
+	/** Last time a RESEARCH_TRACK action was handed out for this pair. */
+	requested_at: timestamptz(),
+	checked_at: timestamptz(),
+	checked_by: uuid().references(() => users_table.id, { onDelete: 'set null' }),
+	/** The id a client found, kept even when it couldn't be applied (conflict). */
+	found_value: varchar({ length: 512 }),
+	...timestamps
+}, table => [primaryKey({ columns: [table.track_id, table.service] })]);
