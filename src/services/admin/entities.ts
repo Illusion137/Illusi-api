@@ -21,7 +21,7 @@ const TABLE_ALIASES: Record<string, EditableTable> = {
 };
 
 export function resolve_table(name: string): EditableTable | null {
-	return TABLE_ALIASES[name] ?? null;
+	return Object.hasOwn(TABLE_ALIASES, name) ? TABLE_ALIASES[name] : null;
 }
 
 const nullable_uuid = z.uuid().nullable();

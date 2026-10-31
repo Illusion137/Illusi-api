@@ -5,7 +5,8 @@ import pg from 'pg';
 export const API_URL = (process.env.API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/u, '');
 /** Versioned API base; `/health` lives at the root (`root: true`). */
 export const API_BASE = `${API_URL}/api/v1`;
-export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+/** Direct database access for setup and assertions: the table owner, so row-level security doesn't hide anything. */
+export const pool = new pg.Pool({ connectionString: process.env.MIGRATE_DATABASE_URL || process.env.DATABASE_URL, max: 4 });
 
 export const uuid = () => randomUUID();
 export const days_ago = (days: number) => new Date(Date.now() - days * 86_400_000);
@@ -58,12 +59,14 @@ function jwt_sub(token: string): string {
 	return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub as string;
 }
 
-export async function create_user(name = 'user'): Promise<TestUser> {
+/** Registers a user; `verified: false` leaves the email unconfirmed. */
+export async function create_user(name = 'user', { verified = true } = {}): Promise<TestUser> {
 	const email = `${unique(name)}@example.test`;
 	const password = `pw-${randomBytes(8).toString('hex')}`;
 	const ip = fresh_ip();
 	const res = await api('POST', '/auth/register', { ip, body: { username: name, email, password } });
 	if (res.status !== 201) throw new Error(`register failed: ${res.status} ${res.text}`);
+	if (verified) await pool.query('update users_table set email_verified_at = now() where email = $1', [email]);
 	return { id: jwt_sub(res.body.access_token), email, password, ip, access_token: res.body.access_token, refresh_token: res.body.refresh_token };
 }
 
@@ -125,7 +128,7 @@ export function wav_bytes(seed = 0, samples = 800): Buffer {
 }
 
 /** A mock catalog: one artist with an album of `n` tracks, as a contribution graph. */
-export function mock_album(opts: { artist: string; album: string; n?: number; release_date?: Date; album_type?: 'ALBUM' | 'SINGLE' | 'EP'; tag?: string }) {
+export function mock_album(opts: { artist: string; album: string; n?: number; release_date?: Date; album_type?: 'ALBUM' | 'SINGLE' | 'EP'; tag?: string; imported?: boolean }) {
 	const tag = opts.tag ?? randomBytes(3).toString('hex');
 	const n = opts.n ?? 3;
 	const tracks = Array.from({ length: n }, (_, i) => ({
@@ -133,6 +136,7 @@ export function mock_album(opts: { artist: string; album: string; n?: number; re
 		title: `${opts.album} Track ${i + 1}`,
 		album_ref: 'al',
 		duration_ms: 180_000 + i * 1_000,
+		...(opts.imported ? { imported: true } : {}),
 		service_ids: { spotify_id: `sp${tag}t${i}`.padEnd(22, '0').slice(0, 22), isrc: `US${tag.slice(0, 3).toUpperCase()}${String(parseInt(tag, 16) % 100_000 * 100 + i).padStart(7, '0')}` }
 	}));
 	return {

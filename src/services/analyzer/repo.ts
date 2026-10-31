@@ -2,11 +2,11 @@ import { desc, eq, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
-import { itunes_tracks_table, media_table, service_ids_table, track_sample_data_table, track_sample_lookups_table } from '../../db/schema';
+import { itunes_tracks_table, media_table, service_ids_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table } from '../../db/schema';
 import { write_vector } from '../vectors';
-import type { SampleInsert } from './contract';
+import type { SampleInsert, VocalsResult } from './contract';
 import type { LookupState, SampleLookupStatus, SampleSource, SourceCandidate } from './decisions';
-import { choose_source, next_attempts } from './decisions';
+import { choose_source, next_attempts, source_eligible } from './decisions';
 
 export interface LookupRow extends LookupState { attempts: number }
 
@@ -90,6 +90,51 @@ export async function record_lookup(ex: Executor, track_id: string, source: Reso
 		target: [track_sample_lookups_table.track_id, track_sample_lookups_table.source],
 		set: { status, attempts: values.attempts, attempted_at: values.attempted_at, retry_after, source_ref: source.ref }
 	});
+}
+
+/** Track ids whose newest media file has no vocals result and no failure blocking it (`source_eligible` rules). */
+export async function eligible_vocals_track_ids(): Promise<string[]> {
+	const rows = await db.execute<{ track_id: string }>(sql`
+		select lm.track_id from (
+			select distinct on (m.track_id) m.track_id, m.resource_id from media_table m order by m.track_id, m.id desc
+		) lm
+		left join track_vocals_table v on v.track_id = lm.track_id
+		where v.track_id is null
+			or v.resource_id <> lm.resource_id
+			or (v.status = 'ERROR' and (v.retry_after is null or v.retry_after <= now()))`, 'objects');
+	return rows.map(r => r.track_id);
+}
+
+export interface VocalsTarget { resource_id: string; prior: LookupRow | null }
+
+/** The media file a vocals job should analyze right now, or null (no media / already done / blocked). */
+export async function resolve_vocals_target(track_id: string): Promise<VocalsTarget | null> {
+	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
+		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
+	if (!media) return null;
+	const [row] = await db.select().from(track_vocals_table).where(eq(track_vocals_table.track_id, track_id));
+	const prior: LookupRow | null = row ? { status: row.status, retry_after: row.retry_after, source_ref: row.resource_id, attempts: row.attempts } : null;
+	return source_eligible(prior, media.resource_id) ? { resource_id: media.resource_id, prior } : null;
+}
+
+/** Stores a vocals result (DONE) or failure for the target's file. A failure clears results from an older file. */
+export async function record_vocals(track_id: string, target: VocalsTarget, status: SampleLookupStatus, retry_after: Date | null, result: VocalsResult | null): Promise<void> {
+	const now = new Date();
+	const values = {
+		resource_id: target.resource_id,
+		status,
+		attempts: next_attempts(target.prior, target.resource_id),
+		attempted_at: now,
+		retry_after,
+		model: result?.model ?? null,
+		hop_ms: result?.hop_ms ?? null,
+		window_ms: result?.window_ms ?? null,
+		duration_ms: result?.duration_ms ?? null,
+		voice: result?.voice ?? null,
+		segments: result?.segments ?? null
+	};
+	await db.insert(track_vocals_table).values({ track_id, ...values })
+		.onConflictDoUpdate({ target: track_vocals_table.track_id, set: { ...values, modified_at: now } });
 }
 
 /** Inserts the sample (first sample wins), its vector, and the DONE lookup in one transaction. */

@@ -11,6 +11,7 @@ import { media_table, tracks_table } from '../../db/schema';
 import { issue_actions } from '../../core/actions';
 import type { ActionType } from '../../core/actions';
 import type { AuthUser } from '../../core/auth/tokens';
+import { require_disk_space } from '../../core/disk';
 import { HttpError, parse_body, require_user, uuid_schema } from '../../core/http';
 import { logger } from '../../core/log';
 import { resolve_redirect } from '../../core/redirects';
@@ -18,6 +19,7 @@ import { parse_range } from './range';
 import { resource_ext, resource_path } from './resource_id';
 import { MIME_BY_EXT } from './sniff';
 import { backpacked_upload_track_ids, pending_upload_track_ids, store_upload, user_can_access_tracks } from './store';
+import { M4A_KIND, transcode_to_m4a } from './transcode';
 import { receive_upload } from './upload';
 
 export { parse_range } from './range';
@@ -34,7 +36,7 @@ const upload_fields_schema = z.object({
 	token: z.string().min(1).max(4096).optional()
 });
 
-media_router.post('/tracks/:id/media', async (req, res) => {
+media_router.post('/tracks/:id/media', require_disk_space, async (req, res) => {
 	const user = require_user(req);
 	const requested = uuid_schema.safeParse(req.params.id);
 	if (!requested.success) throw new HttpError(400, 'invalid track id');
@@ -45,28 +47,35 @@ media_router.post('/tracks/:id/media', async (req, res) => {
 		throw new HttpError(404, 'track not found');
 	}
 
+	const incoming_dir = path.join(config.MEDIA_DIR, '.incoming');
 	let upload;
 	try {
-		upload = await receive_upload(req, path.join(config.MEDIA_DIR, '.incoming'), config.MEDIA_MAX_BYTES);
+		upload = await receive_upload(req, incoming_dir, config.MEDIA_MAX_BYTES);
 	} catch (err) {
 		res.setHeader('Connection', 'close');
 		throw err;
 	}
+	let encoded: string | undefined;
 	try {
 		const fields = parse_body(upload_fields_schema, upload.fields);
+		encoded = await transcode_to_m4a(upload.temp_path, incoming_dir);
+		// Dedupe stays keyed on the uploaded bytes: the encoder output isn't byte-stable across ffmpeg versions.
 		const result = await store_upload({
 			user,
 			requested_id: requested.data,
 			track_id,
-			upload,
+			upload: { ...upload, temp_path: encoded, kind: M4A_KIND },
 			quality: fields.quality ?? null,
 			token: fields.token ?? null
 		});
-		if (!result.duplicate) log.info('media stored', { track_id, resource_id: result.media.resource_id, bytes: upload.size, user_id: user.id });
+		if (!result.duplicate) {
+			log.info('media stored', { track_id, resource_id: result.media.resource_id, uploaded_bytes: upload.size, source: upload.kind.ext, user_id: user.id });
+		}
 		res.status(result.duplicate ? 200 : 201).json(result);
 	} finally {
-		// Gone already if it was moved into place.
+		// The encoded file is gone already if it was moved into place.
 		await rm(upload.temp_path, { force: true });
+		if (encoded !== undefined) await rm(encoded, { force: true });
 	}
 });
 
@@ -122,13 +131,20 @@ media_router.get('/media/:resource_id', async (req, res) => {
 
 	// Stored media never changes, so the resource id is a strong validator.
 	const etag = `"${resource_id}"`;
-	const if_range = req.headers['if-range'];
-	const range = if_range === undefined || if_range === etag ? parse_range(req.headers.range, size) : { type: 'full' as const };
-
-	res.setHeader('Accept-Ranges', 'bytes');
 	res.setHeader('ETag', etag);
 	res.setHeader('Content-Type', MIME_BY_EXT[ext]);
 	res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+
+	if (config.MEDIA_ACCEL_PREFIX) {
+		// nginx serves the file itself (ranges, If-Range against this ETag, sendfile); Node is done.
+		res.setHeader('X-Accel-Redirect', `${config.MEDIA_ACCEL_PREFIX}${resource_id}`);
+		res.end();
+		return;
+	}
+
+	const if_range = req.headers['if-range'];
+	const range = if_range === undefined || if_range === etag ? parse_range(req.headers.range, size) : { type: 'full' as const };
+	res.setHeader('Accept-Ranges', 'bytes');
 
 	if (range.type === 'unsatisfiable') {
 		res.setHeader('Content-Range', `bytes */${size}`);

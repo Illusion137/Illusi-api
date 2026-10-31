@@ -28,6 +28,46 @@ export const analyze_response_schema = z.object({
 
 export type AnalyzeResponse = z.infer<typeof analyze_response_schema>;
 
+const ms = z.number().int().nonnegative();
+
+/**
+ * `POST /vocals` response: `voice[i]` is the voice probability of the window `[i * hop_ms, i * hop_ms + window_ms)`,
+ * `segments` the voiced spans derived from it.
+ */
+export const vocals_response_schema = z.object({
+	model: z.string().trim().min(1).max(128),
+	hop_ms: z.number().int().positive(),
+	window_ms: z.number().int().positive(),
+	duration_ms: ms,
+	voice: z.array(unit).max(200_000),
+	segments: z.array(z.object({ start_ms: ms, end_ms: ms }).refine(s => s.end_ms >= s.start_ms)).max(20_000)
+});
+
+export interface VocalsResult {
+	model: string;
+	hop_ms: number;
+	window_ms: number;
+	duration_ms: number;
+	voice: number[];
+	/** Flat `[start_ms, end_ms, ...]`, as stored. */
+	segments: number[];
+}
+
+/** Validates a `/vocals` response; null when it breaks the contract (treated like a model failure). */
+export function map_vocals(body: unknown): VocalsResult | null {
+	const parsed = vocals_response_schema.safeParse(body);
+	if (!parsed.success) return null;
+	const { segments, ...rest } = parsed.data;
+	return { ...rest, segments: segments.flatMap(s => [s.start_ms, s.end_ms]) };
+}
+
+/** Stored flat segments back to `{ start_ms, end_ms }` pairs. */
+export function unflatten_segments(flat: readonly number[]): { start_ms: number; end_ms: number }[] {
+	const out: { start_ms: number; end_ms: number }[] = [];
+	for (let i = 0; i + 1 < flat.length; i += 2) out.push({ start_ms: flat[i], end_ms: flat[i + 1] });
+	return out;
+}
+
 const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
 /** Normalizes any accepted key spelling to the stored `varchar(5)` form: sharps, `m` suffix for minor. */

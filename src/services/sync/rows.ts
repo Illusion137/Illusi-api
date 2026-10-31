@@ -1,5 +1,5 @@
 /** Row loaders shared by pull (changed rows) and push (authoritative rows it touched). */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, getColumns, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
@@ -41,12 +41,17 @@ function itunes_row(entity_type: ItunesFields['entity_type'], r: { id: string; e
 	return { id: r.id, entity_type, explicitness: r.explicitness ?? null, release_date: r.release_date ?? null, primary_genre_name: r.primary_genre_name, artwork_url: r.a600 ?? r.a100 ?? null };
 }
 
+// The folded search columns are server-side lookup helpers, not part of the synced rows.
+const { search_title: _track_search, ...track_columns } = getColumns(tracks_table);
+const { search_name: _album_search, ...album_columns } = getColumns(albums_table);
+const { search_name: _artist_search, ...artist_columns } = getColumns(artists_table);
+
 /** Track rows with joins, service ids, thumbnails, sample data and selected iTunes fields. Lyrics are added by the caller. */
 export async function load_track_bundles(ex: Executor, track_ids: readonly string[], into: SyncRows) {
 	if (track_ids.length === 0) return;
 	const ids = [...track_ids];
 	const [tracks, tracks_artists, album_tracks, producers, sample_data, itunes] = await all_queries(ex, [
-		ex.select().from(tracks_table).where(inArray(tracks_table.id, ids)),
+		ex.select(track_columns).from(tracks_table).where(inArray(tracks_table.id, ids)),
 		ex.select().from(tracks_artists_table).where(inArray(tracks_artists_table.track_id, ids)),
 		ex.select().from(album_tracks_table).where(inArray(album_tracks_table.track_id, ids)),
 		ex.select({ track_id: tracks_producers_table.track_id, producer_id: tracks_producers_table.producer_id, name: genius_artists_table.name })
@@ -75,7 +80,7 @@ export async function load_album_bundles(ex: Executor, album_ids: readonly strin
 	if (album_ids.length === 0) return;
 	const ids = [...album_ids];
 	const [albums, artist_albums, itunes] = await all_queries(ex, [
-		ex.select().from(albums_table).where(inArray(albums_table.id, ids)),
+		ex.select(album_columns).from(albums_table).where(inArray(albums_table.id, ids)),
 		ex.select().from(artist_albums_table).where(inArray(artist_albums_table.album_id, ids)),
 		ex.select({
 			id: service_ids_table.illusi_id,
@@ -96,7 +101,7 @@ export async function load_artist_bundles(ex: Executor, artist_ids: readonly str
 	if (artist_ids.length === 0) return;
 	const ids = [...artist_ids];
 	const [artists, itunes] = await all_queries(ex, [
-		ex.select().from(artists_table).where(inArray(artists_table.id, ids)),
+		ex.select(artist_columns).from(artists_table).where(inArray(artists_table.id, ids)),
 		ex.select({ id: service_ids_table.illusi_id, primary_genre_name: itunes_artists_table.primary_genre_name })
 			.from(service_ids_table).innerJoin(itunes_artists_table, sql`${itunes_artists_table.id} = ${applemusic_bigint}`).where(inArray(service_ids_table.illusi_id, ids))
 	]);

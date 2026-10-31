@@ -1,9 +1,12 @@
 import express from 'express';
-import { require_admin, require_auth } from './core/auth/middleware';
+import { require_admin, require_auth, require_verified } from './core/auth/middleware';
 import { config } from './config';
+import { cors } from './core/cors';
 import { health_router } from './core/health';
 import { error_handler } from './core/http';
+import { request_context } from './core/request_id';
 import { auth_router } from './routes/auth';
+import { account_router } from './services/account';
 import { admin_router } from './services/admin';
 import { backpack_router } from './services/backpack';
 import { catalog_router } from './services/catalog';
@@ -13,6 +16,7 @@ import { media_router } from './services/media';
 import { playlists_router } from './services/playlists';
 import { releases_router } from './services/releases';
 import { soundcloud_router } from './services/soundcloud';
+import { service_catalog_router } from './services/service_catalog';
 import { sync_router } from './services/sync';
 
 /** Every client-facing route lives under this prefix; `/health` stays at the root for infrastructure. */
@@ -23,6 +27,8 @@ export function create_app() {
 	app.disable('x-powered-by');
 	app.set('trust proxy', parse_trust_proxy(config.TRUST_PROXY));
 
+	app.use(request_context);
+	app.use(cors(config.CORS_ALLOWED_DOMAIN));
 	app.use(health_router);
 	app.use(API_PREFIX, api_v1());
 
@@ -35,17 +41,19 @@ function api_v1() {
 	const api = express.Router();
 	api.use('/auth', auth_router);
 
-	// Everything below requires a valid access token.
-	api.use(require_auth);
+	// Everything below requires a valid access token and a confirmed email address.
+	api.use(require_auth, require_verified);
 	api.use('/admin', require_admin, admin_router);
 	api.use(sync_router);
 	api.use(entities_router);
 	api.use(lyrics_router);
 	api.use(soundcloud_router);
+	api.use(service_catalog_router);
 	api.use(playlists_router);
 	api.use(media_router);
 	api.use(releases_router);
 	api.use(backpack_router);
+	api.use(account_router);
 	api.use(catalog_router);
 	return api;
 }

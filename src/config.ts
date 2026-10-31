@@ -5,7 +5,10 @@ import { z } from 'zod';
 const num = (fallback: number) => z.coerce.number().default(fallback);
 
 const schema = z.object({
+	/** Role used for authenticated requests; row-level security applies to it. */
 	DATABASE_URL: z.string().min(1),
+	/** Table owner (bypasses RLS): migrations, background jobs and pre-authentication requests. Falls back to DATABASE_URL. */
+	MIGRATE_DATABASE_URL: z.string().optional(),
 	PORT: num(3000),
 	NODE_ENV: z.string().default('development'),
 	/** Express `trust proxy`. Behind the compose nginx-proxy the peer is a private docker address. */
@@ -28,6 +31,16 @@ const schema = z.object({
 	REFRESH_TOKEN_TTL_DAYS: num(60),
 	ACTION_TOKEN_TTL_S: num(10 * 60),
 
+	/** Resend API key. Unset logs the verification link instead of sending it (development and CI). */
+	RESEND_API_KEY: z.string().optional(),
+	/** Verified Resend sender, e.g. `Illusi <no-reply@mail.sumii.me>`. */
+	EMAIL_FROM: z.string().default('Illusi <no-reply@sumii.me>'),
+	/** Public base URL of this API, used in the confirmation link. */
+	PUBLIC_API_URL: z.string().default('http://localhost:3000'),
+	EMAIL_VERIFICATION_TTL_HOURS: num(24),
+	/** Browsers may call the API from this domain and its subdomains (https only). */
+	CORS_ALLOWED_DOMAIN: z.string().default('sumii.me'),
+
 	ITUNES_COUNTRY: z.string().default('US'),
 	ITUNES_LIVE_TO_BACKFILL: z.string().default('3:1'),
 	ITUNES_REQUEST_INTERVAL_MS: num(3100),
@@ -42,6 +55,29 @@ const schema = z.object({
 	ANALYZER_JOB_TIMEOUT_MS: num(5 * 60_000),
 	MEDIA_DIR: z.string().default(path.resolve('data/media')),
 	MEDIA_MAX_BYTES: num(200 * 1024 * 1024),
+	/** Behind nginx: `GET /media/:id` answers with `X-Accel-Redirect: <prefix><resource_id>` and nginx serves the file. Empty streams it from Node. */
+	MEDIA_ACCEL_PREFIX: z.string().regex(/^(\/[a-z_]+\/)?$/u).default(''),
+	/** Uploads are stored as AAC `.m4a`; non-AAC input is encoded at this bitrate (ffmpeg `-b:a`). */
+	MEDIA_AAC_BITRATE: z.string().regex(/^\d+k$/u).default('256k'),
+	MEDIA_TRANSCODE_CONCURRENCY: num(2),
+	MEDIA_TRANSCODE_TIMEOUT_MS: num(10 * 60_000),
+	/** Below this much free disk space an error goes to Sentry (time to upgrade storage). */
+	DISK_WARN_FREE_GB: num(10),
+	/** Below this much free disk space every file upload is refused with 507; database writes continue. */
+	DISK_MIN_FREE_GB: num(5),
+
+	/** Playlist artwork uploads: largest accepted file, and the longest side it is scaled down to (stored as JPEG). */
+	ARTWORK_MAX_BYTES: num(10 * 1024 * 1024),
+	ARTWORK_MAX_PX: num(1024),
+
+	/** Data exports are kept this long after they're ready, and a user can request one per cooldown. */
+	EXPORT_TTL_DAYS: num(7),
+	EXPORT_COOLDOWN_HOURS: num(24),
+
+	/** Log files: `LOG_DIR/<LOG_SERVICE>-<day>.log`, kept LOG_RETENTION_DAYS. Empty LOG_DIR logs to the console only. Read by core/log.ts. */
+	LOG_DIR: z.string().default(''),
+	LOG_SERVICE: z.string().default('app'),
+	LOG_RETENTION_DAYS: num(7),
 
 	LYRICS_RECHECK_AFTER_DAYS: num(14),
 	LYRICS_ERROR_RETRY_MINUTES: num(10),

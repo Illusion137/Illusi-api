@@ -8,16 +8,18 @@ import { on } from '../../core/events';
 import { logger } from '../../core/log';
 import { rebuild_stale_vectors } from '../vectors';
 import { call_analyze, check_health, download_to, is_abort, JobError, sleep } from './client';
-import { map_analysis } from './contract';
-import type { JobFailure, SampleSource } from './decisions';
+import { map_analysis, map_vocals } from './contract';
+import type { JobFailure, SampleLookupStatus, SampleSource } from './decisions';
 import { assert_tmp_dir_safe, decide_failure, health_backoff_ms, is_strictly_inside, may_delete, next_attempts, preview_extension, safe_media_path } from './decisions';
 import { JobQueue } from './queue';
 import type { ResolvedSource } from './repo';
-import { eligible_track_ids, record_lookup, resolve_source, save_sample } from './repo';
+import { eligible_track_ids, eligible_vocals_track_ids, record_lookup, record_vocals, resolve_source, resolve_vocals_target, save_sample } from './repo';
 
 const log = logger('analyzer');
 
 interface Job {
+	/** `sample`: `/analyze` on media or an iTunes preview. `vocals`: `/vocals`, on full media files only. */
+	kind: 'sample' | 'vocals';
 	track_id: string;
 	/** Source named by the live trigger, tried first. */
 	prefer?: SampleSource;
@@ -25,7 +27,11 @@ interface Job {
 	analyzer_5xx: number;
 }
 
-const queue = new JobQueue<Job>(job => job.track_id);
+/** Failures of the analysis itself (reported to Sentry with the file path); download problems are only logged. */
+const ANALYZER_FAILURES = new Set<JobFailure['kind']>(['bad_file', 'analyzer_unavailable', 'timeout', 'internal']);
+
+const job_key = (job: Pick<Job, 'kind' | 'track_id'>) => `${job.kind}:${job.track_id}`;
+const queue = new JobQueue<Job>(job_key);
 let tmp_dir = path.resolve(config.ANALYZER_TMP_DIR);
 let media_dir = path.resolve(config.MEDIA_DIR);
 
@@ -39,17 +45,18 @@ let gate = new Promise<void>(() => undefined);
 let gate_pending = true;
 
 function enqueue(job: Omit<Job, 'analyzer_5xx'>) {
-	if (queue.push({ ...job, analyzer_5xx: 0 })) log.debug(`queued ${job.track_id}`, job.prefer);
+	if (queue.push({ ...job, analyzer_5xx: 0 })) log.debug(`queued ${job.kind} ${job.track_id}`, job.prefer);
 }
 
 function register_listeners() {
 	if (listeners_registered) return;
 	listeners_registered = true;
 	on('itunes_track_linked', ({ track_id, preview_url }) => {
-		if (preview_url) enqueue({ track_id, prefer: 'itunes_preview' });
+		if (preview_url) enqueue({ kind: 'sample', track_id, prefer: 'itunes_preview' });
 	});
 	on('media_inserted', ({ track_id }) => {
-		enqueue({ track_id, prefer: 'media' });
+		enqueue({ kind: 'sample', track_id, prefer: 'media' });
+		enqueue({ kind: 'vocals', track_id });
 	});
 }
 
@@ -97,17 +104,19 @@ async function empty_tmp_dir() {
 	if (entries.length > 0) log.info(`removed ${entries.length} temp file(s)`);
 }
 
-async function local_path(job: Job, source: ResolvedSource): Promise<{ file: string; temp: boolean }> {
-	if (source.source === 'media') {
-		const file = safe_media_path(media_dir, source.ref);
-		if (!file) throw new JobError({ kind: 'bad_file', detail: `unsafe resource id ${source.ref}` });
-		try {
-			await access(file, constants.R_OK);
-		} catch {
-			throw new JobError({ kind: 'bad_file', detail: `media file missing: ${file}` });
-		}
-		return { file, temp: false };
+async function media_file(resource_id: string): Promise<string> {
+	const file = safe_media_path(media_dir, resource_id);
+	if (!file) throw new JobError({ kind: 'bad_file', detail: `unsafe resource id ${resource_id}` });
+	try {
+		await access(file, constants.R_OK);
+	} catch {
+		throw new JobError({ kind: 'bad_file', detail: `media file missing: ${file}` });
 	}
+	return file;
+}
+
+async function local_path(job: Job, source: ResolvedSource): Promise<{ file: string; temp: boolean }> {
+	if (source.source === 'media') return { file: await media_file(source.ref), temp: false };
 	const file = path.join(tmp_dir, `${job.track_id}.${randomUUID()}.${preview_extension(source.ref)}`);
 	return { file, temp: true };
 }
@@ -118,15 +127,62 @@ function to_failure(err: unknown, signal: AbortSignal): JobFailure {
 	return { kind: 'internal', detail: err instanceof Error ? err.message : String(err) };
 }
 
+/** Handles a failed job: puts it back behind the health gate (returns true), or records the outcome with `record`. */
+async function handle_failure(job: Job, err: unknown, signal: AbortSignal, where: { source: SampleSource; path: string }, attempts: number,
+	record: (status: SampleLookupStatus, retry_after: Date | null) => Promise<void>): Promise<boolean> {
+	const failure = to_failure(err, signal);
+	if (failure.kind === 'analyzer_unavailable' && failure.http_status !== undefined) job.analyzer_5xx++;
+	const decision = decide_failure(failure, attempts, job.analyzer_5xx);
+	const report = { track_id: job.track_id, job: job.kind, ...where, kind: failure.kind, detail: failure.detail };
+	if (decision.action === 'retry_after_health') {
+		// Once per outage: the jobs that pile up behind the paused queue aren't separate failures.
+		if (gate_pending) log.warn(`analyzer unavailable for ${job.kind} ${job.track_id}; queue already paused`, failure.detail);
+		else log.error('analyzer unavailable; pausing queue', report);
+		pause_until_healthy();
+		queue.push_front(job);
+		return true;
+	}
+	const what = job.kind === 'vocals' ? 'vocal detection' : 'analysis';
+	if (ANALYZER_FAILURES.has(failure.kind)) log.error(`${what} failed (${failure.kind})`, { ...report, status: decision.status });
+	else log.warn(`${job.kind} job ${job.track_id} (${where.source}) → ${decision.status}`, failure.detail ?? failure.kind);
+	await record(decision.status, decision.retry_after);
+	return false;
+}
+
 /** Runs one job. Returns true if the job was put back for a retry after the analyzer recovers. */
-async function run_job(job: Job): Promise<boolean> {
+function run_job(job: Job): Promise<boolean> {
+	return job.kind === 'vocals' ? run_vocals_job(job) : run_sample_job(job);
+}
+
+async function run_vocals_job(job: Job): Promise<boolean> {
+	const target = await resolve_vocals_target(job.track_id);
+	if (!target) return false;
+
+	const signal = AbortSignal.timeout(config.ANALYZER_JOB_TIMEOUT_MS);
+	let file_path: string | null = null;
+	try {
+		file_path = await media_file(target.resource_id);
+		const result = map_vocals(await call_analyze(config.ANALYZER_URL, file_path, signal, '/vocals'));
+		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
+		await record_vocals(job.track_id, target, 'DONE', null, result);
+		log.info(`detected vocals in ${job.track_id}: ${result.segments.length / 2} segment(s)`);
+		return false;
+	} catch (err) {
+		return handle_failure(job, err, signal, { source: 'media', path: file_path ?? target.resource_id }, next_attempts(target.prior, target.resource_id),
+			(status, retry_after) => record_vocals(job.track_id, target, status, retry_after, null));
+	}
+}
+
+async function run_sample_job(job: Job): Promise<boolean> {
 	const source = await resolve_source(job.track_id, job.prefer);
 	if (!source) return false;
 
 	const signal = AbortSignal.timeout(config.ANALYZER_JOB_TIMEOUT_MS);
 	let temp_file: string | null = null;
+	let file_path: string | null = null;
 	try {
 		const { file, temp } = await local_path(job, source);
+		file_path = file;
 		if (temp) {
 			temp_file = file;
 			await download_to(source.ref, file, signal);
@@ -138,18 +194,8 @@ async function run_job(job: Job): Promise<boolean> {
 		log.info(`analyzed ${job.track_id} (${source.source})`);
 		return false;
 	} catch (err) {
-		const failure = to_failure(err, signal);
-		if (failure.kind === 'analyzer_unavailable' && failure.http_status !== undefined) job.analyzer_5xx++;
-		const decision = decide_failure(failure, next_attempts(source.prior, source.ref), job.analyzer_5xx);
-		if (decision.action === 'retry_after_health') {
-			log.warn(`analyzer unavailable for ${job.track_id}; pausing queue`, failure.detail);
-			pause_until_healthy();
-			queue.push_front(job);
-			return true;
-		}
-		log.warn(`job ${job.track_id} (${source.source}) → ${decision.status}`, failure.detail ?? failure.kind);
-		await record_lookup(db, job.track_id, source, decision.status, decision.retry_after);
-		return false;
+		return await handle_failure(job, err, signal, { source: source.source, path: file_path ?? source.ref }, next_attempts(source.prior, source.ref),
+			(status, retry_after) => record_lookup(db, job.track_id, source, status, retry_after));
 	} finally {
 		// Deletion depends only on the job's source type; media files are never touched.
 		if (temp_file && source.source === 'itunes_preview') await delete_temp_file(source.source, temp_file);
@@ -171,7 +217,7 @@ async function worker_loop() {
 			// DB failures while resolving or recording: drop the job; the startup backlog picks it up later.
 			log.error(`job ${job.track_id} failed`, err);
 		} finally {
-			if (!requeued) queue.release(job.track_id);
+			if (!requeued) queue.release(job_key(job));
 		}
 	}
 }
@@ -225,8 +271,10 @@ async function start_inner() {
 	if (stopping) return;
 
 	const backlog = await eligible_track_ids();
-	for (const track_id of backlog) enqueue({ track_id });
-	log.info(`queued ${backlog.length} track(s) from the backlog`);
+	for (const track_id of backlog) enqueue({ kind: 'sample', track_id });
+	const vocals_backlog = await eligible_vocals_track_ids();
+	for (const track_id of vocals_backlog) enqueue({ kind: 'vocals', track_id });
+	log.info(`queued ${backlog.length} sample and ${vocals_backlog.length} vocals job(s) from the backlog`);
 }
 
 /** Graceful shutdown: stop pulling jobs, let running jobs finish or time out, then clear temp files. */
@@ -245,8 +293,8 @@ export async function stop(): Promise<void> {
 /** Queues analysis for tracks with an analyzable source and no sample/lookup record. */
 export async function enqueue_if_needed(track_ids: readonly string[]): Promise<void> {
 	if (track_ids.length === 0) return;
-	const unqueued = [...new Set(track_ids)].filter(id => !queue.has(id));
+	const unqueued = [...new Set(track_ids)].filter(id => !queue.has(job_key({ kind: 'sample', track_id: id })));
 	for (let i = 0; i < unqueued.length; i += 1000) {
-		for (const track_id of await eligible_track_ids(unqueued.slice(i, i + 1000))) enqueue({ track_id });
+		for (const track_id of await eligible_track_ids(unqueued.slice(i, i + 1000))) enqueue({ kind: 'sample', track_id });
 	}
 }

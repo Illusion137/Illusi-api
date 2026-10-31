@@ -1,10 +1,11 @@
 import { Client } from 'pg';
+import { owner_database_url } from '../db';
 import { logger } from './log';
 
 const log = logger('leader');
 
 /** Advisory lock keys. One per singleton role; the value is arbitrary but must never change. */
-export const LEADER_LOCKS = { background_services: 7_340_001 } as const;
+export const LEADER_LOCKS = { background_services: 7_340_001, exports: 7_340_002 } as const;
 
 export interface LeaderHandle { stop(): Promise<void> }
 
@@ -34,7 +35,7 @@ export function run_as_leader(name: string, key: number, start: () => Promise<vo
 
 	const try_acquire = async () => {
 		try {
-			client = new Client({ connectionString: process.env.DATABASE_URL, application_name: `illusi-leader-${name}` });
+			client = new Client({ connectionString: owner_database_url(), application_name: `illusi-leader-${name}` });
 			client.on('error', (err) => {
 				// Errors while acquiring are handled by the catch below.
 				if (!leading) return;

@@ -12,7 +12,7 @@ import { match_entity } from './match';
 import type { MatchInput } from './match';
 import { graph_counts, raw_graph_schema, service_ids_schema, validate_graph } from './payload';
 import type { Rejection } from './payload';
-import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
+import { pg_error_code, pg_error_constraint, PG_ERRORS } from '../../core/pg_errors';
 
 export { apply_graph, flush_engine_events } from './engine';
 export type { ConflictReport, EngineContext, EngineResult, EntityOutcome, MatchedOutcome } from './engine';
@@ -85,6 +85,8 @@ entities_router.post('/contribute', rate_limit_user('contribute', 60, 60_000), j
 				res.json(stored);
 				return;
 			}
+			// The id belongs to another user's contribution, which row-level security hides from the replay lookup.
+			if (pg_error_constraint(err)?.includes('contribution_id')) throw new HttpError(409, 'contribution_id already used');
 		}
 		throw err;
 	}

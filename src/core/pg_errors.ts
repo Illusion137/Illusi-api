@@ -23,3 +23,10 @@ export function pg_error_detail(err: unknown): string | undefined {
 	if (typeof e?.detail === 'string') return e.detail;
 	return typeof e?.cause?.detail === 'string' ? e.cause.detail : undefined;
 }
+
+/** The violated constraint's name, wrapped or not. */
+export function pg_error_constraint(err: unknown): string | undefined {
+	const e = err as { constraint?: unknown; cause?: { constraint?: unknown } } | null;
+	if (typeof e?.constraint === 'string') return e.constraint;
+	return typeof e?.cause?.constraint === 'string' ? e.cause.constraint : undefined;
+}

@@ -136,7 +136,9 @@ class PushApplier {
 		this.touched.playlists.add(r.id);
 		if (!cur) {
 			if (!values.title) return this.reject('playlists', index, 'title is required for a new playlist');
-			await this.tx.insert(t).values({ ...values, title: values.title, id: r.id, user_id: this.user_id, edited_at });
+			// Another user's private playlist is invisible to the select above, so the id can still collide.
+			const inserted = await this.tx.insert(t).values({ ...values, title: values.title, id: r.id, user_id: this.user_id, edited_at }).onConflictDoNothing().returning({ id: t.id });
+			if (inserted.length === 0) return this.reject('playlists', index, 'playlist belongs to another user');
 			this.owned.set(r.id, true);
 		} else if (lww_wins(cur.edited_at, edited_at)) {
 			await this.tx.update(t).set(lww_update(['title', 'description', 'pinned', 'archived', 'public', 'sort_mode', 'deleted'], values, edited_at)).where(eq(t.id, r.id));

@@ -11,10 +11,18 @@ against the same database.
 | `02_contribute` | contribution graphs, idempotency, matching by service id and normalized metadata, first-write-wins + review items, service id conflicts, partial rejection, `/resolve` |
 | `03_sync` | first import with temp ids, pull cursors, push replay, last-write-wins and clock clamping, playlist inheritance rules, ownership |
 | `04_lyrics_soundcloud` | lyric lookups (servers stubbed to NOT_FOUND), client lyric actions and token attestation, Genius validation, SoundCloud ingest |
-| `05_media_playlists_admin` | media upload actions, dedupe, range streaming, access rules; playlist copy; admin review |
+| `05_media_playlists_admin` | media upload actions (imported, backpacked, unsynced lyrics), dedupe, range streaming, access rules; stored vocals; playlist copy; admin review |
 | `06_releases_reconcile_concurrency` | new releases (global, per user, FETCH_NEW_RELEASES actions), reconcile worker merges, concurrent contributors and devices |
 | `07_read_api` | profile, library sort/filter and overlay, plays/searches/linked playlists; playlist visibility and resolution; tracks (merges, batch), albums, artists (albums, tracks, similar); search (artist + title, accents, links, ISRCs, library scope, paging) |
 | `08_backpack` | unavailable reports, backpacked uploads first, research actions per service with cooldowns, found ids and conflicts, clearing on upload |
+| `09_read_performance` | stored play totals through inserts, deletes and merges; popular order; catalog ETags and 304s; one version bump per transaction |
+| `10_search_suggestions` | suggestions for tracks, artists, albums and text; accents, `artist title`, library boost, recent searches; ETags and 304s; validation |
+| `11_account_artwork` | playlist artwork upload, normalization, access, sync and last-write-wins; data export jobs, download, cooldown; account deletion with password, anonymized catalog, immediate token revocation |
+| `12_email_verification` | unverified users can sign in but only reach `/auth`, hashed single-use links, expiry, changed address, resend limits, HTML and JSON confirmation |
+| `13_row_level_security` | the API role has no BYPASSRLS, per-user isolation, public playlists, cross-user writes refused, no schema changes |
+| `14_cors_headers` | preflight and response headers for `sumii.me` and subdomains, every other origin refused, no-Origin requests untouched |
+
+Run everything locally without act (throwaway Postgres, restricted API role) with `scripts/test-integration.sh`; add `--coverage` for the API's own code coverage.
 
 ## Running with act (same as CI)
 
@@ -53,5 +61,6 @@ npm run test:integration
 ```
 
 `LYRICS_SERVERS_STUB=not_found` makes the lyric servers answer NOT_FOUND without touching the network, so the
-lyric tests are deterministic. Config refuses it in production. `BACKGROUND_SERVICES=false` keeps the iTunes
+lyric tests are deterministic. Config refuses it in production. The API needs `ffmpeg` and `ffprobe` on its PATH:
+media uploads are converted to `.m4a`. `BACKGROUND_SERVICES=false` keeps the iTunes
 and analyzer queues off. The reconcile worker is run directly by the tests.

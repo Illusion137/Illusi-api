@@ -28,7 +28,7 @@ export function require_user(req: Request): AuthUser {
 	return req.user;
 }
 
-export function error_handler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function error_handler(err: unknown, req: Request, res: Response, _next: NextFunction) {
 	if (err instanceof HttpError) {
 		if (err.status >= 500) log.error(err.message, err);
 		res.status(err.status).json({ error: err.message, ...err.body });
@@ -40,7 +40,7 @@ export function error_handler(err: unknown, _req: Request, res: Response, _next:
 		return;
 	}
 	log.error('unhandled error', err);
-	res.status(500).json({ error: 'internal error' });
+	res.status(500).json({ error: 'internal error', request_id: req.request_id });
 }
 
 export const uuid_schema = z.uuid();

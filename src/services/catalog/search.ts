@@ -5,10 +5,11 @@
  */
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
 import {
-	album_tracks_table, albums_table, artist_albums_table, artists_table, playlists_table, service_ids_table, track_plays_table,
+	album_tracks_table, albums_table, artist_albums_table, artists_table, playlists_table, service_ids_table, track_play_counts_table,
 	tracks_artists_table, tracks_table, user_tracks_table
 } from '../../db/schema';
 import {
@@ -158,9 +159,18 @@ export function rank_candidates(query: string, candidates: readonly Candidate[])
 
 const like_escape = (value: string) => value.replace(/[\\%_]/gu, m => `\\${m}`);
 
-/** Indexed trigram or substring match of `illusi_search_text(column)` against the query. */
-function text_matches(column: SQL | Parameters<typeof eq>[0], query: string): SQL {
-	return sql`(illusi_search_text(${column}) % illusi_search_text(${query}) or illusi_search_text(${column}) like '%' || illusi_search_text(${like_escape(query)}) || '%')`;
+/** Indexed trigram or substring match of an already folded column (`illusi_search_text`) against the query. */
+function text_matches(folded: SQL | Parameters<typeof eq>[0], query: string): SQL {
+	return sql`(${folded} % illusi_search_text(${query}) or ${folded} like '%' || illusi_search_text(${like_escape(query)}) || '%')`;
+}
+
+/**
+ * Ids of up to `limit` rows matching `where`. The match runs in a materialized CTE so the planner keeps the trigram
+ * index: given the limit directly, it often expects `%` to match early and scans the whole table for rare terms.
+ */
+async function matching_ids(ex: Executor, table: SQL | AnyPgTable, id: SQL | Parameters<typeof eq>[0], where: SQL | undefined, limit: number): Promise<string[]> {
+	const rows = await ex.execute<{ id: string }>(sql`with m as materialized (select ${id} as id from ${table} where ${where ?? sql`true`}) select id from m limit ${limit}`, 'objects');
+	return rows.map(r => r.id);
 }
 
 /** Artist ids whose name key equals any run of query words (uses `artists_name_key_idx`). */
@@ -170,7 +180,7 @@ function artists_named_in(query: string): SQL {
 	return sql`illusi_name_key(${artists_table.name}) in (select illusi_name_key(n) from unnest(array[${sql.join(names.map(n => sql`${n}`), sql`, `)}]::text[]) n)`;
 }
 
-const total_plays = sql<number>`(select count(*) from ${track_plays_table} where ${track_plays_table.track_id} = ${tracks_table.id})`.mapWith(Number);
+const total_plays = sql<number>`coalesce((select ${track_play_counts_table.plays} from ${track_play_counts_table} where ${track_play_counts_table.track_id} = ${tracks_table.id}), 0)`.mapWith(Number);
 
 function in_library(user_id: string): SQL {
 	return sql`exists (select 1 from ${user_tracks_table} where ${user_tracks_table.user_id} = ${user_id} and ${user_tracks_table.track_id} = ${tracks_table.id} and not ${user_tracks_table.deleted})`;
@@ -201,8 +211,12 @@ export async function search_tracks(ex: Executor, user_id: string, query: string
 	const scoped = scope === 'library' ? in_library(user_id) : undefined;
 	const select = { id: tracks_table.id, title: tracks_table.title, plays: total_plays };
 	const linked = await linked_ids(ex, link);
+	const title_matches = async (): Promise<{ id: string; title: string; plays: number }[]> => {
+		const ids = await matching_ids(ex, tracks_table, tracks_table.id, and(text_matches(tracks_table.search_title, query), scoped), CANDIDATES_PER_SOURCE);
+		return ids.length === 0 ? [] : ex.select(select).from(tracks_table).where(inArray(tracks_table.id, ids));
+	};
 	const [by_title, by_artist, by_link] = await all_queries(ex, [
-		ex.select(select).from(tracks_table).where(and(text_matches(tracks_table.title, query), scoped)).limit(CANDIDATES_PER_SOURCE),
+		title_matches(),
 		ex.select(select).from(tracks_table)
 			.where(and(sql`exists (
 				select 1 from ${tracks_artists_table} join ${artists_table} on ${artists_table.id} = ${tracks_artists_table.artist_id}
@@ -230,18 +244,29 @@ export async function search_albums(ex: Executor, user_id: string, query: string
 				))
 		)`
 		: undefined;
-	const plays = sql<number>`(select count(*) from ${track_plays_table} join ${tracks_table} on ${tracks_table.id} = ${track_plays_table.track_id} where ${tracks_table.album_id} = ${albums_table.id})`.mapWith(Number);
+	const plays = sql<number>`coalesce((select sum(${track_play_counts_table.plays}) from ${track_play_counts_table} join ${tracks_table} on ${tracks_table.id} = ${track_play_counts_table.track_id} where ${tracks_table.album_id} = ${albums_table.id}), 0)`.mapWith(Number);
 	const select = { id: albums_table.id, name: albums_table.name, artist: artists_table.name, plays };
 	const linked = await linked_ids(ex, link);
-	const credited_artist = sql`exists (
-		select 1 from ${artist_albums_table} join ${artists_table} on ${artists_table.id} = ${artist_albums_table.artist_id}
-		where ${artist_albums_table.album_id} = ${albums_table.id} and ${artists_named_in(query)}
-	)`;
+	const name_matches = async (): Promise<{ id: string; name: string; artist: string | null; plays: number }[]> => {
+		const ids = await matching_ids(ex, albums_table, albums_table.id, and(text_matches(albums_table.search_name, query), scoped), CANDIDATES_PER_SOURCE);
+		return ids.length === 0 ? [] : ex.select(select).from(albums_table).leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id)).where(inArray(albums_table.id, ids));
+	};
+	// Albums whose primary or credited artist the query names. Resolving the artist ids first keeps both lookups on
+	// indexes; as one OR over the joined artist, every album and artist row was scanned.
+	const artist_matches = async (): Promise<{ id: string; name: string; artist: string | null; plays: number }[]> => {
+		const artist_ids = (await ex.select({ id: artists_table.id }).from(artists_table).where(artists_named_in(query))).map(r => r.id);
+		if (artist_ids.length === 0) return [];
+		const ids = sql`array[${sql.join(artist_ids.map(id => sql`${id}`), sql`, `)}]::uuid[]`;
+		const album_ids = sql`array(
+			select ${albums_table.id} from ${albums_table} where ${albums_table.artist_id} = any(${ids})
+			union select ${artist_albums_table.album_id} from ${artist_albums_table} where ${artist_albums_table.artist_id} = any(${ids})
+		)`;
+		return ex.select(select).from(albums_table).leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id))
+			.where(and(sql`${albums_table.id} = any(${album_ids})`, scoped)).limit(CANDIDATES_PER_SOURCE);
+	};
 	const [by_name, by_artist, by_link] = await all_queries(ex, [
-		ex.select(select).from(albums_table).leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id))
-			.where(and(text_matches(albums_table.name, query), scoped)).limit(CANDIDATES_PER_SOURCE),
-		ex.select(select).from(albums_table).leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id))
-			.where(and(or(artists_named_in(query), credited_artist), scoped)).limit(CANDIDATES_PER_SOURCE),
+		name_matches(),
+		artist_matches(),
 		linked.length === 0
 			? Promise.resolve([])
 			: ex.select(select).from(albums_table).leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id))
@@ -263,11 +288,15 @@ export async function search_artists(ex: Executor, user_id: string, query: strin
 			where ${tracks_artists_table.artist_id} = ${artists_table.id} and ${user_tracks_table.user_id} = ${user_id} and not ${user_tracks_table.deleted}
 		)`
 		: undefined;
-	const plays = sql<number>`(select count(*) from ${track_plays_table} join ${tracks_artists_table} on ${tracks_artists_table.track_id} = ${track_plays_table.track_id} where ${tracks_artists_table.artist_id} = ${artists_table.id})`.mapWith(Number);
+	const plays = sql<number>`coalesce((select sum(${track_play_counts_table.plays}) from ${track_play_counts_table} join ${tracks_artists_table} on ${tracks_artists_table.track_id} = ${track_play_counts_table.track_id} where ${tracks_artists_table.artist_id} = ${artists_table.id}), 0)`.mapWith(Number);
 	const select = { id: artists_table.id, name: artists_table.name, plays };
 	const linked = await linked_ids(ex, link);
+	const name_matches = async (): Promise<{ id: string; name: string; plays: number }[]> => {
+		const ids = await matching_ids(ex, artists_table, artists_table.id, and(text_matches(artists_table.search_name, query), scoped), CANDIDATES_PER_SOURCE);
+		return ids.length === 0 ? [] : ex.select(select).from(artists_table).where(inArray(artists_table.id, ids));
+	};
 	const [by_name, by_key, by_link] = await all_queries(ex, [
-		ex.select(select).from(artists_table).where(and(text_matches(artists_table.name, query), scoped)).limit(CANDIDATES_PER_SOURCE),
+		name_matches(),
 		ex.select(select).from(artists_table).where(and(artists_named_in(query), scoped)).limit(CANDIDATES_PER_SOURCE),
 		linked.length === 0 ? Promise.resolve([]) : ex.select(select).from(artists_table).where(and(inArray(artists_table.id, linked), scoped))
 	]);
@@ -282,7 +311,7 @@ export async function search_playlists(ex: Executor, user_id: string, query: str
 		: or(eq(playlists_table.public, true), eq(playlists_table.user_id, user_id));
 	const rows = await ex.select({ id: playlists_table.id, title: playlists_table.title })
 		.from(playlists_table)
-		.where(and(text_matches(playlists_table.title, query), eq(playlists_table.deleted, false), visible))
+		.where(and(text_matches(sql`illusi_search_text(${playlists_table.title})`, query), eq(playlists_table.deleted, false), visible))
 		.limit(CANDIDATES_PER_SOURCE);
 	return rank_candidates(query, rows.map(r => ({ id: r.id, plays: 0, linked: false, texts: [r.title] })));
 }

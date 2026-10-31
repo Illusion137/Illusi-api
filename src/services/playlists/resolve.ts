@@ -115,6 +115,8 @@ const CACHE_MAX_ENTRIES = 2000;
 const cache = new Map<string, Map<string, string[]>>();
 /** Bumped on every invalidation so a resolution that raced an invalidation isn't cached. */
 const generations = new Map<string, number>();
+/** Bumped when every user's entries are invalidated at once. */
+let global_generation = 0;
 let cached_entries = 0;
 
 export function invalidate_user_cache(user_id: string) {
@@ -126,7 +128,15 @@ export function invalidate_user_cache(user_id: string) {
 	}
 }
 
+/** Drops every cached resolution, e.g. after a merge changed which ids tracks resolve to. */
+export function invalidate_all_caches() {
+	global_generation++;
+	cache.clear();
+	cached_entries = 0;
+}
+
 on('user_library_changed', ({ user_id }) => { invalidate_user_cache(user_id); });
+on('ids_redirected', () => { invalidate_all_caches(); });
 
 function cache_put(user_id: string, playlist_id: string, track_ids: string[]) {
 	let entry = cache.get(user_id);
@@ -147,7 +157,8 @@ export async function resolve_playlist_track_ids(user_id: string, playlist_id: s
 	const hit = cache.get(user_id)?.get(playlist_id);
 	if (hit) return hit.slice();
 	const generation = generations.get(user_id) ?? 0;
+	const global = global_generation;
 	const ids = (await resolve_playlist(db, user_id, playlist_id)).map(t => t.uid);
-	if ((generations.get(user_id) ?? 0) === generation) cache_put(user_id, playlist_id, ids);
+	if ((generations.get(user_id) ?? 0) === generation && global_generation === global) cache_put(user_id, playlist_id, ids);
 	return ids.slice();
 }

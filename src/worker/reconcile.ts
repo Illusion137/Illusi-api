@@ -10,13 +10,36 @@ import { thresholds_from_config } from './reconcile/thresholds';
 
 const log = logger('reconcile');
 const TICK_MS = 60_000;
+const MONITORS = { full: 'reconcile-full', incremental: 'reconcile-incremental' } as const;
+
+type MonitorConfig = NonNullable<Parameters<typeof Sentry.withMonitor>[2]>;
+
+function monitor_config(mode: 'full' | 'incremental'): MonitorConfig {
+	const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	if (mode === 'full') {
+		return { schedule: { type: 'crontab', value: `0 ${config.RECONCILE_FULL_HOUR} * * *` }, timezone, checkinMargin: 30, maxRuntime: 240, failureIssueThreshold: 1 };
+	}
+	const minutes = Math.max(1, Math.round(config.RECONCILE_INCREMENTAL_INTERVAL_MIN));
+	// The margin also absorbs the gap while a long full pass runs instead of an incremental one.
+	return { schedule: { type: 'interval', value: minutes, unit: 'minute' }, checkinMargin: 30, maxRuntime: 60, failureIssueThreshold: 2 };
+}
 
 async function main() {
 	const opts = parse_args(process.argv.slice(2), config.RECONCILE_DRY_RUN);
 	const thresholds = thresholds_from_config();
-	const pass = async (mode: 'full' | 'incremental') => {
+	const run = async (mode: 'full' | 'incremental') => {
 		const report = await run_pass({ mode, dry_run: opts.dry_run, thresholds });
 		if (opts.dry_run && report.plans) console.log(JSON.stringify(report.plans, null, '\t'));
+		return report;
+	};
+	// Scheduled passes check in with Sentry Cron Monitors (created on first check-in), so a failed, hung or
+	// missed pass alerts. One-off and dry runs don't.
+	const monitored = !opts.once && !opts.dry_run;
+	const pass = async (mode: 'full' | 'incremental') => {
+		if (!monitored) return run(mode);
+		const report = await Sentry.withMonitor(MONITORS[mode], () => run(mode), monitor_config(mode));
+		// A full pass covers the incremental work, so it also counts as the incremental check-in.
+		if (mode === 'full') Sentry.captureCheckIn({ monitorSlug: MONITORS.incremental, status: 'ok' }, monitor_config('incremental'));
 		return report;
 	};
 

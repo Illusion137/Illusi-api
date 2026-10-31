@@ -4,10 +4,13 @@ import { sql } from 'drizzle-orm';
 import { config } from './config';
 import { create_app } from './app';
 import { db } from './db';
+import { start_disk_monitor } from './core/disk';
+import { start_event_bridge } from './core/events';
 import { set_draining } from './core/health';
 import { LEADER_LOCKS, run_as_leader } from './core/leader';
 import type { LeaderHandle } from './core/leader';
 import { logger } from './core/log';
+import * as exports_runner from './services/account/export';
 import * as analyzer from './services/analyzer';
 import * as itunes from './services/itunes';
 
@@ -35,6 +38,8 @@ async function main() {
 	const app = create_app();
 	const server = app.listen(config.PORT, () => log.info(`listening on :${config.PORT} (${config.APP_VERSION})`));
 	server.keepAliveTimeout = 65_000;
+	const stop_disk_monitor = start_disk_monitor();
+	const stop_event_bridge = start_event_bridge();
 
 	// Background services never block startup or request handling, and run in one instance at a time.
 	let leader: LeaderHandle | null = null;
@@ -48,12 +53,16 @@ async function main() {
 		});
 	}
 
+	// Data exports run whatever BACKGROUND_SERVICES says (users wait on them), in one instance at a time.
+	const exports_leader = run_as_leader('exports', LEADER_LOCKS.exports, exports_runner.start, exports_runner.stop);
+
 	let stopping = false;
 	const shutdown = async (signal: string) => {
 		if (stopping) return;
 		stopping = true;
 		log.info(`${signal}: draining`);
 		set_draining();
+		stop_disk_monitor();
 		// Stop accepting connections (the proxy retries refused ones on the other replica), drop idle
 		// keep-alives, and give in-flight requests until the grace period to finish.
 		const closed = new Promise<void>(resolve => server.close(() => resolve()));
@@ -62,6 +71,8 @@ async function main() {
 		await Promise.race([closed, grace]);
 		server.closeAllConnections();
 		await leader?.stop();
+		await exports_leader.stop();
+		await stop_event_bridge();
 		await db.$client.end().catch(() => undefined);
 		log.info('stopped');
 		await Sentry.close(2_000);

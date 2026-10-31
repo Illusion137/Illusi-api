@@ -5,9 +5,10 @@ import { sort_playlist_tracks, track_query_filter } from '@illusive/playlist_res
 import { z } from 'zod';
 import { all_queries, db } from '../../db';
 import {
-	album_tracks_table, albums_table, artist_albums_table, linked_playlists_table, playlists_table, similar_artists_table, track_plays_table,
-	tracks_artists_table, tracks_table, user_recent_searches, user_tracks_table, sort_type, album_type
+	album_tracks_table, albums_table, artist_albums_table, linked_playlists_table, playlists_table, read_versions_table, similar_artists_table, track_play_counts_table, track_plays_table,
+	track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, sort_type, album_type
 } from '../../db/schema';
+import { unflatten_segments } from '../analyzer/contract';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
 import { rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect, resolve_redirects } from '../../core/redirects';
@@ -20,6 +21,8 @@ import { similar_tracks, taste_search } from '../vectors';
 import { bool_query, decode_cursor, page_from, page_query_shape, parse_query, slice_page } from './paging';
 import { detect_service_id, search_albums, search_artists, search_playlists, search_tracks, SEARCH_TYPES } from './search';
 import type { SearchType } from './search';
+import { DEFAULT_LIMIT as SUGGESTION_DEFAULT_LIMIT, MAX_LIMIT as SUGGESTION_MAX_LIMIT, suggest } from './suggestions';
+import { answer_not_modified, matches_if_none_match, validator_tag } from './validators';
 import { album_views, artist_views, in_order, playlist_views, track_views } from './views';
 
 export type { AlbumView, ArtistView, PlaylistView, TrackView } from './views';
@@ -32,6 +35,10 @@ export const catalog_router = Router();
 
 const read_limit = rate_limit_user('read', 600, 60_000);
 const search_limit = rate_limit_user('search', 120, 60_000);
+/** Asked on every keystroke, so looser than search (nginx still caps each IP). */
+const suggestions_limit = rate_limit_user('search_suggestions', 300, 60_000);
+/** Suggestions are cheap to re-ask and go stale fast as the user types; clients may reuse one this long. */
+const SUGGESTIONS_MAX_AGE_S = 30;
 
 type PlaylistRow = typeof playlists_table.$inferSelect;
 
@@ -199,6 +206,7 @@ catalog_router.get('/users/:id/playlists', read_limit, async (req, res) => {
 
 catalog_router.get('/tracks/:id', read_limit, async (req, res) => {
 	const user = require_user(req);
+	if (await answer_not_modified(req, res, { user_id: user.id })) return;
 	const { id, redirected_from } = await follow(req.params.id, 'track');
 	const view = (await track_views(db, user.id, [id])).get(id);
 	if (!view) throw new HttpError(404, 'track not found');
@@ -233,8 +241,28 @@ catalog_router.get('/tracks/:id/similar', read_limit, async (req, res) => {
 	res.json({ items: in_order(ids, await track_views(db, user.id, ids)) });
 });
 
+/** Vocal activity detected in the track's media file (only tracks with uploaded media have it). */
+catalog_router.get('/tracks/:id/vocals', read_limit, async (req, res) => {
+	const { id, redirected_from } = await follow(req.params.id, 'track');
+	const [row] = await db.select().from(track_vocals_table)
+		.where(and(eq(track_vocals_table.track_id, id), eq(track_vocals_table.status, 'DONE')));
+	if (!row) throw new HttpError(404, 'no vocals detected for this track');
+	res.json(with_redirect({
+		track_id: id,
+		resource_id: row.resource_id,
+		model: row.model,
+		hop_ms: row.hop_ms,
+		window_ms: row.window_ms,
+		duration_ms: row.duration_ms,
+		voice: row.voice ?? [],
+		segments: unflatten_segments(row.segments ?? []),
+		analyzed_at: row.modified_at
+	}, redirected_from));
+});
+
 catalog_router.get('/albums/:id', read_limit, async (req, res) => {
 	const user = require_user(req);
+	if (await answer_not_modified(req, res, { user_id: user.id })) return;
 	const { id, redirected_from } = await follow(req.params.id, 'album');
 	const album = (await album_views(db, [id])).get(id);
 	if (!album) throw new HttpError(404, 'album not found');
@@ -249,6 +277,7 @@ catalog_router.get('/albums/:id', read_limit, async (req, res) => {
 
 catalog_router.get('/artists/:id', read_limit, async (req, res) => {
 	const user = require_user(req);
+	if (await answer_not_modified(req, res, { user_id: user.id })) return;
 	const { id, redirected_from } = await follow(req.params.id, 'artist');
 	const view = (await artist_views(db, user.id, [id])).get(id);
 	if (!view) throw new HttpError(404, 'artist not found');
@@ -258,6 +287,8 @@ catalog_router.get('/artists/:id', read_limit, async (req, res) => {
 const artist_albums_query = z.object({ ...page_query_shape, album_type: z.enum(album_type.enumValues).optional() });
 
 catalog_router.get('/artists/:id/albums', read_limit, async (req, res) => {
+	require_user(req);
+	if (await answer_not_modified(req, res)) return;
 	const { id } = await follow(req.params.id, 'artist');
 	const query = parse_query(artist_albums_query, req);
 	const offset = decode_cursor(query.cursor);
@@ -279,11 +310,12 @@ const artist_tracks_query = z.object({ ...page_query_shape, sort: z.enum(['popul
 
 catalog_router.get('/artists/:id/tracks', read_limit, async (req, res) => {
 	const user = require_user(req);
-	const { id } = await follow(req.params.id, 'artist');
 	const query = parse_query(artist_tracks_query, req);
+	if (await answer_not_modified(req, res, { user_id: user.id, plays: query.sort === 'popular' })) return;
+	const { id } = await follow(req.params.id, 'artist');
 	const offset = decode_cursor(query.cursor);
 	const order: SQL[] = {
-		popular: [sql`(select count(*) from ${track_plays_table} where ${track_plays_table.track_id} = ${tracks_table.id}) desc`, asc(tracks_table.title)],
+		popular: [sql`coalesce(${track_play_counts_table.plays}, 0) desc`, asc(tracks_table.title)],
 		newest: [sql`coalesce(${albums_table.release_date}, ${tracks_table.created_at}) desc`, asc(tracks_table.title)],
 		title: [asc(tracks_table.title)]
 	}[query.sort];
@@ -291,6 +323,7 @@ catalog_router.get('/artists/:id/tracks', read_limit, async (req, res) => {
 		.from(tracks_artists_table)
 		.innerJoin(tracks_table, eq(tracks_table.id, tracks_artists_table.track_id))
 		.leftJoin(albums_table, eq(albums_table.id, tracks_table.album_id))
+		.leftJoin(track_play_counts_table, eq(track_play_counts_table.track_id, tracks_table.id))
 		.where(eq(tracks_artists_table.artist_id, id))
 		.orderBy(...order, asc(tracks_table.id))
 		.limit(query.limit + 1)
@@ -382,4 +415,29 @@ catalog_router.get('/search', search_limit, async (req, res) => {
 		}
 	}));
 	res.json(out);
+});
+
+const suggestions_query = z.object({
+	q: z.string().max(256).default(''),
+	limit: z.coerce.number().int().min(1).max(SUGGESTION_MAX_LIMIT).default(SUGGESTION_DEFAULT_LIMIT)
+});
+
+catalog_router.get('/search/suggestions', suggestions_limit, async (req, res) => {
+	const user = require_user(req);
+	const query = parse_query(suggestions_query, req);
+	// Versions read before building, as for other catalog reads: a concurrent write can only cost a later 304.
+	const [versions] = await db.select({
+		catalog: sql<number>`coalesce((select ${read_versions_table.version} from ${read_versions_table} where ${read_versions_table.key} = 'catalog'), 0)`.mapWith(Number),
+		plays: sql<number>`coalesce((select ${read_versions_table.version} from ${read_versions_table} where ${read_versions_table.key} = 'plays'), 0)`.mapWith(Number),
+		user: sql<number>`coalesce((select ${user_read_versions_table.version} from ${user_read_versions_table} where ${user_read_versions_table.user_id} = ${user.id}), 0)`.mapWith(Number),
+		recent: sql<string>`(select count(*) || ':' || coalesce(max(${user_recent_searches.id}), 0) from ${user_recent_searches} where ${user_recent_searches.user_id} = ${user.id})`
+	}).from(sql`(select 1) one`);
+	const tag = validator_tag(`${req.originalUrl}|recent:${versions.recent}`, versions, user.id);
+	res.setHeader('ETag', tag);
+	res.setHeader('Cache-Control', `private, max-age=${SUGGESTIONS_MAX_AGE_S}`);
+	if (matches_if_none_match(req.headers['if-none-match'], tag)) {
+		res.status(304).end();
+		return;
+	}
+	res.json(await suggest(db, user.id, query.q, query.limit, versions.catalog));
 });

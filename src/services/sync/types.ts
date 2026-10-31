@@ -16,7 +16,7 @@ import type { ConflictReport, EntityOutcome, MatchedOutcome, Rejection } from '.
 import { raw_graph_schema } from '../entities';
 
 /** `users_table` without `password_hash` (never synced). */
-export type SyncUser = Omit<typeof users_table.$inferSelect, 'password_hash'>;
+export type SyncUser = Omit<typeof users_table.$inferSelect, 'password_hash' | 'email_verified_at'>;
 export interface Redirect { old_id: string; new_id: string }
 /** Selected iTunes fields for a local track / album / artist, keyed by its `illusi_id`. */
 export interface ItunesFields {
@@ -36,9 +36,9 @@ export interface SyncRows {
 	redirects: Redirect[];
 	user: SyncUser | null;
 	// Shared data for every track the user touches.
-	artists: (typeof artists_table.$inferSelect)[];
-	albums: (typeof albums_table.$inferSelect)[];
-	tracks: (typeof tracks_table.$inferSelect)[];
+	artists: Omit<typeof artists_table.$inferSelect, 'search_name'>[];
+	albums: Omit<typeof albums_table.$inferSelect, 'search_name'>[];
+	tracks: Omit<typeof tracks_table.$inferSelect, 'search_title'>[];
 	tracks_artists: (typeof tracks_artists_table.$inferSelect)[];
 	album_tracks: (typeof album_tracks_table.$inferSelect)[];
 	artist_albums: (typeof artist_albums_table.$inferSelect)[];

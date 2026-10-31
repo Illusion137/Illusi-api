@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq, gt, inArray, isNotNull, notExists } from 'drizzle-orm';
+import { and, asc, eq, exists, gt, inArray, isNotNull, ne, notExists, or, sql } from 'drizzle-orm';
 import { decodeJwt } from 'jose';
 import { config } from '../../config';
 import { db } from '../../db';
 import type { Executor } from '../../db';
-import { media_table, playlist_tracks_table, playlists_table, tracks_table, user_tracks_table } from '../../db/schema';
+import { media_table, playlist_tracks_table, playlists_table, track_lyrics_table, tracks_table, user_tracks_table } from '../../db/schema';
 import { consume_action_token } from '../../core/actions';
 import type { AuthUser } from '../../core/auth/tokens';
 import { PendingEvents } from '../../core/events';
@@ -106,13 +106,30 @@ export async function user_can_access_tracks(ex: Executor, user_id: string, trac
 	return playlist !== undefined;
 }
 
-/** Track ids that need an UPLOAD_MEDIA request for this user, ordered by id for cursor paging. */
+/**
+ * The track has lyrics, all of them unsynced: its media is wanted so vocal detection can help line-sync them.
+ * Correlated on `user_tracks_table.track_id`.
+ */
+function has_only_unsynced_lyrics(ex: Executor) {
+	const lyrics = (synced: boolean) => ex.select({ one: sql`1` }).from(track_lyrics_table).where(and(
+		eq(track_lyrics_table.track_id, user_tracks_table.track_id),
+		synced ? ne(track_lyrics_table.sync_type, 'NONE') : eq(track_lyrics_table.sync_type, 'NONE')
+	));
+	return and(exists(lyrics(false)), notExists(lyrics(true)));
+}
+
+/**
+ * Track ids that need an UPLOAD_MEDIA request for this user: downloaded, without media, and imported, backpacked or
+ * with only unsynced lyrics. Ordered by id for cursor paging.
+ */
 export async function pending_upload_track_ids(ex: Executor, user_id: string, limit: number, after?: string): Promise<string[]> {
 	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+		.innerJoin(tracks_table, eq(tracks_table.id, user_tracks_table.track_id))
 		.where(and(
 			eq(user_tracks_table.user_id, user_id),
 			eq(user_tracks_table.deleted, false),
 			isNotNull(user_tracks_table.downloaded_at),
+			or(eq(tracks_table.imported, true), eq(tracks_table.backpacked, true), has_only_unsynced_lyrics(ex)),
 			after === undefined ? undefined : gt(user_tracks_table.track_id, after),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
