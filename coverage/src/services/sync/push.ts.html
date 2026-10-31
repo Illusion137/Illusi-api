@@ -1,0 +1,1237 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/services/sync/push.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">src/services/sync</a> push.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">7.53% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>22/292</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">3.55% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>6/169</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">8.33% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>3/36</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">8.37% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>19/227</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a>
+<a name='L297'></a><a href='#L297'>297</a>
+<a name='L298'></a><a href='#L298'>298</a>
+<a name='L299'></a><a href='#L299'>299</a>
+<a name='L300'></a><a href='#L300'>300</a>
+<a name='L301'></a><a href='#L301'>301</a>
+<a name='L302'></a><a href='#L302'>302</a>
+<a name='L303'></a><a href='#L303'>303</a>
+<a name='L304'></a><a href='#L304'>304</a>
+<a name='L305'></a><a href='#L305'>305</a>
+<a name='L306'></a><a href='#L306'>306</a>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a>
+<a name='L324'></a><a href='#L324'>324</a>
+<a name='L325'></a><a href='#L325'>325</a>
+<a name='L326'></a><a href='#L326'>326</a>
+<a name='L327'></a><a href='#L327'>327</a>
+<a name='L328'></a><a href='#L328'>328</a>
+<a name='L329'></a><a href='#L329'>329</a>
+<a name='L330'></a><a href='#L330'>330</a>
+<a name='L331'></a><a href='#L331'>331</a>
+<a name='L332'></a><a href='#L332'>332</a>
+<a name='L333'></a><a href='#L333'>333</a>
+<a name='L334'></a><a href='#L334'>334</a>
+<a name='L335'></a><a href='#L335'>335</a>
+<a name='L336'></a><a href='#L336'>336</a>
+<a name='L337'></a><a href='#L337'>337</a>
+<a name='L338'></a><a href='#L338'>338</a>
+<a name='L339'></a><a href='#L339'>339</a>
+<a name='L340'></a><a href='#L340'>340</a>
+<a name='L341'></a><a href='#L341'>341</a>
+<a name='L342'></a><a href='#L342'>342</a>
+<a name='L343'></a><a href='#L343'>343</a>
+<a name='L344'></a><a href='#L344'>344</a>
+<a name='L345'></a><a href='#L345'>345</a>
+<a name='L346'></a><a href='#L346'>346</a>
+<a name='L347'></a><a href='#L347'>347</a>
+<a name='L348'></a><a href='#L348'>348</a>
+<a name='L349'></a><a href='#L349'>349</a>
+<a name='L350'></a><a href='#L350'>350</a>
+<a name='L351'></a><a href='#L351'>351</a>
+<a name='L352'></a><a href='#L352'>352</a>
+<a name='L353'></a><a href='#L353'>353</a>
+<a name='L354'></a><a href='#L354'>354</a>
+<a name='L355'></a><a href='#L355'>355</a>
+<a name='L356'></a><a href='#L356'>356</a>
+<a name='L357'></a><a href='#L357'>357</a>
+<a name='L358'></a><a href='#L358'>358</a>
+<a name='L359'></a><a href='#L359'>359</a>
+<a name='L360'></a><a href='#L360'>360</a>
+<a name='L361'></a><a href='#L361'>361</a>
+<a name='L362'></a><a href='#L362'>362</a>
+<a name='L363'></a><a href='#L363'>363</a>
+<a name='L364'></a><a href='#L364'>364</a>
+<a name='L365'></a><a href='#L365'>365</a>
+<a name='L366'></a><a href='#L366'>366</a>
+<a name='L367'></a><a href='#L367'>367</a>
+<a name='L368'></a><a href='#L368'>368</a>
+<a name='L369'></a><a href='#L369'>369</a>
+<a name='L370'></a><a href='#L370'>370</a>
+<a name='L371'></a><a href='#L371'>371</a>
+<a name='L372'></a><a href='#L372'>372</a>
+<a name='L373'></a><a href='#L373'>373</a>
+<a name='L374'></a><a href='#L374'>374</a>
+<a name='L375'></a><a href='#L375'>375</a>
+<a name='L376'></a><a href='#L376'>376</a>
+<a name='L377'></a><a href='#L377'>377</a>
+<a name='L378'></a><a href='#L378'>378</a>
+<a name='L379'></a><a href='#L379'>379</a>
+<a name='L380'></a><a href='#L380'>380</a>
+<a name='L381'></a><a href='#L381'>381</a>
+<a name='L382'></a><a href='#L382'>382</a>
+<a name='L383'></a><a href='#L383'>383</a>
+<a name='L384'></a><a href='#L384'>384</a>
+<a name='L385'></a><a href='#L385'>385</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
+ * `POST /sync/push`. The whole push is one transaction, replayed by `push_id`.
+ * Shared entities go through the contribution engine; user-owned rows follow row-level LWW by clamped
+ * `edited_at`; plays and searches are append-only, deduped by `client_id`.
+ */
+import { and, eq, inArray, isNull, not, sql } from 'drizzle-orm';
+import type { z } from 'zod';
+import { db } from '../../db';
+import type { Tx } from '../../db';
+import {
+	linked_playlists_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, playlist_tracks_table, playlists_table,
+	sync_pushes_table, track_plays_table, user_recent_searches, user_tracks_table, users_table
+} from '../../db/schema';
+import type { AuthUser } from '../../core/auth/tokens';
+import { PendingEvents } from '../../core/events';
+import { HttpError } from '../../core/http';
+import { logger } from '../../core/log';
+import { ProvenanceLog } from '../../core/provenance';
+import { truncate_to_columns } from '../../core/truncate';
+import { apply_graph, flush_engine_events, graph_counts, validate_graph } from '../entities';
+import type { EngineResult } from '../entities';
+import { resolve_existing_ref } from '../entities/match';
+import { assert_inheritance_allowed } from '../playlists';
+import { clamp_edited_at, lww_update, lww_wins } from './lww';
+import { load_album_bundles, load_artist_bundles, load_track_bundles, load_user } from './rows';
+import { empty_rows, profile_schema, PUSH_TABLES, push_row_schemas } from './types';
+import type { PushBody, PushRejection, PushRow, PushTable, SyncPushResponse, SyncRows } from './types';
+import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
+&nbsp;
+const log = logger('sync');
+&nbsp;
+export const PUSH_MAX_ENTITIES = 2_000;
+export const PUSH_MAX_RELATIONS = 10_000;
+export const PUSH_MAX_USER_ROWS = 20_000;
+&nbsp;
+const LIBRARY_TABLES: readonly PushTable[] = ['user_tracks', 'playlists', 'playlist_tracks', 'playlist_inherited_searches', 'playlist_inherited_playlists', 'linked_playlists'];
+&nbsp;
+type ValidRows = { [T in PushTable]: { row: PushRow&lt;T&gt;; index: number }[] };
+&nbsp;
+/** Validates every user row on its own; malformed rows are rejected and the rest still applies. */
+export function validate_push_rows(changes: PushBody['changes']): { rows: ValidRows; profile: z.infer&lt;typeof profile_schema&gt; | null; rejected: PushRejection[] } {
+	const rejected: PushRejection[] = [];
+	const rows = Object.fromEntries(PUSH_TABLES.map(t =&gt; [t, []])) as unknown as ValidRows;
+	for (const table of PUSH_TABLES) {
+		(changes[table] ?? []).forEach((item, index) =&gt; {
+			const parsed = push_row_schemas[table].safeParse(item);
+			if (parsed.success) (rows[table] as { row: unknown; index: number }[]).push({ row: parsed.data, index });
+			else rejected.push({ table, index, reason: 'malformed', issues: parsed.error.issues });
+		});
+	}
+	let profile = null;
+	<span class="missing-if-branch" title="else path not taken" >E</span>if (changes.profile !== undefined) {
+		const parsed = profile_schema.safeParse(changes.profile);
+		if (parsed.success) profile = parsed.data;
+		else <span class="cstat-no" title="statement not covered" ><span class="missing-if-branch" title="else path not taken" >E</span>rejected.push({ table: 'profile', index: 0, reason: 'malformed', issues: parsed.error.issues });</span>
+	}
+	return { rows, profile, rejected };
+}
+&nbsp;
+/** Values that are explicitly present (omitted fields keep the stored value). */
+const <span class="fstat-no" title="function not covered" >defined = &lt;T extends Record&lt;string, unknown&gt;&gt;(v</span>alues: T) =&gt; <span class="cstat-no" title="statement not covered" >Object.fromEntries(Object.entries(values).<span class="fstat-no" title="function not covered" >filter(([</span>, v]) =&gt; <span class="cstat-no" title="statement not covered" >v !== undefined)</span>) as Partial&lt;T&gt;;</span>
+&nbsp;
+class PushApplier {
+	readonly rejected: PushRejection[] = <span class="cstat-no" title="statement not covered" >[];</span>
+	readonly applied: SyncPushResponse['applied'] = <span class="cstat-no" title="statement not covered" >{};</span>
+	readonly inherited_id_map: SyncPushResponse['inherited_id_map'] = <span class="cstat-no" title="statement not covered" >{ playlist_inherited_searches: {}, playlist_inherited_playlists: {} };</span>
+	readonly redirects = <span class="cstat-no" title="statement not covered" >new Map&lt;string, string&gt;();</span>
+	readonly touched = <span class="cstat-no" title="statement not covered" >{</span>
+		user_tracks: new Set&lt;string&gt;(), playlists: new Set&lt;string&gt;(), playlist_tracks: new Set&lt;string&gt;(),
+		playlist_inherited_searches: new Set&lt;number&gt;(), playlist_inherited_playlists: new Set&lt;number&gt;(),
+		linked_playlists: new Set&lt;string&gt;(), track_plays: new Set&lt;string&gt;(), recent_searches: new Set&lt;string&gt;(), profile: false
+	};
+&nbsp;
+	private readonly track_cache = <span class="cstat-no" title="statement not covered" >new Map&lt;string, string | null&gt;();</span>
+	private readonly owned = <span class="cstat-no" title="statement not covered" >new Map&lt;string, boolean&gt;();</span>
+&nbsp;
+<span class="fstat-no" title="function not covered" >	constructor(p</span>rivate <span class="cstat-no" title="statement not covered" >tx: Tx, p</span>rivate <span class="cstat-no" title="statement not covered" >user_id: string, p</span>rivate <span class="cstat-no" title="statement not covered" >now: Date, p</span>rivate <span class="cstat-no" title="statement not covered" >refs: Record&lt;string, string&gt;) {</span>}
+&nbsp;
+<span class="fstat-no" title="function not covered" >	private c</span>ount(table: PushTable | 'profile') { <span class="cstat-no" title="statement not covered" >this.applied[table] = (this.applied[table] ?? 0) + 1; }</span>
+<span class="fstat-no" title="function not covered" >	private r</span>eject(table: PushTable | 'profile', index: number, reason: string) { <span class="cstat-no" title="statement not covered" >this.rejected.push({ table, index, reason }); }</span>
+<span class="fstat-no" title="function not covered" >	private e</span>dited(at: Date) { <span class="cstat-no" title="statement not covered" >return clamp_edited_at(at, this.now); }</span>
+&nbsp;
+	/** A temp ref of this push's entities, or an existing track id (following redirects, which are returned). */
+	async <span class="fstat-no" title="function not covered" >track(r</span>ef: string): Promise&lt;string | null&gt; {
+		const mapped = <span class="cstat-no" title="statement not covered" >this.refs[ref] as string | undefined;</span>
+<span class="cstat-no" title="statement not covered" >		if (mapped) <span class="cstat-no" title="statement not covered" >return mapped;</span></span>
+<span class="cstat-no" title="statement not covered" >		if (!this.track_cache.has(ref)) {</span>
+			const id = <span class="cstat-no" title="statement not covered" >await resolve_existing_ref(this.tx, 'track', ref);</span>
+<span class="cstat-no" title="statement not covered" >			if (id &amp;&amp; id !== ref.toLowerCase()) <span class="cstat-no" title="statement not covered" >this.redirects.set(ref.toLowerCase(), id);</span></span>
+<span class="cstat-no" title="statement not covered" >			this.track_cache.set(ref, id);</span>
+		}
+<span class="cstat-no" title="statement not covered" >		return this.track_cache.get(ref) ?? null;</span>
+	}
+&nbsp;
+	private async <span class="fstat-no" title="function not covered" >owns_playlist(i</span>d: string): Promise&lt;boolean&gt; {
+<span class="cstat-no" title="statement not covered" >		if (!this.owned.has(id)) {</span>
+			const [row] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ user_id: playlists_table.user_id }).from(playlists_table).where(eq(playlists_table.id, id));</span>
+<span class="cstat-no" title="statement not covered" >			this.owned.set(id, row?.user_id === this.user_id);</span>
+		}
+<span class="cstat-no" title="statement not covered" >		return this.owned.get(id)!;</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >profile(p</span>: z.infer&lt;typeof profile_schema&gt;) {
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(p.edited_at);</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ edited_at: users_table.edited_at }).from(users_table).where(eq(users_table.id, this.user_id)).for('update');</span>
+<span class="cstat-no" title="statement not covered" >		this.touched.profile = true;</span>
+<span class="cstat-no" title="statement not covered" >		if (!cur || !lww_wins(cur.edited_at, edited_at)) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >		await this.tx.update(users_table).set(lww_update(['username'], { username: p.username }, edited_at)).where(eq(users_table.id, this.user_id));</span>
+<span class="cstat-no" title="statement not covered" >		this.count('profile');</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >user_track({</span> row: r, index }: { row: PushRow&lt;'user_tracks'&gt;; index: number }) {
+		const track_id = <span class="cstat-no" title="statement not covered" >await this.track(r.track_id);</span>
+<span class="cstat-no" title="statement not covered" >		if (!track_id) <span class="cstat-no" title="statement not covered" >return this.reject('user_tracks', index, 'unknown track');</span></span>
+		const t = <span class="cstat-no" title="statement not covered" >user_tracks_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const values = <span class="cstat-no" title="statement not covered" >truncate_to_columns(t, defined({ title: r.title, downloaded_at: r.downloaded_at, start_at: r.start_at, end_at: r.end_at, deleted: r.deleted }), 'sync user_tracks');</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ edited_at: t.edited_at }).from(t).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id))).for('update');</span>
+<span class="cstat-no" title="statement not covered" >		this.touched.user_tracks.add(track_id);</span>
+<span class="cstat-no" title="statement not covered" >		if (!cur) {</span>
+<span class="cstat-no" title="statement not covered" >			await this.tx.insert(t).values({ ...values, user_id: this.user_id, track_id, edited_at });</span>
+		} else <span class="cstat-no" title="statement not covered" >if (lww_wins(cur.edited_at, edited_at)) {</span>
+<span class="cstat-no" title="statement not covered" >			await this.tx.update(t).set(lww_update(['title', 'downloaded_at', 'start_at', 'end_at', 'deleted'], values, edited_at)).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id)));</span>
+		} else {
+<span class="cstat-no" title="statement not covered" >			return;</span>
+		}
+<span class="cstat-no" title="statement not covered" >		this.count('user_tracks');</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >playlist({</span> row: r, index }: { row: PushRow&lt;'playlists'&gt;; index: number }) {
+		const t = <span class="cstat-no" title="statement not covered" >playlists_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const values = <span class="cstat-no" title="statement not covered" >truncate_to_columns(t, defined({ title: r.title, description: r.description, pinned: r.pinned, archived: r.archived, public: r.public, sort_mode: r.sort_mode, deleted: r.deleted }), 'sync playlists');</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ user_id: t.user_id, edited_at: t.edited_at }).from(t).where(eq(t.id, r.id)).for('update');</span>
+<span class="cstat-no" title="statement not covered" >		if (cur &amp;&amp; cur.user_id !== this.user_id) <span class="cstat-no" title="statement not covered" >return this.reject('playlists', index, 'playlist belongs to another user');</span></span>
+<span class="cstat-no" title="statement not covered" >		this.touched.playlists.add(r.id);</span>
+<span class="cstat-no" title="statement not covered" >		if (!cur) {</span>
+<span class="cstat-no" title="statement not covered" >			if (!values.title) <span class="cstat-no" title="statement not covered" >return this.reject('playlists', index, 'title is required for a new playlist');</span></span>
+			// Another user's private playlist is invisible to the select above, so the id can still collide.
+			const inserted = <span class="cstat-no" title="statement not covered" >await this.tx.insert(t).values({ ...values, title: values.title, id: r.id, user_id: this.user_id, edited_at }).onConflictDoNothing().returning({ id: t.id });</span>
+<span class="cstat-no" title="statement not covered" >			if (inserted.length === 0) <span class="cstat-no" title="statement not covered" >return this.reject('playlists', index, 'playlist belongs to another user');</span></span>
+<span class="cstat-no" title="statement not covered" >			this.owned.set(r.id, true);</span>
+		} else <span class="cstat-no" title="statement not covered" >if (lww_wins(cur.edited_at, edited_at)) {</span>
+<span class="cstat-no" title="statement not covered" >			await this.tx.update(t).set(lww_update(['title', 'description', 'pinned', 'archived', 'public', 'sort_mode', 'deleted'], values, edited_at)).where(eq(t.id, r.id));</span>
+		} else {
+<span class="cstat-no" title="statement not covered" >			return;</span>
+		}
+<span class="cstat-no" title="statement not covered" >		this.count('playlists');</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >playlist_track({</span> row: r, index }: { row: PushRow&lt;'playlist_tracks'&gt;; index: number }) {
+<span class="cstat-no" title="statement not covered" >		if (!(await this.owns_playlist(r.playlist_id))) <span class="cstat-no" title="statement not covered" >return this.reject('playlist_tracks', index, 'unknown playlist');</span></span>
+		const track_id = <span class="cstat-no" title="statement not covered" >await this.track(r.track_id);</span>
+<span class="cstat-no" title="statement not covered" >		if (!track_id) <span class="cstat-no" title="statement not covered" >return this.reject('playlist_tracks', index, 'unknown track');</span></span>
+		const t = <span class="cstat-no" title="statement not covered" >playlist_tracks_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const where = <span class="cstat-no" title="statement not covered" >and(eq(t.playlist_id, r.playlist_id), eq(t.track_id, track_id));</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ edited_at: t.edited_at }).from(t).where(where).for('update');</span>
+<span class="cstat-no" title="statement not covered" >		this.touched.playlist_tracks.add(`${r.playlist_id}|${track_id}`);</span>
+<span class="cstat-no" title="statement not covered" >		if (!cur) <span class="cstat-no" title="statement not covered" >await this.tx.insert(t).values({ playlist_id: r.playlist_id, track_id, deleted: r.deleted ?? false, edited_at });</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (lww_wins(cur.edited_at, edited_at)) <span class="cstat-no" title="statement not covered" >await this.tx.update(t).set(lww_update(['deleted'], defined({ deleted: r.deleted }), edited_at)).where(where);</span></span>
+		else <span class="cstat-no" title="statement not covered" >return;</span>
+<span class="cstat-no" title="statement not covered" >		this.count('playlist_tracks');</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >inherited_search({</span> row: r, index }: { row: PushRow&lt;'playlist_inherited_searches'&gt;; index: number }) {
+		const table = <span class="cstat-no" title="statement not covered" >'playlist_inherited_searches';</span>
+<span class="cstat-no" title="statement not covered" >		if (!(await this.owns_playlist(r.playlist_id))) <span class="cstat-no" title="statement not covered" >return this.reject(table, index, 'unknown playlist');</span></span>
+		const t = <span class="cstat-no" title="statement not covered" >playlist_inherited_searches_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const values = <span class="cstat-no" title="statement not covered" >truncate_to_columns(t, defined({ playlist_id: r.playlist_id, query: r.query, mode: r.mode, deleted: r.deleted }), 'sync inherited searches');</span>
+		// Without a server id, an active row with the same query is the same row (a retried push with a new push_id).
+		const [cur] = <span class="cstat-no" title="statement not covered" >r.id != null</span>
+			? await this.tx.select().from(t).where(eq(t.id, r.id)).for('update')
+			: await this.tx.select().from(t).where(and(eq(t.playlist_id, r.playlist_id), r.query == null ? isNull(t.query) : eq(t.query, values.query!), not(t.deleted))).limit(1).for('update');
+<span class="cstat-no" title="statement not covered" >		if (r.id != null &amp;&amp; (!cur || !(await this.owns_playlist(cur.playlist_id)))) <span class="cstat-no" title="statement not covered" >return this.reject(table, index, 'unknown row');</span></span>
+<span class="cstat-no" title="statement not covered" >		if (!cur) {</span>
+			const [row] = <span class="cstat-no" title="statement not covered" >await this.tx.insert(t).values({ ...values, playlist_id: r.playlist_id, edited_at }).returning({ id: t.id });</span>
+<span class="cstat-no" title="statement not covered" >			if (r.temp_id) <span class="cstat-no" title="statement not covered" >this.inherited_id_map[table][r.temp_id] = row.id;</span></span>
+<span class="cstat-no" title="statement not covered" >			this.touched[table].add(row.id);</span>
+		} else {
+<span class="cstat-no" title="statement not covered" >			this.touched[table].add(cur.id);</span>
+<span class="cstat-no" title="statement not covered" >			if (r.temp_id) <span class="cstat-no" title="statement not covered" >this.inherited_id_map[table][r.temp_id] = cur.id;</span></span>
+<span class="cstat-no" title="statement not covered" >			if (!lww_wins(cur.edited_at, edited_at)) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >			await this.tx.update(t).set(lww_update(['playlist_id', 'query', 'mode', 'deleted'], values, edited_at)).where(eq(t.id, cur.id));</span>
+		}
+<span class="cstat-no" title="statement not covered" >		this.count(table);</span>
+	}
+&nbsp;
+	/** Every write that makes an inheritance edge active goes through `assert_inheritance_allowed`. */
+	async <span class="fstat-no" title="function not covered" >inherited_playlist({</span> row: r, index }: { row: PushRow&lt;'playlist_inherited_playlists'&gt;; index: number }) {
+		const table = <span class="cstat-no" title="statement not covered" >'playlist_inherited_playlists';</span>
+<span class="cstat-no" title="statement not covered" >		if (!(await this.owns_playlist(r.playlist_id))) <span class="cstat-no" title="statement not covered" >return this.reject(table, index, 'unknown playlist');</span></span>
+		const t = <span class="cstat-no" title="statement not covered" >playlist_inherited_playlists_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >r.id != null</span>
+			? await this.tx.select().from(t).where(eq(t.id, r.id)).for('update')
+			: await this.tx.select().from(t).where(and(eq(t.playlist_id, r.playlist_id), eq(t.ref_id, r.ref_id), not(t.deleted))).limit(1).for('update');
+<span class="cstat-no" title="statement not covered" >		if (r.id != null &amp;&amp; (!cur || !(await this.owns_playlist(cur.playlist_id)))) <span class="cstat-no" title="statement not covered" >return this.reject(table, index, 'unknown row');</span></span>
+<span class="cstat-no" title="statement not covered" >		if (cur) {</span>
+<span class="cstat-no" title="statement not covered" >			this.touched[table].add(cur.id);</span>
+<span class="cstat-no" title="statement not covered" >			if (r.temp_id) <span class="cstat-no" title="statement not covered" >this.inherited_id_map[table][r.temp_id] = cur.id;</span></span>
+<span class="cstat-no" title="statement not covered" >			if (!lww_wins(cur.edited_at, edited_at)) <span class="cstat-no" title="statement not covered" >return;</span></span>
+		}
+		const deleted = <span class="cstat-no" title="statement not covered" >r.deleted ?? cur?.deleted ?? false;</span>
+		const activates = <span class="cstat-no" title="statement not covered" >!deleted &amp;&amp; (!cur || cur.deleted || cur.ref_id !== r.ref_id || cur.playlist_id !== r.playlist_id);</span>
+<span class="cstat-no" title="statement not covered" >		try {</span>
+<span class="cstat-no" title="statement not covered" >			await this.tx.transaction(<span class="fstat-no" title="function not covered" >async (s</span>p) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >				if (activates) <span class="cstat-no" title="statement not covered" >await assert_inheritance_allowed(sp, this.user_id, r.playlist_id, r.ref_id);</span></span>
+<span class="cstat-no" title="statement not covered" >				if (!cur) {</span>
+					const [row] = <span class="cstat-no" title="statement not covered" >await sp.insert(t).values({ playlist_id: r.playlist_id, ref_id: r.ref_id, mode: r.mode, deleted, edited_at }).returning({ id: t.id });</span>
+<span class="cstat-no" title="statement not covered" >					if (r.temp_id) <span class="cstat-no" title="statement not covered" >this.inherited_id_map[table][r.temp_id] = row.id;</span></span>
+<span class="cstat-no" title="statement not covered" >					this.touched[table].add(row.id);</span>
+				} else {
+<span class="cstat-no" title="statement not covered" >					await sp.update(t).set(lww_update(['playlist_id', 'ref_id', 'mode', 'deleted'], defined({ playlist_id: r.playlist_id, ref_id: r.ref_id, mode: r.mode, deleted: r.deleted }), edited_at)).where(eq(t.id, cur.id));</span>
+				}
+			});
+		} catch (err) {
+<span class="cstat-no" title="statement not covered" >			if (err instanceof HttpError) <span class="cstat-no" title="statement not covered" >return this.reject(table, index, err.message);</span></span>
+<span class="cstat-no" title="statement not covered" >			log.warn('inheritance write failed', err);</span>
+<span class="cstat-no" title="statement not covered" >			return this.reject(table, index, 'inheritance not allowed');</span>
+		}
+<span class="cstat-no" title="statement not covered" >		this.count(table);</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >linked_playlist({</span> row: r }: { row: PushRow&lt;'linked_playlists'&gt;; index: number }) {
+		const t = <span class="cstat-no" title="statement not covered" >linked_playlists_table;</span>
+		const edited_at = <span class="cstat-no" title="statement not covered" >this.edited(r.edited_at);</span>
+		const where = <span class="cstat-no" title="statement not covered" >and(eq(t.user_id, this.user_id), eq(t.service_uri, r.service_uri));</span>
+		const [cur] = <span class="cstat-no" title="statement not covered" >await this.tx.select({ edited_at: t.edited_at }).from(t).where(where).for('update');</span>
+<span class="cstat-no" title="statement not covered" >		this.touched.linked_playlists.add(r.service_uri);</span>
+<span class="cstat-no" title="statement not covered" >		if (!cur) <span class="cstat-no" title="statement not covered" >await this.tx.insert(t).values({ user_id: this.user_id, service_uri: r.service_uri, deleted: r.deleted ?? false, edited_at });</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (lww_wins(cur.edited_at, edited_at)) <span class="cstat-no" title="statement not covered" >await this.tx.update(t).set(lww_update(['deleted'], defined({ deleted: r.deleted }), edited_at)).where(where);</span></span>
+		else <span class="cstat-no" title="statement not covered" >return;</span>
+<span class="cstat-no" title="statement not covered" >		this.count('linked_playlists');</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >plays(r</span>ows: ValidRows['track_plays']) {
+		const values = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >		for (const { row, index } of rows) {</span>
+			const track_id = <span class="cstat-no" title="statement not covered" >await this.track(row.track_id);</span>
+<span class="cstat-no" title="statement not covered" >			if (!track_id) {</span>
+<span class="cstat-no" title="statement not covered" >				this.reject('track_plays', index, 'unknown track');</span>
+<span class="cstat-no" title="statement not covered" >				continue;</span>
+			}
+<span class="cstat-no" title="statement not covered" >			values.push({ user_id: this.user_id, track_id, client_id: row.client_id, created_at: clamp_edited_at(row.created_at, this.now) });</span>
+<span class="cstat-no" title="statement not covered" >			this.touched.track_plays.add(row.client_id);</span>
+		}
+<span class="cstat-no" title="statement not covered" >		for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; values.length; i += 1_000) {</span>
+			const inserted = <span class="cstat-no" title="statement not covered" >await this.tx.insert(track_plays_table).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: track_plays_table.client_id }).returning({ id: track_plays_table.id });</span>
+<span class="cstat-no" title="statement not covered" >			this.applied.track_plays = (this.applied.track_plays ?? 0) + inserted.length;</span>
+		}
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >searches(r</span>ows: ValidRows['recent_searches']) {
+		const values = <span class="cstat-no" title="statement not covered" >rows.<span class="fstat-no" title="function not covered" >map(({</span> row }) =&gt; <span class="cstat-no" title="statement not covered" >truncate_to_columns(user_recent_searches, { user_id: this.user_id, text: row.text, client_id: row.client_id, created_at: clamp_edited_at(row.created_at, this.now) }, 'sync searches'))</span>;</span>
+<span class="cstat-no" title="statement not covered" >		for (const { row } of rows) <span class="cstat-no" title="statement not covered" >this.touched.recent_searches.add(row.client_id);</span></span>
+<span class="cstat-no" title="statement not covered" >		for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; values.length; i += 1_000) {</span>
+			const inserted = <span class="cstat-no" title="statement not covered" >await this.tx.insert(user_recent_searches).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: user_recent_searches.client_id }).returning({ id: user_recent_searches.id });</span>
+<span class="cstat-no" title="statement not covered" >			this.applied.recent_searches = (this.applied.recent_searches ?? 0) + inserted.length;</span>
+		}
+	}
+&nbsp;
+	/** Re-reads every touched row so the client can overwrite its copy with the server's values. */
+	async <span class="fstat-no" title="function not covered" >authoritative(e</span>ngine: EngineResult): Promise&lt;SyncRows&gt; {
+		const rows = <span class="cstat-no" title="statement not covered" >empty_rows()</span>;
+		const tx = <span class="cstat-no" title="statement not covered" >this.tx;</span>
+		const u = <span class="cstat-no" title="statement not covered" >this.user_id;</span>
+		const touched = <span class="cstat-no" title="statement not covered" >this.touched;</span>
+<span class="cstat-no" title="statement not covered" >		if (touched.profile) <span class="cstat-no" title="statement not covered" >rows.user = await load_user(tx, u);</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.user_tracks.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.user_tracks = await tx.select().from(user_tracks_table).where(and(eq(user_tracks_table.user_id, u), inArray(user_tracks_table.track_id, [...touched.user_tracks])));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.playlists.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.playlists = await tx.select().from(playlists_table).where(and(eq(playlists_table.user_id, u), inArray(playlists_table.id, [...touched.playlists])));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.playlist_tracks.size &gt; 0) {</span>
+			const pairs = <span class="cstat-no" title="statement not covered" >[...touched.playlist_tracks].<span class="fstat-no" title="function not covered" >map(k</span> =&gt; <span class="cstat-no" title="statement not covered" >k.split('|'))</span>;</span>
+			const found = <span class="cstat-no" title="statement not covered" >await tx.select().from(playlist_tracks_table).where(and(</span>
+				inArray(playlist_tracks_table.playlist_id, [...new Set(pairs.<span class="fstat-no" title="function not covered" >map(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p[0])</span>)]),
+				inArray(playlist_tracks_table.track_id, [...new Set(pairs.<span class="fstat-no" title="function not covered" >map(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p[1])</span>)])
+			));
+<span class="cstat-no" title="statement not covered" >			rows.playlist_tracks = found.<span class="fstat-no" title="function not covered" >filter(r</span> =&gt; <span class="cstat-no" title="statement not covered" >touched.playlist_tracks.has(`${r.playlist_id}|${r.track_id}`))</span>;</span>
+		}
+<span class="cstat-no" title="statement not covered" >		if (touched.playlist_inherited_searches.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.playlist_inherited_searches = await tx.select().from(playlist_inherited_searches_table).where(inArray(playlist_inherited_searches_table.id, [...touched.playlist_inherited_searches]));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.playlist_inherited_playlists.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.playlist_inherited_playlists = await tx.select().from(playlist_inherited_playlists_table).where(inArray(playlist_inherited_playlists_table.id, [...touched.playlist_inherited_playlists]));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.linked_playlists.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.linked_playlists = await tx.select().from(linked_playlists_table).where(and(eq(linked_playlists_table.user_id, u), inArray(linked_playlists_table.service_uri, [...touched.linked_playlists])));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.track_plays.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.track_plays = await tx.select().from(track_plays_table).where(and(eq(track_plays_table.user_id, u), inArray(track_plays_table.client_id, [...touched.track_plays])));</span></span>
+<span class="cstat-no" title="statement not covered" >		if (touched.recent_searches.size &gt; 0) <span class="cstat-no" title="statement not covered" >rows.recent_searches = await tx.select().from(user_recent_searches).where(and(eq(user_recent_searches.user_id, u), inArray(user_recent_searches.client_id, [...touched.recent_searches])));</span></span>
+&nbsp;
+		const by_type = <span class="cstat-no" title="statement not covered" >{ track: new Set&lt;string&gt;(), album: new Set&lt;string&gt;(), artist: new Set&lt;string&gt;() };</span>
+<span class="cstat-no" title="statement not covered" >		for (const e of [...engine.created, ...engine.matched]) <span class="cstat-no" title="statement not covered" >by_type[e.type].add(e.illusi_id);</span></span>
+<span class="cstat-no" title="statement not covered" >		await load_track_bundles(tx, [...by_type.track], rows);</span>
+<span class="cstat-no" title="statement not covered" >		await load_album_bundles(tx, [...by_type.album], rows);</span>
+<span class="cstat-no" title="statement not covered" >		await load_artist_bundles(tx, [...by_type.artist], rows);</span>
+<span class="cstat-no" title="statement not covered" >		rows.redirects = [...this.redirects].<span class="fstat-no" title="function not covered" >map(([</span>old_id, new_id]) =&gt; (<span class="cstat-no" title="statement not covered" >{ old_id, new_id }))</span>;</span>
+<span class="cstat-no" title="statement not covered" >		for (const e of engine.matched) {</span>
+<span class="cstat-no" title="statement not covered" >			if (e.by === 'ref' &amp;&amp; e.ref.toLowerCase() !== e.illusi_id) <span class="cstat-no" title="statement not covered" >rows.redirects.push({ old_id: e.ref.toLowerCase(), new_id: e.illusi_id });</span></span>
+		}
+<span class="cstat-no" title="statement not covered" >		return rows;</span>
+	}
+&nbsp;
+	get <span class="fstat-no" title="function not covered" >library_changed() {</span>
+<span class="cstat-no" title="statement not covered" >		return LIBRARY_TABLES.<span class="fstat-no" title="function not covered" >some(<span class="cstat-no" title="statement not covered" >t</span> =&gt; (this.applied[t] ?? 0) &gt; 0)</span>;</span>
+	}
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >replay(p</span>ush_id: string, user_id: string): Promise&lt;SyncPushResponse | null&gt; {
+	const [row] = <span class="cstat-no" title="statement not covered" >await db.select().from(sync_pushes_table).where(eq(sync_pushes_table.push_id, push_id));</span>
+<span class="cstat-no" title="statement not covered" >	if (!row) <span class="cstat-no" title="statement not covered" >return null;</span></span>
+<span class="cstat-no" title="statement not covered" >	if (row.user_id !== user_id) <span class="cstat-no" title="statement not covered" >throw new HttpError(409, 'push_id already used');</span></span>
+<span class="cstat-no" title="statement not covered" >	return row.response as SyncPushResponse;</span>
+}
+&nbsp;
+const <span class="fstat-no" title="function not covered" >is_unique_violation = (e</span>rr: unknown) =&gt; <span class="cstat-no" title="statement not covered" >pg_error_code(err) === PG_ERRORS.unique_violation;</span>
+&nbsp;
+export async function <span class="fstat-no" title="function not covered" >push(u</span>ser: AuthUser, body: PushBody): Promise&lt;SyncPushResponse&gt; {
+	const raw_graph = <span class="cstat-no" title="statement not covered" >body.changes.entities ?? {};</span>
+	const counts = <span class="cstat-no" title="statement not covered" >graph_counts(raw_graph);</span>
+	const user_row_count = <span class="cstat-no" title="statement not covered" >PUSH_TABLES.<span class="fstat-no" title="function not covered" >reduce((n</span>, t) =&gt; <span class="cstat-no" title="statement not covered" >n + (body.changes[t]?.length ?? 0), 0</span>);</span>
+<span class="cstat-no" title="statement not covered" >	if (counts.entities &gt; PUSH_MAX_ENTITIES || counts.relations &gt; PUSH_MAX_RELATIONS || user_row_count &gt; PUSH_MAX_USER_ROWS) {</span>
+<span class="cstat-no" title="statement not covered" >		throw new HttpError(413, 'push too large, send it in chunks', { max_entities: PUSH_MAX_ENTITIES, max_relations: PUSH_MAX_RELATIONS, max_user_rows: PUSH_MAX_USER_ROWS });</span>
+	}
+	const previous = <span class="cstat-no" title="statement not covered" >await replay(body.push_id, user.id);</span>
+<span class="cstat-no" title="statement not covered" >	if (previous) <span class="cstat-no" title="statement not covered" >return previous;</span></span>
+&nbsp;
+	const { graph, rejected: graph_rejected } = <span class="cstat-no" title="statement not covered" >validate_graph(raw_graph);</span>
+	const { rows, profile, rejected: row_rejected } = <span class="cstat-no" title="statement not covered" >validate_push_rows(body.changes);</span>
+&nbsp;
+	let outcome;
+<span class="cstat-no" title="statement not covered" >	try {</span>
+<span class="cstat-no" title="statement not covered" >		outcome = await db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
+			const [{ now }] = <span class="cstat-no" title="statement not covered" >await tx.execute&lt;{ now: string }&gt;(sql`select now()::text as now`, 'objects');</span>
+			const provenance = <span class="cstat-no" title="statement not covered" >new ProvenanceLog('sync_push', user.id);</span>
+			const engine = <span class="cstat-no" title="statement not covered" >await apply_graph(tx, graph, { user_id: user.id, source: 'sync_push', provenance });</span>
+			const applier = <span class="cstat-no" title="statement not covered" >new PushApplier(tx, user.id, new Date(now), engine.refs);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >			if (profile) <span class="cstat-no" title="statement not covered" >await applier.profile(profile);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.user_tracks) <span class="cstat-no" title="statement not covered" >await applier.user_track(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.playlists) <span class="cstat-no" title="statement not covered" >await applier.playlist(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.playlist_tracks) <span class="cstat-no" title="statement not covered" >await applier.playlist_track(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.playlist_inherited_searches) <span class="cstat-no" title="statement not covered" >await applier.inherited_search(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.playlist_inherited_playlists) <span class="cstat-no" title="statement not covered" >await applier.inherited_playlist(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			for (const r of rows.linked_playlists) <span class="cstat-no" title="statement not covered" >await applier.linked_playlist(r);</span></span>
+<span class="cstat-no" title="statement not covered" >			await applier.plays(rows.track_plays);</span>
+<span class="cstat-no" title="statement not covered" >			await applier.searches(rows.recent_searches);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >			if (provenance.entities.length &gt; 0) <span class="cstat-no" title="statement not covered" >await provenance.write(tx);</span></span>
+			const rejected = <span class="cstat-no" title="statement not covered" >[...row_rejected, ...applier.rejected];</span>
+			const entity_rejected = <span class="cstat-no" title="statement not covered" >[...graph_rejected, ...engine.rejected];</span>
+			const response: SyncPushResponse = <span class="cstat-no" title="statement not covered" >{</span>
+				push_id: body.push_id,
+				cursor: body.base_cursor ?? null,
+				id_map: engine.refs,
+				inherited_id_map: applier.inherited_id_map,
+				rows: await applier.authoritative(engine),
+				entities: { created: engine.created, matched: engine.matched, conflicts: engine.conflicts, rejected: entity_rejected },
+				rejected,
+				applied: applier.applied,
+				progress: {
+					entities: counts.entities,
+					user_rows: user_row_count + (body.changes.profile !== undefined ? 1 : 0),
+					created: engine.created.length,
+					matched: engine.matched.length,
+					rejected: rejected.length + entity_rejected.<span class="fstat-no" title="function not covered" >filter(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.field == null)</span>.length
+				}
+			};
+			// Round-trip through JSON so the stored replay and the first response are identical.
+			const json = <span class="cstat-no" title="statement not covered" >JSON.parse(JSON.stringify(response)) as SyncPushResponse;</span>
+<span class="cstat-no" title="statement not covered" >			await tx.insert(sync_pushes_table).values({ push_id: body.push_id, user_id: user.id, response: json });</span>
+<span class="cstat-no" title="statement not covered" >			return { response: json, engine, library_changed: applier.library_changed };</span>
+		});
+	} catch (err) {
+<span class="cstat-no" title="statement not covered" >		if (is_unique_violation(err)) {</span>
+			const stored = <span class="cstat-no" title="statement not covered" >await replay(body.push_id, user.id);</span>
+<span class="cstat-no" title="statement not covered" >			if (stored) <span class="cstat-no" title="statement not covered" >return stored;</span></span>
+		}
+<span class="cstat-no" title="statement not covered" >		throw err;</span>
+	}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >	flush_engine_events(outcome.engine);</span>
+<span class="cstat-no" title="statement not covered" >	if (outcome.library_changed) {</span>
+		const events = <span class="cstat-no" title="statement not covered" >new PendingEvents();</span>
+<span class="cstat-no" title="statement not covered" >		events.push('user_library_changed', { user_id: user.id });</span>
+<span class="cstat-no" title="statement not covered" >		events.flush();</span>
+	}
+<span class="cstat-no" title="statement not covered" >	return outcome.response;</span>
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    

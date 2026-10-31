@@ -1,0 +1,967 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/services/soundcloud/ingest.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">src/services/soundcloud</a> ingest.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">5.58% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>12/215</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">4.93% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>4/81</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">2.32% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>1/43</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">7.23% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>11/152</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { and, getColumns, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
+import type { Column, SQL } from 'drizzle-orm';
+import { config } from '../../config';
+import { db } from '../../db';
+import type { Tx } from '../../db';
+import {
+	albums_table, artists_table, service_ids_table, soundcloud_playlist_table, soundcloud_playlist_tracks_table,
+	soundcloud_tracks_table, soundcloud_transcodings_table, soundcloud_users_table, tracks_table
+} from '../../db/schema';
+import { enrich_service_ids } from '../../core/enrich';
+import { PendingEvents } from '../../core/events';
+import { logger } from '../../core/log';
+import { ProvenanceLog } from '../../core/provenance';
+import { soundcloud_thumbnails, upsert_thumbnails } from '../../core/thumbnails';
+import type { Batch } from './normalize';
+import { changed_fields, decide_membership, VOLATILE_FIELDS } from './normalize';
+import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
+&nbsp;
+const log = logger('soundcloud');
+&nbsp;
+const CHUNK = 500;
+&nbsp;
+/** True when a transcoding URL hasn't been seen in a submission for `SC_TRANSCODING_STALE_AFTER_HOURS`. */
+export function is_transcoding_stale(last_seen_at: Date | string | null | undefined, now = Date.now()): boolean {
+	if (last_seen_at == null) return true;
+	const t = new Date(last_seen_at).getTime();
+	<span class="missing-if-branch" title="if path not taken" >I</span>if (Number.isNaN(t)) <span class="cstat-no" title="statement not covered" >return true;</span>
+	return now - t &gt; config.SC_TRANSCODING_STALE_AFTER_HOURS * 3_600_000;
+}
+&nbsp;
+function <span class="fstat-no" title="function not covered" >chunks&lt;T&gt;(i</span>tems: readonly T[], size = <span class="branch-0 cbranch-no" title="branch not covered" >CHUNK): T[][] {</span>
+	const out: T[][] = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >	for (let i = <span class="cstat-no" title="statement not covered" >0; i</span> &lt; items.length; i += size) <span class="cstat-no" title="statement not covered" >out.push(items.slice(i, i + size));</span></span>
+<span class="cstat-no" title="statement not covered" >	return out;</span>
+}
+&nbsp;
+type ScEntityTable = typeof soundcloud_users_table | typeof soundcloud_tracks_table | typeof soundcloud_playlist_table;
+&nbsp;
+/**
+ * `ON CONFLICT DO UPDATE` set for a SoundCloud entity table: every column is
+ * `coalesce(excluded, existing)`, descriptive columns keep the stored value when the incoming
+ * `last_modified` is older, volatile counters always move, and `soundcloud_last_modified` only advances.
+ */
+function <span class="fstat-no" title="function not covered" >upsert_set(t</span>able: ScEntityTable, volatile: readonly string[]): Record&lt;string, SQL&gt; {
+	const columns = <span class="cstat-no" title="statement not covered" >getColumns(table) as Record&lt;string, Column&gt;;</span>
+	const lm = <span class="cstat-no" title="statement not covered" >sql.identifier('soundcloud_last_modified');</span>
+	const stored_lm = <span class="cstat-no" title="statement not covered" >sql`${table.soundcloud_last_modified}`;</span>
+	const stale = <span class="cstat-no" title="statement not covered" >sql`(excluded.${lm} is not null and ${stored_lm} is not null and excluded.${lm} &lt; ${stored_lm})`;</span>
+	const set: Record&lt;string, SQL&gt; = <span class="cstat-no" title="statement not covered" >{};</span>
+<span class="cstat-no" title="statement not covered" >	for (const [key, column] of Object.entries(columns)) {</span>
+		// `modified_at` is bumped by drizzle's `$onUpdate`.
+<span class="cstat-no" title="statement not covered" >		if (key === 'id' || key === 'created_at' || key === 'modified_at') <span class="cstat-no" title="statement not covered" >continue;</span></span>
+		const ident = <span class="cstat-no" title="statement not covered" >sql.identifier(column.name);</span>
+		const existing = <span class="cstat-no" title="statement not covered" >sql`${column}`;</span>
+<span class="cstat-no" title="statement not covered" >		if (key === 'soundcloud_last_modified') <span class="cstat-no" title="statement not covered" >set[key] = sql`greatest(excluded.${ident}, ${existing})`;</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (volatile.includes(key)) <span class="cstat-no" title="statement not covered" >set[key] = sql`coalesce(excluded.${ident}, ${existing})`;</span></span>
+		else <span class="cstat-no" title="statement not covered" >set[key] = sql`case when ${stale} then ${existing} else coalesce(excluded.${ident}, ${existing}) end`;</span>
+	}
+<span class="cstat-no" title="statement not covered" >	return set;</span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >existing_ids(t</span>x: Tx, table: typeof soundcloud_users_table | typeof soundcloud_tracks_table, ids: number[]): Promise&lt;Set&lt;number&gt;&gt; {
+	const out = <span class="cstat-no" title="statement not covered" >new Set&lt;number&gt;();</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(ids)) {</span>
+		const rows = <span class="cstat-no" title="statement not covered" >await tx.select({ id: table.id }).from(table).where(inArray(table.id, part));</span>
+<span class="cstat-no" title="statement not covered" >		for (const r of rows) <span class="cstat-no" title="statement not covered" >out.add(r.id);</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	return out;</span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >select_existing&lt;T extends ScEntityTable&gt;(t</span>x: Tx, table: T, ids: number[]): Promise&lt;Map&lt;number, Record&lt;string, unknown&gt;&gt;&gt; {
+	const out = <span class="cstat-no" title="statement not covered" >new Map&lt;number, Record&lt;string, unknown&gt;&gt;();</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(ids)) {</span>
+		const rows = <span class="cstat-no" title="statement not covered" >await tx.select().from(table).where(inArray(table.id, part)) as Record&lt;string, unknown&gt;[];</span>
+<span class="cstat-no" title="statement not covered" >		for (const r of rows) <span class="cstat-no" title="statement not covered" >out.set(r.id as number, r);</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	return out;</span>
+}
+&nbsp;
+/** Ids of SoundCloud users that exist (in this batch or stored), so `user_id` FKs can be nulled otherwise. */
+async function <span class="fstat-no" title="function not covered" >known_user_ids(t</span>x: Tx, batch: Batch, wanted: Iterable&lt;number | null | undefined&gt;): Promise&lt;Set&lt;number&gt;&gt; {
+	const known = <span class="cstat-no" title="statement not covered" >new Set(batch.users.keys());</span>
+	const missing = <span class="cstat-no" title="statement not covered" >[...new Set([...wanted].<span class="fstat-no" title="function not covered" >filter((i</span>d): id is number =&gt; <span class="cstat-no" title="statement not covered" >id != null &amp;&amp; !known.has(id))</span>)];</span>
+<span class="cstat-no" title="statement not covered" >	for (const id of await existing_ids(tx, soundcloud_users_table, missing)) <span class="cstat-no" title="statement not covered" >known.add(id);</span></span>
+<span class="cstat-no" title="statement not covered" >	return known;</span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >write_users(t</span>x: Tx, batch: Batch, prov: ProvenanceLog) {
+	const rows = <span class="cstat-no" title="statement not covered" >[...batch.users.values()].<span class="fstat-no" title="function not covered" >sort((a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a.id - b.id)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	if (rows.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const ids = <span class="cstat-no" title="statement not covered" >rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.id)</span>;</span>
+	const existing = <span class="cstat-no" title="statement not covered" >await select_existing(tx, soundcloud_users_table, ids);</span>
+	// `permalink` is unique; a stored user that no longer owns it (renamed on SoundCloud) gets it suffixed.
+	const permalinks = <span class="cstat-no" title="statement not covered" >rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.permalink)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(permalinks)) {</span>
+		const taken = <span class="cstat-no" title="statement not covered" >await tx.update(soundcloud_users_table)</span>
+			.set({ permalink: sql`left(${soundcloud_users_table.permalink}, 100) || '~' || ${soundcloud_users_table.id}` })
+			.where(and(inArray(soundcloud_users_table.permalink, part), notInArray(soundcloud_users_table.id, ids)))
+			.returning({ id: soundcloud_users_table.id });
+<span class="cstat-no" title="statement not covered" >		if (taken.length &gt; 0) <span class="cstat-no" title="statement not covered" >log.warn('released permalinks of renamed soundcloud users', taken.<span class="fstat-no" title="function not covered" >map(t</span> =&gt; <span class="cstat-no" title="statement not covered" >t.id)</span>);</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(rows)) {</span>
+<span class="cstat-no" title="statement not covered" >		await tx.insert(soundcloud_users_table).values(part).onConflictDoUpdate({</span>
+			target: soundcloud_users_table.id,
+			set: upsert_set(soundcloud_users_table, VOLATILE_FIELDS.users)
+		});
+	}
+<span class="cstat-no" title="statement not covered" >	for (const row of rows) <span class="cstat-no" title="statement not covered" >prov.touch('soundcloud_users_table', row.id, changed_fields(existing.get(row.id), row, VOLATILE_FIELDS.users));</span></span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >write_tracks(t</span>x: Tx, batch: Batch, prov: ProvenanceLog) {
+	const entries = <span class="cstat-no" title="statement not covered" >[...batch.tracks.values()].<span class="fstat-no" title="function not covered" >sort((a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a.row.id - b.row.id)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	if (entries.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const known_users = <span class="cstat-no" title="statement not covered" >await known_user_ids(tx, batch, entries.<span class="fstat-no" title="function not covered" >map(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.row.user_id)</span>);</span>
+	const rows = <span class="cstat-no" title="statement not covered" >entries.<span class="fstat-no" title="function not covered" >map(e</span> =&gt; (<span class="cstat-no" title="statement not covered" >{ ...e.row, user_id: e.row.user_id != null &amp;&amp; known_users.has(e.row.user_id) ? e.row.user_id : null }))</span>;</span>
+	const existing = <span class="cstat-no" title="statement not covered" >await select_existing(tx, soundcloud_tracks_table, rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.id)</span>);</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(rows)) {</span>
+<span class="cstat-no" title="statement not covered" >		await tx.insert(soundcloud_tracks_table).values(part).onConflictDoUpdate({</span>
+			target: soundcloud_tracks_table.id,
+			set: upsert_set(soundcloud_tracks_table, VOLATILE_FIELDS.tracks)
+		});
+	}
+<span class="cstat-no" title="statement not covered" >	for (const row of rows) <span class="cstat-no" title="statement not covered" >prov.touch('soundcloud_tracks_table', row.id, changed_fields(existing.get(row.id), row, VOLATILE_FIELDS.tracks));</span></span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >write_transcodings(t</span>x: Tx, batch: Batch, prov: ProvenanceLog) {
+	const with_media = <span class="cstat-no" title="statement not covered" >[...batch.tracks.values()].<span class="fstat-no" title="function not covered" >filter(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.transcodings !== null)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	if (with_media.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const seen_at = <span class="cstat-no" title="statement not covered" >new Date();</span>
+	const by_url = <span class="cstat-no" title="statement not covered" >new Map&lt;string, NonNullable&lt;typeof with_media[number]['transcodings']&gt;[number]&gt;();</span>
+<span class="cstat-no" title="statement not covered" >	for (const e of with_media) <span class="cstat-no" title="statement not covered" >for (const t of e.transcodings ?? []) <span class="cstat-no" title="statement not covered" >by_url.set(t.url, t);</span></span></span>
+	const rows = <span class="cstat-no" title="statement not covered" >[...by_url.values()].<span class="fstat-no" title="function not covered" >sort((a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a.url.localeCompare(b.url))</span>.<span class="fstat-no" title="function not covered" >map(t</span> =&gt; (<span class="cstat-no" title="statement not covered" >{ ...t, last_seen_at: seen_at }))</span>;</span>
+	const t = <span class="cstat-no" title="statement not covered" >soundcloud_transcodings_table;</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(rows)) {</span>
+		const written = <span class="cstat-no" title="statement not covered" >await tx.insert(t).values(part).onConflictDoUpdate({</span>
+			target: t.url,
+			set: {
+				track_id: sql`excluded.track_id`,
+				preset: sql`coalesce(excluded.preset, ${t.preset})`,
+				protocol: sql`coalesce(excluded.protocol, ${t.protocol})`,
+				mime_type: sql`coalesce(excluded.mime_type, ${t.mime_type})`,
+				quality: sql`coalesce(excluded.quality, ${t.quality})`,
+				duration: sql`coalesce(excluded.duration, ${t.duration})`,
+				snipped: sql`coalesce(excluded.snipped, ${t.snipped})`,
+				last_seen_at: sql`excluded.last_seen_at`
+			}
+		}).returning({ id: t.id, inserted: sql&lt;boolean&gt;`(xmax = 0)` });
+<span class="cstat-no" title="statement not covered" >		for (const w of written) <span class="cstat-no" title="statement not covered" >if (w.inserted) <span class="cstat-no" title="statement not covered" >prov.touch('soundcloud_transcodings_table', w.id, ['*']);</span></span></span>
+	}
+	// A media block is the track's full transcoding set: drop the ones it no longer lists.
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(with_media.<span class="fstat-no" title="function not covered" >map(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.row.id)</span>)) {</span>
+<span class="cstat-no" title="statement not covered" >		await tx.delete(t).where(and(inArray(t.track_id, part), or(sql`${t.last_seen_at} is null`, ne(t.last_seen_at, seen_at))));</span>
+	}
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >write_playlists(t</span>x: Tx, batch: Batch, prov: ProvenanceLog) {
+	const entries = <span class="cstat-no" title="statement not covered" >[...batch.playlists.values()].<span class="fstat-no" title="function not covered" >sort((a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a.row.id - b.row.id)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	if (entries.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const known_users = <span class="cstat-no" title="statement not covered" >await known_user_ids(tx, batch, entries.<span class="fstat-no" title="function not covered" >map(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.row.user_id)</span>);</span>
+	const rows = <span class="cstat-no" title="statement not covered" >entries.<span class="fstat-no" title="function not covered" >map(e</span> =&gt; (<span class="cstat-no" title="statement not covered" >{ ...e.row, user_id: e.row.user_id != null &amp;&amp; known_users.has(e.row.user_id) ? e.row.user_id : null }))</span>;</span>
+	const existing = <span class="cstat-no" title="statement not covered" >await select_existing(tx, soundcloud_playlist_table, rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.id)</span>);</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(rows)) {</span>
+<span class="cstat-no" title="statement not covered" >		await tx.insert(soundcloud_playlist_table).values(part).onConflictDoUpdate({</span>
+			target: soundcloud_playlist_table.id,
+			set: upsert_set(soundcloud_playlist_table, VOLATILE_FIELDS.playlists)
+		});
+	}
+<span class="cstat-no" title="statement not covered" >	for (const row of rows) <span class="cstat-no" title="statement not covered" >prov.touch('soundcloud_playlist_table', row.id, changed_fields(existing.get(row.id), row, VOLATILE_FIELDS.playlists));</span></span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >write_playlist_tracks(t</span>x: Tx, batch: Batch, prov: ProvenanceLog) {
+	const entries = <span class="cstat-no" title="statement not covered" >[...batch.playlists.values()].<span class="fstat-no" title="function not covered" >filter(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.members !== null)</span>.<span class="fstat-no" title="function not covered" >sort((a</span>, b) =&gt; <span class="cstat-no" title="statement not covered" >a.row.id - b.row.id)</span>;</span>
+<span class="cstat-no" title="statement not covered" >	if (entries.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const known = <span class="cstat-no" title="statement not covered" >new Set(batch.tracks.keys());</span>
+	const stub_ids = <span class="cstat-no" title="statement not covered" >[...new Set(entries.<span class="fstat-no" title="function not covered" >flatMap(e</span> =&gt; <span class="cstat-no" title="statement not covered" >e.members ?? [])</span>.<span class="fstat-no" title="function not covered" >filter(i</span>d =&gt; <span class="cstat-no" title="statement not covered" >!known.has(id))</span>)];</span>
+<span class="cstat-no" title="statement not covered" >	for (const id of await existing_ids(tx, soundcloud_tracks_table, stub_ids)) <span class="cstat-no" title="statement not covered" >known.add(id);</span></span>
+	const pt = <span class="cstat-no" title="statement not covered" >soundcloud_playlist_tracks_table;</span>
+<span class="cstat-no" title="statement not covered" >	for (const entry of entries) {</span>
+		const decision = <span class="cstat-no" title="statement not covered" >decide_membership(entry.members, entry.row.track_count, known);</span>
+<span class="cstat-no" title="statement not covered" >		if (decision.mode === 'none') <span class="cstat-no" title="statement not covered" >continue;</span></span>
+		const playlist_id = <span class="cstat-no" title="statement not covered" >entry.row.id;</span>
+		const rows = <span class="cstat-no" title="statement not covered" >decision.rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; (<span class="cstat-no" title="statement not covered" >{ playlist_id, track_id: r.track_id, position: r.position }))</span>;</span>
+<span class="cstat-no" title="statement not covered" >		if (decision.mode === 'replace') {</span>
+			const keep = <span class="cstat-no" title="statement not covered" >rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.track_id)</span>;</span>
+<span class="cstat-no" title="statement not covered" >			await tx.delete(pt).where(and(sql`${pt.playlist_id} = ${playlist_id}`, keep.length &gt; 0 ? notInArray(pt.track_id, keep) : undefined));</span>
+<span class="cstat-no" title="statement not covered" >			for (const part of chunks(rows)) {</span>
+<span class="cstat-no" title="statement not covered" >				await tx.insert(pt).values(part).onConflictDoUpdate({</span>
+					target: [pt.playlist_id, pt.track_id],
+					set: { position: sql`excluded.position` }
+				});
+			}
+		} else {
+<span class="cstat-no" title="statement not covered" >			for (const part of chunks(rows)) <span class="cstat-no" title="statement not covered" >await tx.insert(pt).values(part).onConflictDoNothing();</span></span>
+		}
+<span class="cstat-no" title="statement not covered" >		prov.touch('soundcloud_playlist_tracks_table', playlist_id, [`${decision.mode}:${rows.length}`]);</span>
+	}
+}
+&nbsp;
+/**
+ * Enrichment and thumbnails, only for SoundCloud ids already linked to an Illusi entity of
+ * the matching type (track ↔ track, playlist ↔ album, user ↔ artist).
+ */
+async function <span class="fstat-no" title="function not covered" >enrich_linked(t</span>x: Tx, batch: Batch, user_id: string, prov: ProvenanceLog, events: PendingEvents) {
+	const sc_ids = <span class="cstat-no" title="statement not covered" >[...new Set([...batch.tracks.keys(), ...batch.playlists.keys(), ...batch.users.keys()])];</span>
+<span class="cstat-no" title="statement not covered" >	if (sc_ids.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const links = <span class="cstat-no" title="statement not covered" >new Map&lt;number, string&gt;();</span>
+<span class="cstat-no" title="statement not covered" >	for (const part of chunks(sc_ids)) {</span>
+		const rows = <span class="cstat-no" title="statement not covered" >await tx.select({ illusi_id: service_ids_table.illusi_id, soundcloud_id: service_ids_table.soundcloud_id })</span>
+			.from(service_ids_table).where(inArray(service_ids_table.soundcloud_id, part));
+<span class="cstat-no" title="statement not covered" >		for (const r of rows) <span class="cstat-no" title="statement not covered" >if (r.soundcloud_id != null) <span class="cstat-no" title="statement not covered" >links.set(r.soundcloud_id, r.illusi_id);</span></span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	if (links.size === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+	const illusi_ids = <span class="cstat-no" title="statement not covered" >[...new Set(links.values())];</span>
+	const ids_in = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async (t</span>able: typeof tracks_table | typeof albums_table | typeof artists_table) =&gt; {</span>
+		const out = <span class="cstat-no" title="statement not covered" >new Set&lt;string&gt;();</span>
+<span class="cstat-no" title="statement not covered" >		for (const part of chunks(illusi_ids)) {</span>
+<span class="cstat-no" title="statement not covered" >			for (const r of await tx.select({ id: table.id }).from(table).where(inArray(table.id, part))) <span class="cstat-no" title="statement not covered" >out.add(r.id);</span></span>
+		}
+<span class="cstat-no" title="statement not covered" >		return out;</span>
+	};
+	const [tracks, albums, artists] = <span class="cstat-no" title="statement not covered" >[await ids_in(tracks_table), await ids_in(albums_table), await ids_in(artists_table)];</span>
+	const ctx = <span class="cstat-no" title="statement not covered" >{ source: 'soundcloud', user_id, events };</span>
+&nbsp;
+	const apply = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async (i</span>llusi_id: string, ids: Record&lt;string, string | null&gt;, artwork: string | null | undefined) =&gt; {</span>
+		const result = <span class="cstat-no" title="statement not covered" >await enrich_service_ids(tx, illusi_id, ids, ctx);</span>
+<span class="cstat-no" title="statement not covered" >		prov.touch('service_ids_table', illusi_id, result.filled);</span>
+		const thumbs = <span class="cstat-no" title="statement not covered" >soundcloud_thumbnails(artwork);</span>
+<span class="cstat-no" title="statement not covered" >		if (thumbs.length &gt; 0) <span class="cstat-no" title="statement not covered" >await upsert_thumbnails(tx, illusi_id, thumbs);</span></span>
+	};
+&nbsp;
+<span class="cstat-no" title="statement not covered" >	for (const [id, entry] of batch.tracks) {</span>
+		const illusi_id = <span class="cstat-no" title="statement not covered" >links.get(id);</span>
+<span class="cstat-no" title="statement not covered" >		if (illusi_id &amp;&amp; tracks.has(illusi_id)) <span class="cstat-no" title="statement not covered" >await apply(illusi_id, { soundcloud_permalink: entry.permalink_url, isrc: entry.row.isrc ?? null }, entry.row.artwork_url);</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	for (const [id, entry] of batch.playlists) {</span>
+		const illusi_id = <span class="cstat-no" title="statement not covered" >links.get(id);</span>
+<span class="cstat-no" title="statement not covered" >		if (illusi_id &amp;&amp; albums.has(illusi_id)) <span class="cstat-no" title="statement not covered" >await apply(illusi_id, { soundcloud_permalink: entry.permalink_url }, entry.row.artwork_url);</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	for (const [id, row] of batch.users) {</span>
+		const illusi_id = <span class="cstat-no" title="statement not covered" >links.get(id);</span>
+		// A user's permalink_url is a single path segment, which isn't a valid `soundcloud_permalink`.
+<span class="cstat-no" title="statement not covered" >		if (illusi_id &amp;&amp; artists.has(illusi_id)) <span class="cstat-no" title="statement not covered" >await apply(illusi_id, {}, row.avatar_url);</span></span>
+	}
+}
+&nbsp;
+/** Writes one request's batch in a single transaction, in FK order, plus provenance. */
+export async function <span class="fstat-no" title="function not covered" >ingest_batch(u</span>ser_id: string, batch: Batch) {
+	const events = <span class="cstat-no" title="statement not covered" >new PendingEvents();</span>
+<span class="cstat-no" title="statement not covered" >	await db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
+		const prov = <span class="cstat-no" title="statement not covered" >new ProvenanceLog('soundcloud', user_id);</span>
+<span class="cstat-no" title="statement not covered" >		await write_batch(tx, user_id, batch, prov, events);</span>
+<span class="cstat-no" title="statement not covered" >		if (prov.entities.length &gt; 0) <span class="cstat-no" title="statement not covered" >await prov.write(tx);</span></span>
+	});
+<span class="cstat-no" title="statement not covered" >	events.flush();</span>
+}
+&nbsp;
+/** The writes of `ingest_batch` inside the caller's transaction; the caller writes `prov` and flushes `events`. */
+export async function <span class="fstat-no" title="function not covered" >write_batch(t</span>x: Tx, user_id: string, batch: Batch, prov: ProvenanceLog, events: PendingEvents) {
+<span class="cstat-no" title="statement not covered" >	await write_users(tx, batch, prov);</span>
+<span class="cstat-no" title="statement not covered" >	await write_tracks(tx, batch, prov);</span>
+<span class="cstat-no" title="statement not covered" >	await write_transcodings(tx, batch, prov);</span>
+<span class="cstat-no" title="statement not covered" >	await write_playlists(tx, batch, prov);</span>
+<span class="cstat-no" title="statement not covered" >	await write_playlist_tracks(tx, batch, prov);</span>
+<span class="cstat-no" title="statement not covered" >	await enrich_linked(tx, batch, user_id, prov, events);</span>
+}
+&nbsp;
+const RETRYABLE = new Set&lt;string&gt;([PG_ERRORS.deadlock_detected, PG_ERRORS.serialization_failure]);
+const MAX_CONCURRENT = 2;
+const MAX_WAITING = 200;
+let running = 0;
+const waiting: (() =&gt; void)[] = [];
+&nbsp;
+/** Background processing with bounded concurrency; retries once on deadlock/serialization failure. */
+export function <span class="fstat-no" title="function not covered" >enqueue_batch(u</span>ser_id: string, batch: Batch) {
+	const run = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async () =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >		running++;</span>
+<span class="cstat-no" title="statement not covered" >		try {</span>
+<span class="cstat-no" title="statement not covered" >			try {</span>
+<span class="cstat-no" title="statement not covered" >				await ingest_batch(user_id, batch);</span>
+			} catch (err) {
+<span class="cstat-no" title="statement not covered" >				if (!RETRYABLE.has(pg_error_code(err) ?? '')) <span class="cstat-no" title="statement not covered" >throw err;</span></span>
+<span class="cstat-no" title="statement not covered" >				await ingest_batch(user_id, batch);</span>
+			}
+		} catch (err) {
+<span class="cstat-no" title="statement not covered" >			log.error('soundcloud ingest failed', err);</span>
+		} finally {
+<span class="cstat-no" title="statement not covered" >			running--;</span>
+<span class="cstat-no" title="statement not covered" >			waiting.shift()?.();</span>
+		}
+	};
+<span class="cstat-no" title="statement not covered" >	if (running &lt; MAX_CONCURRENT) <span class="cstat-no" title="statement not covered" >void run();</span></span>
+	else <span class="cstat-no" title="statement not covered" >if (waiting.length &lt; MAX_WAITING) <span class="cstat-no" title="statement not covered" >waiting.<span class="fstat-no" title="function not covered" >push(() =&gt; <span class="cstat-no" title="statement not covered" >v</span>oid run())</span>;</span></span>
+	else <span class="cstat-no" title="statement not covered" >log.warn('soundcloud ingest queue full, dropping batch', { user_id });</span>
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    

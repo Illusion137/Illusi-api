@@ -1,0 +1,718 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/services/itunes/service.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">src/services/itunes</a> service.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">8.72% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>13/149</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/58</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/31</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">11.3% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>13/115</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { config } from '../../config';
+import { db } from '../../db';
+import { on, PendingEvents } from '../../core/events';
+import { logger } from '../../core/log';
+import { chunk } from './batching';
+import { ITunesClient, ITunesDropError, ITunesStoppedError } from './client';
+import { found_from_result, resolve_request, result_for_id } from './pipeline';
+import type { Found } from './pipeline';
+import { WorkQueue } from './queue';
+import type { QueueItem } from './queue';
+import { parse_lane_ratio } from './scheduler';
+import type { Lane } from './scheduler';
+import { find_entity, link_entities, link_states, record_lookup, scan_candidates } from './store';
+import type { EntityType } from './store';
+&nbsp;
+const log = logger('itunes');
+&nbsp;
+const BACKFILL_PAGE = 500;
+const BACKFILL_LOW_WATER = 50;
+const BACKFILL_PHASES: readonly EntityType[] = ['track', 'album', 'artist'];
+const ERROR_PAUSE_MS = 5_000;
+&nbsp;
+interface KnownId { illusi_id: string; entity_type: EntityType; applemusic_id: string }
+&nbsp;
+/** The process-wide iTunes queue and its background drain loop. */
+export class ITunesService {
+	private readonly client = new ITunesClient();
+	private readonly queue = new WorkQueue(parse_lane_ratio(config.ITUNES_LIVE_TO_BACKFILL));
+	private running = false;
+	private loop: Promise&lt;void&gt; | null = null;
+	private wake: (() =&gt; void) | null = null;
+	private listening = false;
+	private backfill = { phase: 0, after: undefined as string | undefined, done: true };
+	/** Ids this service just linked, so its own `applemusic_id_filled` events don't requeue them. */
+	private readonly self_filled = new Set&lt;string&gt;();
+&nbsp;
+<span class="fstat-no" title="function not covered" >	start() {</span>
+<span class="cstat-no" title="statement not covered" >		if (this.running) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >		this.running = true;</span>
+<span class="cstat-no" title="statement not covered" >		this.client.start();</span>
+<span class="cstat-no" title="statement not covered" >		this.backfill = { phase: 0, after: undefined, done: false };</span>
+<span class="cstat-no" title="statement not covered" >		this.listen();</span>
+<span class="cstat-no" title="statement not covered" >		this.loop = this.drain().<span class="fstat-no" title="function not covered" >catch((e</span>rr: unknown) =&gt; <span class="cstat-no" title="statement not covered" >log.error('queue loop crashed', err))</span>;</span>
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >stop() {</span>
+<span class="cstat-no" title="statement not covered" >		this.running = false;</span>
+<span class="cstat-no" title="statement not covered" >		this.client.stop();</span>
+<span class="cstat-no" title="statement not covered" >		this.wake?.();</span>
+<span class="cstat-no" title="statement not covered" >		await this.loop;</span>
+<span class="cstat-no" title="statement not covered" >		this.loop = null;</span>
+	}
+&nbsp;
+<span class="fstat-no" title="function not covered" >	private l</span>isten() {
+<span class="cstat-no" title="statement not covered" >		if (this.listening) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >		this.listening = true;</span>
+<span class="cstat-no" title="statement not covered" >		on('entity_created', <span class="fstat-no" title="function not covered" >async ({</span> illusi_id, entity_type, imported }) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >			if (imported) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >			await this.enqueue_scanned(entity_type, [illusi_id], 'live');</span>
+		});
+<span class="cstat-no" title="statement not covered" >		on('applemusic_id_filled', <span class="fstat-no" title="function not covered" >async ({</span> illusi_id, applemusic_id }) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >			if (this.self_filled.delete(illusi_id)) <span class="cstat-no" title="statement not covered" >return;</span></span>
+			const entity = <span class="cstat-no" title="statement not covered" >await find_entity(illusi_id);</span>
+<span class="cstat-no" title="statement not covered" >			if (!entity || entity.imported) <span class="cstat-no" title="statement not covered" >return;</span></span>
+			// The fast path ignores retry_after.
+<span class="cstat-no" title="statement not covered" >			this.add({ illusi_id, entity_type: entity.entity_type, applemusic_id, request: null }, 'live');</span>
+		});
+	}
+&nbsp;
+<span class="fstat-no" title="function not covered" >	private a</span>dd(candidate: Parameters&lt;WorkQueue['add']&gt;[0], lane: Lane) {
+<span class="cstat-no" title="statement not covered" >		if (this.queue.add(candidate, lane)) <span class="cstat-no" title="statement not covered" >this.wake?.();</span></span>
+	}
+&nbsp;
+	/** Queues the given local entities of one type if they're unlinked and their lookup is due. */
+	async <span class="fstat-no" title="function not covered" >enqueue_scanned(t</span>ype: EntityType, illusi_ids: readonly string[], lane: Lane) {
+<span class="cstat-no" title="statement not covered" >		for (const ids of chunk(illusi_ids, 1000)) {</span>
+<span class="cstat-no" title="statement not covered" >			for (const c of await scan_candidates(type, { ids, limit: ids.length })) <span class="cstat-no" title="statement not covered" >this.add(c, lane);</span></span>
+		}
+	}
+&nbsp;
+	async <span class="fstat-no" title="function not covered" >enqueue_if_needed(i</span>llusi_ids: readonly string[]) {
+		const ids = <span class="cstat-no" title="statement not covered" >[...new Set(illusi_ids)].<span class="fstat-no" title="function not covered" >filter(i</span>d =&gt; <span class="cstat-no" title="statement not covered" >!this.queue.has(id))</span>;</span>
+<span class="cstat-no" title="statement not covered" >		if (ids.length === 0) <span class="cstat-no" title="statement not covered" >return;</span></span>
+<span class="cstat-no" title="statement not covered" >		for (const type of BACKFILL_PHASES) <span class="cstat-no" title="statement not covered" >await this.enqueue_scanned(type, ids, 'live');</span></span>
+	}
+&nbsp;
+	private async <span class="fstat-no" title="function not covered" >refill_backfill() {</span>
+<span class="cstat-no" title="statement not covered" >		while (!this.backfill.done &amp;&amp; this.queue.size('backfill') &lt; BACKFILL_LOW_WATER) {</span>
+			const type = <span class="cstat-no" title="statement not covered" >BACKFILL_PHASES[this.backfill.phase];</span>
+			const rows = <span class="cstat-no" title="statement not covered" >await scan_candidates(type, { after: this.backfill.after, limit: BACKFILL_PAGE });</span>
+<span class="cstat-no" title="statement not covered" >			for (const c of rows) <span class="cstat-no" title="statement not covered" >this.queue.add(c, 'backfill');</span></span>
+<span class="cstat-no" title="statement not covered" >			if (rows.length &lt; BACKFILL_PAGE) {</span>
+<span class="cstat-no" title="statement not covered" >				this.backfill.phase++;</span>
+<span class="cstat-no" title="statement not covered" >				this.backfill.after = undefined;</span>
+<span class="cstat-no" title="statement not covered" >				if (this.backfill.phase &gt;= BACKFILL_PHASES.length) {</span>
+<span class="cstat-no" title="statement not covered" >					this.backfill.done = true;</span>
+<span class="cstat-no" title="statement not covered" >					log.info('backfill scan complete');</span>
+				}
+			} else <span class="cstat-no" title="statement not covered" >this.backfill.after = rows[rows.length - 1].illusi_id;</span>
+		}
+	}
+&nbsp;
+<span class="fstat-no" title="function not covered" >	private i</span>dle(ms?: number) {
+<span class="cstat-no" title="statement not covered" >		return new <span class="fstat-no" title="function not covered" >Promise&lt;void&gt;((r</span>esolve) =&gt; {</span>
+			const timer = <span class="cstat-no" title="statement not covered" >ms ? <span class="fstat-no" title="function not covered" >setTimeout(() =&gt; {</span> <span class="cstat-no" title="statement not covered" >this.wake = null; <span class="cstat-no" title="statement not covered" >r</span>esolve(); }</span>, ms) : null;</span>
+<span class="cstat-no" title="statement not covered" >			this.<span class="fstat-no" title="function not covered" >wake = () =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >				if (timer) <span class="cstat-no" title="statement not covered" >clearTimeout(timer);</span></span>
+<span class="cstat-no" title="statement not covered" >				this.wake = null;</span>
+<span class="cstat-no" title="statement not covered" >				resolve();</span>
+			};
+		});
+	}
+&nbsp;
+	private async <span class="fstat-no" title="function not covered" >drain() {</span>
+<span class="cstat-no" title="statement not covered" >		while (this.running) {</span>
+<span class="cstat-no" title="statement not covered" >			try {</span>
+<span class="cstat-no" title="statement not covered" >				await this.refill_backfill();</span>
+				const batch = <span class="cstat-no" title="statement not covered" >this.queue.take();</span>
+<span class="cstat-no" title="statement not covered" >				if (batch.length === 0) {</span>
+<span class="cstat-no" title="statement not covered" >					await this.idle();</span>
+<span class="cstat-no" title="statement not covered" >					continue;</span>
+				}
+<span class="cstat-no" title="statement not covered" >				await this.process(batch);</span>
+			} catch (err) {
+<span class="cstat-no" title="statement not covered" >				if (err instanceof ITunesStoppedError) <span class="cstat-no" title="statement not covered" >break;</span></span>
+<span class="cstat-no" title="statement not covered" >				log.error('queue iteration failed', err);</span>
+<span class="cstat-no" title="statement not covered" >				if (this.running) <span class="cstat-no" title="statement not covered" >await this.idle(ERROR_PAUSE_MS);</span></span>
+			}
+		}
+	}
+&nbsp;
+	private async <span class="fstat-no" title="function not covered" >process(b</span>atch: QueueItem[]) {
+		const known: KnownId[] = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >		for (const item of batch) {</span>
+			const states = <span class="cstat-no" title="statement not covered" >await link_states(item.entity_type, item.illusi_ids);</span>
+			const pending = <span class="cstat-no" title="statement not covered" >item.illusi_ids.<span class="fstat-no" title="function not covered" >filter(i</span>d =&gt; <span class="cstat-no" title="statement not covered" >states.has(id) &amp;&amp; !states.get(id)!.linked)</span>;</span>
+			const search_ids: string[] = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >			for (const id of pending) {</span>
+				const applemusic_id = <span class="cstat-no" title="statement not covered" >states.get(id)!.applemusic_id;</span>
+<span class="cstat-no" title="statement not covered" >				if (applemusic_id) <span class="cstat-no" title="statement not covered" >known.push({ illusi_id: id, entity_type: item.entity_type, applemusic_id });</span></span>
+				else <span class="cstat-no" title="statement not covered" >if (item.request) <span class="cstat-no" title="statement not covered" >search_ids.push(id);</span></span>
+			}
+<span class="cstat-no" title="statement not covered" >			if (search_ids.length &gt; 0) <span class="cstat-no" title="statement not covered" >await this.process_search(item, search_ids);</span></span>
+		}
+<span class="cstat-no" title="statement not covered" >		for (const group of chunk(dedupe_known(known))) <span class="cstat-no" title="statement not covered" >await this.process_known(group);</span></span>
+	}
+&nbsp;
+	private async <span class="fstat-no" title="function not covered" >process_search(i</span>tem: QueueItem, illusi_ids: string[]) {
+<span class="cstat-no" title="statement not covered" >		await this.guard(illusi_ids, item.entity_type, <span class="fstat-no" title="function not covered" >async () =&gt; {</span></span>
+			const found = <span class="cstat-no" title="statement not covered" >await resolve_request(this.client, item.request!, config.ITUNES_MATCH_THRESHOLD);</span>
+<span class="cstat-no" title="statement not covered" >			if (!found) {</span>
+<span class="cstat-no" title="statement not covered" >				await record_lookup(db, illusi_ids, item.entity_type, 'NOT_FOUND');</span>
+<span class="cstat-no" title="statement not covered" >				return;</span>
+			}
+<span class="cstat-no" title="statement not covered" >			await this.commit(found, illusi_ids, item.entity_type);</span>
+		});
+	}
+&nbsp;
+	/** One plain lookup for ≤ 200 known ids (fast path). */
+	private async <span class="fstat-no" title="function not covered" >process_known(g</span>roup: KnownId[]) {
+		const ids = <span class="cstat-no" title="statement not covered" >[...new Set(group.<span class="fstat-no" title="function not covered" >map(k</span> =&gt; <span class="cstat-no" title="statement not covered" >k.applemusic_id)</span>)];</span>
+		let results: Awaited&lt;ReturnType&lt;ITunesClient['lookup_ids']&gt;&gt;;
+<span class="cstat-no" title="statement not covered" >		try {</span>
+<span class="cstat-no" title="statement not covered" >			results = await this.client.lookup_ids(ids);</span>
+		} catch (err) {
+<span class="cstat-no" title="statement not covered" >			if (err instanceof ITunesStoppedError) <span class="cstat-no" title="statement not covered" >throw err;</span></span>
+<span class="cstat-no" title="statement not covered" >			log.warn('id lookup dropped', err instanceof Error ? err.message : err);</span>
+<span class="cstat-no" title="statement not covered" >			for (const type of BACKFILL_PHASES) <span class="cstat-no" title="statement not covered" >await record_lookup(db, group.<span class="fstat-no" title="function not covered" >filter(k</span> =&gt; <span class="cstat-no" title="statement not covered" >k.entity_type === type)</span>.<span class="fstat-no" title="function not covered" >map(k</span> =&gt; <span class="cstat-no" title="statement not covered" >k.illusi_id)</span>, type, 'ERROR');</span></span>
+<span class="cstat-no" title="statement not covered" >			return;</span>
+		}
+<span class="cstat-no" title="statement not covered" >		for (const k of group) {</span>
+<span class="cstat-no" title="statement not covered" >			await this.guard([k.illusi_id], k.entity_type, <span class="fstat-no" title="function not covered" >async () =&gt; {</span></span>
+				const result = <span class="cstat-no" title="statement not covered" >result_for_id(results, k.entity_type, k.applemusic_id);</span>
+<span class="cstat-no" title="statement not covered" >				if (!result) <span class="cstat-no" title="statement not covered" >await record_lookup(db, [k.illusi_id], k.entity_type, 'NOT_FOUND');</span></span>
+				else <span class="cstat-no" title="statement not covered" >await this.commit(found_from_result(k.entity_type, result), [k.illusi_id], k.entity_type);</span>
+			});
+		}
+	}
+&nbsp;
+	/** Stores the match, links it and records FOUND in one transaction; events go out after commit. */
+	private async <span class="fstat-no" title="function not covered" >commit(f</span>ound: Found, illusi_ids: string[], type: EntityType) {
+		const events = <span class="cstat-no" title="statement not covered" >new PendingEvents();</span>
+		const linked = <span class="cstat-no" title="statement not covered" >await db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
+			const { artwork, preview_url } = <span class="cstat-no" title="statement not covered" >await found.persist(tx);</span>
+			const linked_ids = <span class="cstat-no" title="statement not covered" >await link_entities(tx, illusi_ids, type, found.itunes_id, artwork, preview_url, events);</span>
+<span class="cstat-no" title="statement not covered" >			await record_lookup(tx, illusi_ids, type, 'FOUND');</span>
+<span class="cstat-no" title="statement not covered" >			return linked_ids;</span>
+		});
+<span class="cstat-no" title="statement not covered" >		if (this.self_filled.size &gt; 10_000) <span class="cstat-no" title="statement not covered" >this.self_filled.clear();</span></span>
+<span class="cstat-no" title="statement not covered" >		for (const id of linked) <span class="cstat-no" title="statement not covered" >this.self_filled.add(id);</span></span>
+<span class="cstat-no" title="statement not covered" >		events.flush();</span>
+<span class="cstat-no" title="statement not covered" >		log.debug(`linked ${type} ${found.itunes_id} → ${linked.join(', ') || '(conflict)'}`);</span>
+	}
+&nbsp;
+	/** Drops (4xx, retries exhausted) and unexpected failures become ERROR records; stopping propagates. */
+	private async <span class="fstat-no" title="function not covered" >guard(i</span>llusi_ids: string[], type: EntityType, fn: () =&gt; Promise&lt;void&gt;) {
+<span class="cstat-no" title="statement not covered" >		try {</span>
+<span class="cstat-no" title="statement not covered" >			await fn();</span>
+		} catch (err) {
+<span class="cstat-no" title="statement not covered" >			if (err instanceof ITunesStoppedError) <span class="cstat-no" title="statement not covered" >throw err;</span></span>
+<span class="cstat-no" title="statement not covered" >			if (err instanceof ITunesDropError) <span class="cstat-no" title="statement not covered" >log.warn(`dropped ${type} ${illusi_ids.join(', ')}: ${err.message}`);</span></span>
+			else <span class="cstat-no" title="statement not covered" >log.error(`${type} ${illusi_ids.join(', ')} failed`, err);</span>
+<span class="cstat-no" title="statement not covered" >			await record_lookup(db, illusi_ids, type, 'ERROR').<span class="fstat-no" title="function not covered" >catch((e</span>: unknown) =&gt; <span class="cstat-no" title="statement not covered" >log.error('could not record lookup', e))</span>;</span>
+		}
+	}
+}
+&nbsp;
+function <span class="fstat-no" title="function not covered" >dedupe_known(k</span>nown: readonly KnownId[]): KnownId[] {
+	const seen = <span class="cstat-no" title="statement not covered" >new Set&lt;string&gt;();</span>
+<span class="cstat-no" title="statement not covered" >	return known.<span class="fstat-no" title="function not covered" >filter(k</span> =&gt; <span class="cstat-no" title="statement not covered" >!seen.has(k.illusi_id) &amp;&amp; seen.add(k.illusi_id))</span>;</span>
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    

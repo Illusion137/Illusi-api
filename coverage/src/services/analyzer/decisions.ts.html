@@ -1,0 +1,571 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/services/analyzer/decisions.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">src/services/analyzer</a> decisions.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">96.42% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>54/56</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">95.71% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>67/70</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">94.44% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>17/18</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">97.77% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>44/45</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import path from 'node:path';
+&nbsp;
+export type SampleSource = 'itunes_preview' | 'media';
+export type SampleLookupStatus = 'DONE' | 'BAD_FILE' | 'NOT_FOUND' | 'ERROR';
+&nbsp;
+/** How a job ended when it didn't produce a sample. */
+export type JobFailure
+	/** Download returned 404/410 (or another non-retryable 4xx). */
+	= | { kind: 'download_not_found'; detail?: string }
+	/** Download kept failing with network errors / 5xx after every attempt. */
+		| { kind: 'download_failed'; detail?: string }
+	/** Analyzer said 400/422, the media file is missing, or the resource id is unsafe. */
+		| { kind: 'bad_file'; detail?: string }
+	/** Analyzer unreachable, 5xx, or a response that breaks the contract. */
+		| { kind: 'analyzer_unavailable'; detail?: string; http_status?: number }
+	/** The per-job timeout (download + analysis) fired. */
+		| { kind: 'timeout'; detail?: string }
+	/** Anything unexpected (database error, local I/O). */
+		| { kind: 'internal'; detail?: string };
+&nbsp;
+export type FailureDecision
+	= | { action: 'record'; status: SampleLookupStatus; retry_after: Date | null }
+	/** Pause the queue, wait for `/health`, then retry the same job. */
+		| { action: 'retry_after_health' };
+&nbsp;
+export const ERROR_RETRY_BASE_MS = 5 * 60_000;
+export const ERROR_RETRY_MAX_MS = 24 * 60 * 60_000;
+/**
+ * A job that keeps getting an analyzer 5xx while `/health` is fine is recorded as ERROR after this
+ * many tries, so one file that crashes the model can't stall the queue forever.
+ */
+export const MAX_ANALYZER_5XX_PER_JOB = 3;
+export const DOWNLOAD_MAX_ATTEMPTS = 3;
+&nbsp;
+/** Backoff for `ERROR` lookups: 5 min, 10, 20, ... capped at 24 h. `attempts` counts this attempt (1-based). */
+export function error_retry_delay_ms(attempts: number): number {
+	const exp = Math.max(0, attempts - 1);
+	return Math.min(ERROR_RETRY_MAX_MS, ERROR_RETRY_BASE_MS * 2 ** Math.min(exp, 20));
+}
+&nbsp;
+/**
+ * Maps a failure to its lookup record. `attempts` is the attempt count after this one,
+ * `analyzer_5xx` how many analyzer 5xx responses this job has seen.
+ */
+export function decide_failure(failure: JobFailure, attempts: number, analyzer_5xx: number, now = new Date()): FailureDecision {
+	const error = (): FailureDecision =&gt; ({ action: 'record', status: 'ERROR', retry_after: new Date(now.getTime() + error_retry_delay_ms(attempts)) });
+	switch (failure.kind) {
+		case 'download_not_found': return { action: 'record', status: 'NOT_FOUND', retry_after: null };
+		case 'bad_file': return { action: 'record', status: 'BAD_FILE', retry_after: null };
+		case 'download_failed': return error();
+		case 'timeout': return error();
+		case 'internal': return error();
+		case 'analyzer_unavailable':
+			return failure.http_status !== undefined &amp;&amp; analyzer_5xx &gt;= MAX_ANALYZER_5XX_PER_JOB ? error() : { action: 'retry_after_health' };
+	}
+}
+&nbsp;
+export type DownloadStatusClass = 'ok' | 'not_found' | 'retry';
+&nbsp;
+/** 2xx ok; 408/425/429/5xx retry with backoff; any other status means the resource is gone. */
+export function classify_download_status(status: number): DownloadStatusClass {
+	if (status &gt;= 200 &amp;&amp; status &lt; 300) return 'ok';
+	if (status &gt;= 500 || status === 408 || status === 425 || status === 429) return 'retry';
+	return 'not_found';
+}
+&nbsp;
+export type AnalyzerStatusClass = 'ok' | 'bad_file' | 'unavailable';
+&nbsp;
+export function classify_analyzer_status(status: number): AnalyzerStatusClass {
+	if (status &gt;= 200 &amp;&amp; status &lt; 300) return 'ok';
+	if (status === 400 || status === 422) return 'bad_file';
+	return 'unavailable';
+}
+&nbsp;
+/** Download retry backoff inside one job: 1 s, 2 s, 4 s ... capped at 15 s. */
+export function download_retry_delay_ms(attempt: number): number {
+	return Math.min(15_000, 1000 * 2 ** Math.max(0, attempt - 1));
+}
+&nbsp;
+/** `/health` polling backoff: 1 s doubling to 30 s. */
+export function <span class="fstat-no" title="function not covered" >health_backoff_ms(a</span>ttempt: number): number {
+<span class="cstat-no" title="statement not covered" >	return Math.min(30_000, 1000 * 2 ** Math.max(0, Math.min(attempt, 10)));</span>
+}
+&nbsp;
+/** True if `child` is strictly inside `dir` (both resolved, no symlink resolution). */
+export function is_strictly_inside(dir: string, child: string): boolean {
+	const rel = path.relative(path.resolve(dir), path.resolve(child));
+	return rel !== '' &amp;&amp; !rel.startsWith('..') &amp;&amp; !path.isAbsolute(rel);
+}
+&nbsp;
+/**
+ * The temp dir must be its own directory, not the media dir or inside it. The reverse
+ * (media inside temp) is refused too, since temp is emptied on startup. Throws on violation.
+ */
+export function assert_tmp_dir_safe(tmp_dir: string, media_dir: string): void {
+	const tmp = path.resolve(tmp_dir);
+	const media = path.resolve(media_dir);
+	if (tmp === media || is_strictly_inside(media, tmp) || is_strictly_inside(tmp, media)) {
+		throw new Error(`ANALYZER_TMP_DIR (${tmp}) must be its own directory, not MEDIA_DIR (${media}) or nested with it`);
+	}
+	<span class="missing-if-branch" title="if path not taken" >I</span>if (tmp === path.parse(tmp).root) <span class="cstat-no" title="statement not covered" >throw new Error('ANALYZER_TMP_DIR must not be a filesystem root');</span>
+}
+&nbsp;
+/**
+ * Whether a job's file may be deleted. Deletion depends only on the job's source type; the
+ * path check is an extra guard that refuses anything outside the temp dir.
+ */
+export function may_delete(source: SampleSource, file_path: string, tmp_dir: string): boolean {
+	return source === 'itunes_preview' &amp;&amp; is_strictly_inside(tmp_dir, file_path);
+}
+&nbsp;
+/** A media `resource_id` must be a plain file name inside MEDIA_DIR (it's a UUID). */
+export function safe_media_path(media_dir: string, resource_id: string): string | null {
+	if (!resource_id || resource_id === '.' || resource_id === '..' || /[/\\\0]/.test(resource_id)) return null;
+	const full = path.resolve(media_dir, resource_id);
+	return is_strictly_inside(media_dir, full) ? full : <span class="branch-1 cbranch-no" title="branch not covered" >null;</span>
+}
+&nbsp;
+/** File extension for a downloaded preview, from the URL path; defaults to `m4a`. */
+export function preview_extension(url: string): string {
+	try {
+		const ext = path.extname(new URL(url).pathname).slice(1).toLowerCase();
+		return /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'm4a';
+	} catch {
+		return 'm4a';
+	}
+}
+&nbsp;
+export interface LookupState { status: SampleLookupStatus; retry_after: Date | null; source_ref: string | null }
+&nbsp;
+/**
+ * Whether a source may be tried given its lookup record. BAD_FILE/NOT_FOUND block until the
+ * source changes (different `source_ref`); ERROR blocks until `retry_after`.
+ */
+export function source_eligible(lookup: LookupState | null | undefined, current_ref: string, now = new Date()): boolean {
+	if (!lookup) return true;
+	switch (lookup.status) {
+<span class="branch-0 cbranch-no" title="branch not covered" >		case 'DONE':</span>
+		case 'BAD_FILE':
+		case 'NOT_FOUND':
+			return lookup.source_ref !== current_ref;
+		case 'ERROR':
+			return lookup.source_ref !== current_ref || lookup.retry_after === null || lookup.retry_after.getTime() &lt;= now.getTime();
+	}
+}
+&nbsp;
+/** Attempt count to store: continues the existing record for the same source ref, otherwise starts at 1. */
+export function next_attempts(prior: { attempts: number; source_ref: string | null } | null | undefined, ref: string): number {
+	return prior?.source_ref === ref ? prior.attempts + 1 : 1;
+}
+&nbsp;
+export interface SourceCandidate { source: SampleSource; ref: string }
+&nbsp;
+/**
+ * Picks the source to analyze: the trigger's preferred source first, then media (a full local
+ * file, no download), then the iTunes preview; the first one its lookup record allows.
+ */
+export function choose_source&lt;C extends SourceCandidate&gt;(candidates: readonly C[], lookups: ReadonlyMap&lt;SampleSource, LookupState&gt;, prefer?: SampleSource, now = new Date()): C | null {
+	const rank = (c: C) =&gt; (c.source === prefer ? 0 : c.source === 'media' ? 1 : 2);
+	const ordered = [...candidates].sort((a, b) =&gt; rank(a) - rank(b));
+	return ordered.find(c =&gt; source_eligible(lookups.get(c.source), c.ref, now)) ?? null;
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    

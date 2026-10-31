@@ -1,0 +1,454 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/config.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">src</a> config.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>5/5</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">50% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>1/2</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>2/2</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>3/3</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1806x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">42x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">42x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import 'dotenv/config';
+import path from 'node:path';
+import { z } from 'zod';
+&nbsp;
+const num = (fallback: number) =&gt; z.coerce.number().default(fallback);
+&nbsp;
+const schema = z.object({
+	/** Role used for authenticated requests; row-level security applies to it. */
+	DATABASE_URL: z.string().min(1),
+	/** Table owner (bypasses RLS): migrations, background jobs and pre-authentication requests. Falls back to DATABASE_URL. */
+	MIGRATE_DATABASE_URL: z.string().optional(),
+	PORT: num(3000),
+	NODE_ENV: z.string().default('development'),
+	/** Express `trust proxy`. Behind the compose nginx-proxy the peer is a private docker address. */
+	TRUST_PROXY: z.string().default('loopback'),
+	/** How long a stopping container keeps finishing in-flight requests (must be below compose `stop_grace_period`). */
+	SHUTDOWN_GRACE_MS: num(25_000),
+	/** Git sha baked into the image, reported by /health. */
+	APP_VERSION: z.string().default('dev'),
+	/** Run the in-process iTunes/analyzer queues (only in the instance holding the leader lock). */
+	BACKGROUND_SERVICES: z.stringbool().default(true),
+	/** Sentry project DSN. Unset disables error reporting entirely. */
+	SENTRY_DSN: z.string().optional(),
+	/** Defaults to NODE_ENV. */
+	SENTRY_ENVIRONMENT: z.string().optional(),
+	SENTRY_TRACES_SAMPLE_RATE: num(0.1),
+&nbsp;
+	JWT_ACCESS_SECRET: z.string().min(32),
+	ACTION_TOKEN_SECRET: z.string().min(32),
+	ACCESS_TOKEN_TTL_S: num(15 * 60),
+	REFRESH_TOKEN_TTL_DAYS: num(60),
+	ACTION_TOKEN_TTL_S: num(10 * 60),
+&nbsp;
+	/** Resend API key. Unset logs the verification link instead of sending it (development and CI). */
+	RESEND_API_KEY: z.string().optional(),
+	/** Verified Resend sender, e.g. `Illusi &lt;no-reply@mail.sumii.me&gt;`. */
+	EMAIL_FROM: z.string().default('Illusi &lt;no-reply@sumii.me&gt;'),
+	/** Public base URL of this API, used in the confirmation link. */
+	PUBLIC_API_URL: z.string().default('http://localhost:3000'),
+	EMAIL_VERIFICATION_TTL_HOURS: num(24),
+	/** Browsers may call the API from this domain and its subdomains (https only). */
+	CORS_ALLOWED_DOMAIN: z.string().default('sumii.me'),
+&nbsp;
+	ITUNES_COUNTRY: z.string().default('US'),
+	ITUNES_LIVE_TO_BACKFILL: z.string().default('3:1'),
+	ITUNES_REQUEST_INTERVAL_MS: num(3100),
+	ITUNES_ABORT_MS: num(15_000),
+	ITUNES_MATCH_THRESHOLD: num(0.9),
+	ITUNES_NOT_FOUND_RETRY_DAYS: num(30),
+	ITUNES_ERROR_RETRY_MINUTES: num(15),
+&nbsp;
+	ANALYZER_URL: z.string().default('http://127.0.0.1:8765'),
+	ANALYZER_TMP_DIR: z.string().default(path.resolve('data/analyzer_tmp')),
+	ANALYZER_CONCURRENCY: num(1),
+	ANALYZER_JOB_TIMEOUT_MS: num(5 * 60_000),
+	MEDIA_DIR: z.string().default(path.resolve('data/media')),
+	MEDIA_MAX_BYTES: num(200 * 1024 * 1024),
+	/** Behind nginx: `GET /media/:id` answers with `X-Accel-Redirect: &lt;prefix&gt;&lt;resource_id&gt;` and nginx serves the file. Empty streams it from Node. */
+	MEDIA_ACCEL_PREFIX: z.string().regex(/^(\/[a-z_]+\/)?$/u).default(''),
+	/** Uploads are stored as AAC `.m4a`; non-AAC input is encoded at this bitrate (ffmpeg `-b:a`). */
+	MEDIA_AAC_BITRATE: z.string().regex(/^\d+k$/u).default('256k'),
+	MEDIA_TRANSCODE_CONCURRENCY: num(2),
+	MEDIA_TRANSCODE_TIMEOUT_MS: num(10 * 60_000),
+	/** Below this much free disk space an error goes to Sentry (time to upgrade storage). */
+	DISK_WARN_FREE_GB: num(10),
+	/** Below this much free disk space every file upload is refused with 507; database writes continue. */
+	DISK_MIN_FREE_GB: num(5),
+&nbsp;
+	/** Playlist artwork uploads: largest accepted file, and the longest side it is scaled down to (stored as JPEG). */
+	ARTWORK_MAX_BYTES: num(10 * 1024 * 1024),
+	ARTWORK_MAX_PX: num(1024),
+&nbsp;
+	/** Data exports are kept this long after they're ready, and a user can request one per cooldown. */
+	EXPORT_TTL_DAYS: num(7),
+	EXPORT_COOLDOWN_HOURS: num(24),
+&nbsp;
+	/** Log files: `LOG_DIR/&lt;LOG_SERVICE&gt;-&lt;day&gt;.log`, kept LOG_RETENTION_DAYS. Empty LOG_DIR logs to the console only. Read by core/log.ts. */
+	LOG_DIR: z.string().default(''),
+	LOG_SERVICE: z.string().default('app'),
+	LOG_RETENTION_DAYS: num(7),
+&nbsp;
+	LYRICS_RECHECK_AFTER_DAYS: num(14),
+	LYRICS_ERROR_RETRY_MINUTES: num(10),
+	LYRICS_SERVICE_TIMEOUT_MS: num(8_000),
+	LYRICS_DEADLINE_MS: num(12_000),
+	/** Test seam: `not_found` makes every server-side lyrics service answer NOT_FOUND without a network call. */
+	LYRICS_SERVERS_STUB: z.enum(['off', 'not_found']).default('off'),
+&nbsp;
+	SC_TRANSCODING_STALE_AFTER_HOURS: num(24),
+&nbsp;
+	NEW_RELEASES_WINDOW_DAYS: num(7),
+	/** A library artist is checked again on a client service once its last check is this old. */
+	NEW_RELEASES_RECHECK_HOURS: num(12),
+	/** A handed-out check isn't handed out again for this long, unless it gets fulfilled. */
+	NEW_RELEASES_REQUEST_COOLDOWN_MIN: num(30),
+	NEW_RELEASES_MAX_ACTIONS: num(25),
+&nbsp;
+	/** After a track is backpacked, only users who downloaded it are asked (UPLOAD_MEDIA) for this long, then research starts. */
+	BACKPACK_UPLOAD_WINDOW_HOURS: num(48),
+	/** A handed-out RESEARCH_TRACK isn't handed out again for this long, unless it gets fulfilled. */
+	BACKPACK_RESEARCH_COOLDOWN_MIN: num(60),
+	/** A service answered NOT_FOUND is asked again after this long. */
+	BACKPACK_RESEARCH_RETRY_DAYS: num(30),
+&nbsp;
+	RECONCILE_INCREMENTAL_INTERVAL_MIN: num(15),
+	RECONCILE_DRY_RUN: z.stringbool().default(false),
+	/** Local hour (0-23) the worker starts the nightly full pass. */
+	RECONCILE_FULL_HOUR: num(3),
+	/** Pairs at or above this confidence (without hard evidence) become admin review items; below are dismissed. */
+	RECONCILE_REVIEW_MIN_CONFIDENCE: num(0.5),
+	RECONCILE_MAX_GROUP_SIZE: num(50),
+	RECONCILE_SPLIT_DURATION_GAP_MS: num(10_000),
+	/** Cosine distances between feature vectors counted as "same audio" / "different audio". */
+	RECONCILE_AUDIO_MATCH_DISTANCE: num(0.02),
+	RECONCILE_AUDIO_CONTRADICTION_DISTANCE: num(0.25)
+});
+&nbsp;
+export type Config = z.infer&lt;typeof schema&gt;;
+&nbsp;
+export const config: Config = schema.refine(c =&gt; c.NODE_ENV !== 'production' || <span class="branch-1 cbranch-no" title="branch not covered" >c.LYRICS_SERVERS_STUB === 'off', {</span>
+	message: 'LYRICS_SERVERS_STUB is a test seam and must be off in production',
+	path: ['LYRICS_SERVERS_STUB']
+}).parse(process.env);
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    

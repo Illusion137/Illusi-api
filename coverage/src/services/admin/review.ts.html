@@ -1,0 +1,679 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/services/admin/review.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">src/services/admin</a> review.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">11.66% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>14/120</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">4.8% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>6/125</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">5.55% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>1/18</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">9.89% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>9/91</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import { z } from 'zod';
+import { db } from '../../db';
+import type { Executor, Tx } from '../../db';
+import {
+	albums_table, artists_table, genius_artists_table, genius_songs_table, itunes_artists_table, itunes_collections_table,
+	itunes_tracks_table, review_items_table, service_id_conflicts_table, service_ids_table, soundcloud_tracks_table, tracks_table,
+	REVIEW_KINDS, REVIEW_STATUSES
+} from '../../db/schema';
+import { write_audit } from '../../core/audit';
+import { PendingEvents } from '../../core/events';
+import { HttpError } from '../../core/http';
+import { resolve_redirects } from '../../core/redirects';
+import type { ProposedValue } from '../../core/review';
+import { apply_review_plan } from '../../worker/reconcile/apply';
+import type { ReviewPlan } from '../../worker/reconcile/apply';
+import { admin_update_entity, parse_entity_patch, resolve_table } from './entities';
+&nbsp;
+export const list_query_schema = z.object({
+	kind: z.enum(REVIEW_KINDS).optional(),
+	entity_table: z.string().max(64).optional(),
+	status: z.enum(REVIEW_STATUSES).default('OPEN'),
+	sort: z.enum(['occurrences', 'age']).default('occurrences'),
+	order: z.enum(['asc', 'desc']).optional(),
+	page: z.coerce.number().int().min(1).default(1),
+	limit: z.coerce.number().int().min(1).max(100).default(25)
+});
+export type ListQuery = z.infer&lt;typeof list_query_schema&gt;;
+&nbsp;
+export const apply_body_schema = z.object({
+	/** Index into `proposed_values`. Default: the most reported proposal (field items) or the latest plan (service id conflicts). */
+	proposal_index: z.number().int().min(0).optional(),
+	/** A value the admin typed instead of one of the proposals. */
+	value: z.unknown().optional()
+}).default({});
+&nbsp;
+const <span class="fstat-no" title="function not covered" >is_uuid = (v</span>: string) =&gt; <span class="cstat-no" title="statement not covered" >z.uuid().safeParse(v).success;</span>
+&nbsp;
+/** Order for the review list: most occurrences first (then oldest), or by age (oldest first unless `order=desc`). */
+export function <span class="fstat-no" title="function not covered" >review_order(s</span>ort: ListQuery['sort'], order: ListQuery['order']): SQL[] {
+<span class="cstat-no" title="statement not covered" >	if (sort === 'age') <span class="cstat-no" title="statement not covered" >return [order === 'desc' ? desc(review_items_table.created_at) : asc(review_items_table.created_at), asc(review_items_table.id)];</span></span>
+<span class="cstat-no" title="statement not covered" >	return [order === 'asc' ? asc(review_items_table.occurrences) : desc(review_items_table.occurrences), asc(review_items_table.created_at), asc(review_items_table.id)];</span>
+}
+&nbsp;
+/**
+ * Which proposal an apply uses when the admin doesn't pick one: for service id conflicts the
+ * latest plan, otherwise the value most users proposed.
+ */
+export function default_proposal_index(kind: string, proposals: readonly ProposedValue[]): number {
+	if (proposals.length === 0) return -1;
+	if (kind === 'SERVICE_ID_CONFLICT') return proposals.length - 1;
+	let best = 0;
+	for (let i = 1; i &lt; proposals.length; i++) if (proposals[i].occurrences &gt; proposals[best].occurrences) best = i;
+	return best;
+}
+&nbsp;
+/** The entity's current row, its service ids, and its iTunes / Genius / SoundCloud data. */
+export async function <span class="fstat-no" title="function not covered" >entity_context(e</span>x: Executor, entity_table: string, entity_id: string) {
+<span class="cstat-no" title="statement not covered" >	if (!is_uuid(entity_id)) <span class="cstat-no" title="statement not covered" >return { entity_id, redirected_to: null, kind: null, entity: null, service_ids: null, links: {} };</span></span>
+	const <span class="cstat-no" title="statement not covered" >current = (await resolve_redirects(ex, [entity_id])).get(entity_id)!;</span>
+	const table = <span class="cstat-no" title="statement not covered" >resolve_table(entity_table);</span>
+	const [track] = <span class="cstat-no" title="statement not covered" >table === 'tracks_table' || table === 'service_ids_table' ? await ex.select().from(tracks_table).where(eq(tracks_table.id, current)) : [];</span>
+	const [album] = <span class="cstat-no" title="statement not covered" >!track &amp;&amp; (table === 'albums_table' || table === 'service_ids_table') ? await ex.select().from(albums_table).where(eq(albums_table.id, current)) : [];</span>
+	const [artist] = <span class="cstat-no" title="statement not covered" >!track &amp;&amp; !album &amp;&amp; (table === 'artists_table' || table === 'service_ids_table') ? await ex.select().from(artists_table).where(eq(artists_table.id, current)) : [];</span>
+	const kind = <span class="cstat-no" title="statement not covered" >track ? 'track' : album ? 'album' : artist ? 'artist' : null;</span>
+	const [sids] = <span class="cstat-no" title="statement not covered" >await ex.select().from(service_ids_table).where(eq(service_ids_table.illusi_id, current));</span>
+&nbsp;
+	const links: Record&lt;string, unknown&gt; = <span class="cstat-no" title="statement not covered" >{};</span>
+	const apple = <span class="cstat-no" title="statement not covered" >sids?.applemusic_id != null &amp;&amp; /^\d+$/u.test(sids.applemusic_id) ? Number(sids.applemusic_id) : null;</span>
+<span class="cstat-no" title="statement not covered" >	if (apple != null) {</span>
+<span class="cstat-no" title="statement not covered" >		if (kind === 'track') <span class="cstat-no" title="statement not covered" >links.itunes = (await ex.select().from(itunes_tracks_table).where(eq(itunes_tracks_table.id, apple)))[0] ?? null;</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (kind === 'album') <span class="cstat-no" title="statement not covered" >links.itunes = (await ex.select().from(itunes_collections_table).where(eq(itunes_collections_table.id, apple)))[0] ?? null;</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (kind === 'artist') <span class="cstat-no" title="statement not covered" >links.itunes = (await ex.select().from(itunes_artists_table).where(eq(itunes_artists_table.id, apple)))[0] ?? null;</span></span>
+	}
+<span class="cstat-no" title="statement not covered" >	if (sids?.genius_id != null) {</span>
+<span class="cstat-no" title="statement not covered" >		if (kind === 'artist') <span class="cstat-no" title="statement not covered" >links.genius = (await ex.select().from(genius_artists_table).where(eq(genius_artists_table.id, sids.genius_id)))[0] ?? null;</span></span>
+		else <span class="cstat-no" title="statement not covered" >if (kind === 'track') {</span>
+			const [song] = <span class="cstat-no" title="statement not covered" >await ex.select({</span>
+				id: genius_songs_table.id, title: genius_songs_table.title, full_title: genius_songs_table.full_title, url: genius_songs_table.url,
+				primary_artist_names: genius_songs_table.primary_artist_names, apple_music_id: genius_songs_table.apple_music_id,
+				spotify_uuid: genius_songs_table.spotify_uuid, youtube_url: genius_songs_table.youtube_url, soundcloud_url: genius_songs_table.soundcloud_url,
+				release_date: genius_songs_table.release_date, explicit: genius_songs_table.explicit
+			}).from(genius_songs_table).where(eq(genius_songs_table.id, sids.genius_id));
+<span class="cstat-no" title="statement not covered" >			links.genius = song ?? null;</span>
+		}
+	}
+<span class="cstat-no" title="statement not covered" >	if (sids?.soundcloud_id != null &amp;&amp; kind === 'track') {</span>
+		const [sc] = <span class="cstat-no" title="statement not covered" >await ex.select({</span>
+			id: soundcloud_tracks_table.id, title: soundcloud_tracks_table.title, permalink: soundcloud_tracks_table.permalink,
+			duration: soundcloud_tracks_table.duration, full_duration: soundcloud_tracks_table.full_duration, isrc: soundcloud_tracks_table.isrc,
+			publisher_artist: soundcloud_tracks_table.publisher_artist, artwork_url: soundcloud_tracks_table.artwork_url
+		}).from(soundcloud_tracks_table).where(eq(soundcloud_tracks_table.id, sids.soundcloud_id));
+<span class="cstat-no" title="statement not covered" >		links.soundcloud = sc ?? null;</span>
+	}
+<span class="cstat-no" title="statement not covered" >	return { entity_id, redirected_to: current === entity_id ? null : current, kind, entity: track ?? album ?? artist ?? null, service_ids: sids ?? null, links };</span>
+}
+&nbsp;
+const MAX_GROUP_CONTEXT = 10;
+&nbsp;
+export async function <span class="fstat-no" title="function not covered" >list_review(q</span>: ListQuery) {
+	const filters = <span class="cstat-no" title="statement not covered" >[eq(review_items_table.status, q.status)];</span>
+<span class="cstat-no" title="statement not covered" >	if (q.kind) <span class="cstat-no" title="statement not covered" >filters.push(eq(review_items_table.kind, q.kind));</span></span>
+<span class="cstat-no" title="statement not covered" >	if (q.entity_table) <span class="cstat-no" title="statement not covered" >filters.push(eq(review_items_table.entity_table, resolve_table(q.entity_table) ?? q.entity_table));</span></span>
+	const where = <span class="cstat-no" title="statement not covered" >and(...filters);</span>
+	const [{ total }] = <span class="cstat-no" title="statement not covered" >await db.select({ total: count() }).from(review_items_table).where(where);</span>
+	const rows = <span class="cstat-no" title="statement not covered" >await db.select().from(review_items_table).where(where)</span>
+		.orderBy(...review_order(q.sort, q.order)).limit(q.limit).offset((q.page - 1) * q.limit);
+&nbsp;
+	const items = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >	for (const row of rows) {</span>
+		const context = <span class="cstat-no" title="statement not covered" >await entity_context(db, row.entity_table, row.entity_id);</span>
+		let group: unknown[] | undefined;
+		let conflicts: unknown[] | undefined;
+<span class="cstat-no" title="statement not covered" >		if (row.kind === 'SERVICE_ID_CONFLICT') {</span>
+			const plans = (<span class="cstat-no" title="statement not covered" >row.proposed_values as ProposedValue[]).<span class="fstat-no" title="function not covered" >map(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p.plan as ReviewPlan | undefined)</span>.<span class="fstat-no" title="function not covered" >filter(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p != null)</span>;</span>
+			const node_ids = <span class="cstat-no" title="statement not covered" >[...new Set(plans.<span class="fstat-no" title="function not covered" >flatMap(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p.node_ids)</span>)].<span class="fstat-no" title="function not covered" >filter(i</span>d =&gt; <span class="cstat-no" title="statement not covered" >id !== row.entity_id)</span>.slice(0, MAX_GROUP_CONTEXT);</span>
+<span class="cstat-no" title="statement not covered" >			group = [];</span>
+<span class="cstat-no" title="statement not covered" >			for (const id of node_ids) <span class="cstat-no" title="statement not covered" >group.push(await entity_context(db, row.entity_table, id));</span></span>
+			const conflict_ids = <span class="cstat-no" title="statement not covered" >[...new Set(plans.<span class="fstat-no" title="function not covered" >flatMap(p</span> =&gt; <span class="cstat-no" title="statement not covered" >p.conflict_ids)</span>)];</span>
+<span class="cstat-no" title="statement not covered" >			conflicts = conflict_ids.length &gt; 0 ? await db.select().from(service_id_conflicts_table).where(inArray(service_id_conflicts_table.id, conflict_ids)) : [];</span>
+		}
+<span class="cstat-no" title="statement not covered" >		items.push({ ...row, dedupe_key: undefined, context, group, conflicts });</span>
+	}
+<span class="cstat-no" title="statement not covered" >	return { items, total, page: q.page, limit: q.limit, has_more: q.page * q.limit &lt; total };</span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >lock_open_item(t</span>x: Tx, id: number) {
+	const [item] = <span class="cstat-no" title="statement not covered" >await tx.select().from(review_items_table).where(eq(review_items_table.id, id)).for('update');</span>
+<span class="cstat-no" title="statement not covered" >	if (!item) <span class="cstat-no" title="statement not covered" >throw new HttpError(404, 'review item not found');</span></span>
+<span class="cstat-no" title="statement not covered" >	if (item.status !== 'OPEN') <span class="cstat-no" title="statement not covered" >throw new HttpError(409, `review item is already ${item.status}`);</span></span>
+<span class="cstat-no" title="statement not covered" >	return item;</span>
+}
+&nbsp;
+async function <span class="fstat-no" title="function not covered" >resolve_item(t</span>x: Tx, id: number, status: 'APPLIED' | 'DISMISSED', admin_id: string) {
+<span class="cstat-no" title="statement not covered" >	await tx.update(review_items_table).set({ status, resolved_by: admin_id, resolved_at: new Date(), modified_at: new Date() }).where(eq(review_items_table.id, id));</span>
+}
+&nbsp;
+/**
+ * Applies a review item: a proposed value or an admin-typed one onto the entity field,
+ * or, for a service id conflict, runs the attached plan through the reconciliation apply code.
+ */
+export async function <span class="fstat-no" title="function not covered" >apply_review(i</span>d: number, body: z.infer&lt;typeof apply_body_schema&gt;, admin_id: string) {
+	const events = <span class="cstat-no" title="statement not covered" >new PendingEvents();</span>
+	const result = <span class="cstat-no" title="statement not covered" >await db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
+		const item = <span class="cstat-no" title="statement not covered" >await lock_open_item(tx, id);</span>
+		const proposals = (<span class="cstat-no" title="statement not covered" >item.proposed_values ?? []) as ProposedValue[];</span>
+		const index = <span class="cstat-no" title="statement not covered" >body.proposal_index ?? default_proposal_index(item.kind, proposals);</span>
+<span class="cstat-no" title="statement not covered" >		if (body.proposal_index != null &amp;&amp; !proposals[index]) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, 'no such proposal');</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >		if (item.kind === 'SERVICE_ID_CONFLICT') {</span>
+			const plan = <span class="cstat-no" title="statement not covered" >proposals[index]?.plan as ReviewPlan | undefined;</span>
+<span class="cstat-no" title="statement not covered" >			if (!plan?.steps.length) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, 'review item has no plan to apply');</span></span>
+			const steps = <span class="cstat-no" title="statement not covered" >await apply_review_plan(tx, plan, { actor: 'admin', actor_user_id: admin_id, review_item_id: item.id });</span>
+<span class="cstat-no" title="statement not covered" >			await resolve_item(tx, item.id, 'APPLIED', admin_id);</span>
+<span class="cstat-no" title="statement not covered" >			return { id: item.id, status: 'APPLIED', steps: steps.<span class="fstat-no" title="function not covered" >map(s</span> =&gt; (<span class="cstat-no" title="statement not covered" >{ type: s.step.type, applied: s.applied, skipped: s.skipped ?? null, new_id: s.new_id ?? null }))</span> };</span>
+		}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >		if (!item.field) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, `${item.kind} items have no field to apply; dismiss instead`);</span></span>
+		const table = <span class="cstat-no" title="statement not covered" >resolve_table(item.entity_table);</span>
+<span class="cstat-no" title="statement not covered" >		if (!table) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, `entity table ${item.entity_table} is not editable`);</span></span>
+		const value = <span class="cstat-no" title="statement not covered" >body.value !== undefined ? body.value : proposals[index]?.value;</span>
+<span class="cstat-no" title="statement not covered" >		if (value === undefined) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, 'no value to apply');</span></span>
+		const values = <span class="cstat-no" title="statement not covered" >parse_entity_patch(table, { [item.field]: value });</span>
+		const entity_id = <span class="cstat-no" title="statement not covered" >is_uuid(item.entity_id) ? (await resolve_redirects(tx, [item.entity_id])).get(item.entity_id)! : item.entity_id;</span>
+		const change = <span class="cstat-no" title="statement not covered" >await admin_update_entity(tx, table, entity_id, values, { admin_id, review_item_id: item.id, events });</span>
+<span class="cstat-no" title="statement not covered" >		await resolve_item(tx, item.id, 'APPLIED', admin_id);</span>
+<span class="cstat-no" title="statement not covered" >		return { id: item.id, status: 'APPLIED', entity_table: table, entity_id, before: change.before, after: change.after };</span>
+	});
+<span class="cstat-no" title="statement not covered" >	events.flush();</span>
+<span class="cstat-no" title="statement not covered" >	return result;</span>
+}
+&nbsp;
+/** Dismisses a review item; for a service id conflict its deferred conflicts are dismissed too (existing links stay). */
+export async function <span class="fstat-no" title="function not covered" >dismiss_review(i</span>d: number, admin_id: string) {
+<span class="cstat-no" title="statement not covered" >	return db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
+		const item = <span class="cstat-no" title="statement not covered" >await lock_open_item(tx, id);</span>
+		let conflict_ids: number[] = <span class="cstat-no" title="statement not covered" >[];</span>
+<span class="cstat-no" title="statement not covered" >		if (item.kind === 'SERVICE_ID_CONFLICT') {</span>
+<span class="cstat-no" title="statement not covered" >			conflict_ids = [...new Set(((item.proposed_values ?? []) as ProposedValue[]).<span class="fstat-no" title="function not covered" >flatMap(p</span> =&gt; (<span class="cstat-no" title="statement not covered" >p.plan as ReviewPlan | undefined)?.conflict_ids ?? [])</span>)];</span>
+<span class="cstat-no" title="statement not covered" >			if (conflict_ids.length &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >				await tx.update(service_id_conflicts_table).set({ status: 'dismissed' })</span>
+					.where(and(inArray(service_id_conflicts_table.id, conflict_ids), inArray(service_id_conflicts_table.status, ['open', 'deferred'])));
+			}
+		}
+<span class="cstat-no" title="statement not covered" >		await resolve_item(tx, item.id, 'DISMISSED', admin_id);</span>
+<span class="cstat-no" title="statement not covered" >		await write_audit(tx, {</span>
+			action: 'admin_dismiss',
+			actor: 'admin',
+			actor_user_id: admin_id,
+			entity_table: item.entity_table,
+			entity_id: item.entity_id,
+			details: { review_item_id: item.id, kind: item.kind, field: item.field, conflicts_dismissed: conflict_ids },
+			undo: { review_item_id: item.id, status: 'OPEN', conflict_ids }
+		});
+<span class="cstat-no" title="statement not covered" >		return { id: item.id, status: 'DISMISSED' };</span>
+	});
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-31T03:58:50.585Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    
