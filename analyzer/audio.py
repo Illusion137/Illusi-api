@@ -29,18 +29,18 @@ def ffmpeg_binary() -> str:
     return binary
 
 
-def decode_to_wav(src: str, out_dir: str, ffmpeg: Optional[str] = None) -> str:
-    """Decodes the first audio stream of `src` into `<out_dir>/decoded.wav` (mono, 16-bit, SAMPLE_RATE).
+def decode_to_wav(src: str, out_dir: str, ffmpeg: Optional[str] = None, sample_rate: int = SAMPLE_RATE) -> str:
+    """Decodes the first audio stream of `src` into `<out_dir>/decoded-<rate>.wav` (mono, 16-bit, `sample_rate`).
 
     Never touches `src`. Raises DecodeError if ffmpeg can't read it or it has no audio.
     """
-    out = os.path.join(out_dir, "decoded.wav")
+    out = os.path.join(out_dir, f"decoded-{sample_rate}.wav")
     cmd = [
         ffmpeg or ffmpeg_binary(),
         "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
         "-i", src,
         "-map", "0:a:0", "-vn", "-sn", "-dn",
-        "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le", "-f", "wav",
+        "-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", "-f", "wav",
         out,
     ]
     try:

@@ -1,4 +1,4 @@
-"""Model loading and inference. Everything that touches Mood-Detector or VibeNet lives here.
+"""Model loading and inference. Everything that touches Mood-Detector, VibeNet or the vocal models lives here.
 
 If either library's API changes, this is the only file to adjust:
 - Mood-Detector (https://github.com/usr-wwelsh/Mood-Detector), `mood_detector` package:
@@ -11,12 +11,15 @@ If either library's API changes, this is the only file to adjust:
   (ONNX); `model.predict(path)` -> [InferenceResult(acousticness, danceability, energy, instrumentalness,
   liveness, speechiness, valence)], all 0-1.
 
-Both read a temporary WAV that ffmpeg decodes from the input (audio.py), so any container ffmpeg understands works
+- Vocals (vocals.py): Essentia's Discogs-EffNet + voice/instrumental head as ONNX files in ANALYZER_MODELS_DIR.
+
+All read a temporary WAV that ffmpeg decodes from the input (audio.py), so any container ffmpeg understands works
 (.m4a, .webm, .ogg, .mp3, .flac, ...), with or without an extension. Nothing writes or deletes the input file.
 """
 
 from __future__ import annotations
 
+import os
 import tempfile
 import threading
 from typing import Any, Protocol
@@ -24,13 +27,20 @@ from typing import Any, Protocol
 from audio import decode_to_wav, ffmpeg_binary
 from contract import ModelError, build_response
 
+MODELS_DIR = os.environ.get("ANALYZER_MODELS_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+# Patch hop in 16 ms frames: 16 = one voice probability every 256 ms.
+VOCALS_HOP_FRAMES = int(os.environ.get("ANALYZER_VOCALS_HOP_FRAMES", "16"))
+VOCALS_THREADS = int(os.environ.get("ANALYZER_VOCALS_THREADS", "2"))
+
 
 class Analyzer(Protocol):
     def analyze(self, path: str) -> dict: ...
 
+    def vocals(self, path: str) -> dict: ...
+
 
 class RealAnalyzer:
-    """Holds both loaded models. Inference is serialized: CPU-heavy, and the ONNX session is shared."""
+    """Holds every loaded model. Inference is serialized: CPU-heavy, and the ONNX sessions are shared."""
 
     def __init__(self) -> None:
         # --- model loading (adjust here) -------------------------------------------------------------
@@ -42,6 +52,9 @@ class RealAnalyzer:
         self._extract_features = extract_features
         self._classify_mood = classify_mood
         self._vibenet = load_model()
+        from vocals import VocalDetector
+
+        self._vocals = VocalDetector(MODELS_DIR, VOCALS_HOP_FRAMES, VOCALS_THREADS)
         # ----------------------------------------------------------------------------------------------
         self._ffmpeg = ffmpeg_binary()  # fail the load (health = 503) rather than every request
         self._lock = threading.Lock()
@@ -62,6 +75,19 @@ class RealAnalyzer:
                 key=mood.key,  # "C# major" / "A minor"
                 vibenet=vibe.to_dict(),
             )
+
+
+    def vocals(self, path: str) -> dict:
+        import soundfile
+        from vocals import SAMPLE_RATE
+
+        with self._lock, tempfile.TemporaryDirectory(prefix="illusi-analyzer-") as tmp:
+            wav = decode_to_wav(path, tmp, self._ffmpeg, SAMPLE_RATE)  # DecodeError -> 422
+            try:
+                audio, _ = soundfile.read(wav, dtype="float32")
+                return self._vocals.detect(audio)
+            except Exception as e:
+                raise ModelError(f"{type(e).__name__}: {e}") from e
 
 
 def load_analyzer() -> Analyzer:

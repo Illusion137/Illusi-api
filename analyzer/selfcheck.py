@@ -37,6 +37,11 @@ class FakeAnalyzer:
             raise ModelError("model crashed")
         return build_response("House/Dance", 124.5, 2810.0, "F# minor", VIBE)
 
+    def vocals(self, path: str) -> dict:
+        if open(path, "rb").read(4) == b"BAD!":
+            raise DecodeError("not audio")
+        return {"model": "fake", "hop_ms": 256, "window_ms": 2048, "duration_ms": 1000, "voice": [0.9], "segments": []}
+
 
 def check(cond: bool, msg: str) -> None:
     if not cond:
@@ -91,8 +96,32 @@ def check_ffmpeg_decode() -> None:
             check(True, "undecodable file raises DecodeError")
 
 
+def check_vocals_helpers() -> None:
+    """The pure parts of vocals.py (needs numpy, not the models)."""
+    try:
+        import numpy as np
+        import vocals
+    except ImportError:
+        print("skip vocals checks (numpy not installed)")
+        return
+    check(vocals.mel_frames(np.zeros(16000)).shape == (63, 96), "1s at 16 kHz -> 63 mel frames of 96 bands")
+    check(float(vocals.mel_frames(np.zeros(4000)).max()) == 0.0, "silence -> all-zero log-mel")
+    starts = vocals.patch_starts(1876, 62)
+    check(starts[:2] == [0, 62] and starts[-1] + 128 >= 1876 and starts[-2] + 128 < 1876, "patches cover every frame")
+    check(vocals.patch_starts(10, 16) == [0], "a file shorter than one patch -> one padded patch")
+    hop = 256.0
+    voice = [0.1] * 10 + [0.9] * 10 + [0.5] * 2 + [0.1] * 10 + [0.7] * 2 + [0.1] * 10
+    segs = vocals.segments(voice, hop, 60_000)
+    check(segs == [{"start_ms": 3456, "end_ms": 6528}], "hysteresis keeps 0.5 inside a segment, drops spans under 1s")
+    gap = [0.9] * 8 + [0.1] * 3 + [0.9] * 8
+    check(len(vocals.segments(gap, hop, 60_000)) == 1, "gaps under 1s are bridged")
+    r = vocals.build_vocals_response([1.2, -0.1, 0.5], 16, 3000)
+    check(r["voice"] == [1.0, 0.0, 0.5] and r["hop_ms"] == 256 and r["window_ms"] == 2048, "vocals response clamps and reports timing")
+
+
 def main() -> None:
     check_ffmpeg_decode()
+    check_vocals_helpers()
     check(to_short_key("C# major") == "C#", "key: C# major -> C#")
     check(to_short_key("A minor") == "Am", "key: A minor -> Am")
     check(to_short_key("Bb minor") == "A#m", "key: Bb minor -> A#m")
@@ -136,6 +165,10 @@ def main() -> None:
             check(request(base, "POST", "/analyze", {})[0] == 400, "missing path -> 400")
             check(request(base, "POST", "/analyze", {"path": bad})[0] == 422, "undecodable -> 422")
             check(request(base, "POST", "/analyze", {"path": boom})[0] == 500, "model failure -> 500")
+            status, body = request(base, "POST", "/vocals", {"path": good})
+            check(status == 200 and body["voice"] == [0.9], "vocals returns probabilities")
+            check(request(base, "POST", "/vocals", {"path": bad})[0] == 422, "vocals: undecodable -> 422")
+            check(request(base, "POST", "/other", {"path": good})[0] == 404, "unknown route -> 404")
             check(all(os.path.exists(p) for p in (good, bad, boom)), "no input file deleted on errors")
     finally:
         httpd.shutdown()

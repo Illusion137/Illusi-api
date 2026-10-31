@@ -1,7 +1,7 @@
 # systemd unit (sample). Install to /etc/systemd/system/illusi-analyzer.service, adjust paths/user, then:
 #   systemctl daemon-reload && systemctl enable --now illusi-analyzer
 [Unit]
-Description=Illusi music analyzer (Mood-Detector + VibeNet)
+Description=Illusi music analyzer (Mood-Detector, VibeNet, vocal detection)
 After=network.target
 
 [Service]

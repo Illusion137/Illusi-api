@@ -1,8 +1,9 @@
-"""Illusi music analyzer: a small localhost HTTP API around Mood-Detector + VibeNet.
+"""Illusi music analyzer: a small localhost HTTP API around Mood-Detector, VibeNet and Essentia's vocal models.
 
-GET  /health   -> 200 {"status":"ok"} once both models are loaded, 503 while loading / if loading failed.
+GET  /health   -> 200 {"status":"ok"} once every model is loaded, 503 while loading / if loading failed.
 POST /analyze  {"path": "/abs/file"} -> 200 combined JSON | 400 bad path | 422 undecodable | 500 model failure
                | 503 models not loaded yet.
+POST /vocals   {"path": "/abs/file"} -> 200 voice probabilities + segments, same errors as /analyze.
 
 Env: ANALYZER_URL (host/port to bind, default http://127.0.0.1:8765), or ANALYZER_HOST / ANALYZER_PORT;
 ANALYZER_PATH_ROOTS (optional, os.pathsep-separated dirs requests may point into);
@@ -58,7 +59,7 @@ def make_handler(state: State):
             return self._send(503, {"status": "error" if state.error else "loading", "error": state.error})
 
         def do_POST(self) -> None:
-            if self.path != "/analyze":
+            if self.path not in ("/analyze", "/vocals"):
                 return self._send(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("content-length") or 0)
@@ -75,7 +76,7 @@ def make_handler(state: State):
             started = time.monotonic()
             try:
                 path = validate_path(body, state.roots)
-                result = state.analyzer.analyze(path)
+                result = state.analyzer.analyze(path) if self.path == "/analyze" else state.analyzer.vocals(path)
             except BadRequest as e:
                 return self._send(400, {"error": str(e)})
             except DecodeError as e:
@@ -86,7 +87,7 @@ def make_handler(state: State):
             except Exception as e:  # anything else is a model/runtime failure, never the caller's fault
                 log.exception("unexpected failure")
                 return self._send(500, {"error": f"{type(e).__name__}: {e}"})
-            log.info("analyzed %s in %.1fs", path, time.monotonic() - started)
+            log.info("%s %s in %.1fs", self.path[1:], path, time.monotonic() - started)
             return self._send(200, result)
 
     return Handler
