@@ -26,8 +26,9 @@ mkdir -p "$media"
 media="$(cd "$media" && pwd)"
 remote="$(s3_remote "${BACKUP_S3_MEDIA_PREFIX:-media}")"
 # Uploads in progress live in .incoming; --min-age skips a file that was just moved into place and could still
-# be removed again if its database row rolls back.
-filters=(--exclude '.incoming/**' --min-age 5m)
+# be removed again if its database row rolls back. Data exports (.exports) are short-lived copies of personal data
+# and are never backed up. Playlist artwork (artwork/) is backed up like media.
+filters=(--exclude '.incoming/**' --exclude '.exports/**' --min-age 5m)
 
 # The api container (uid 1000) owns the media files.
 case "$mode" in

@@ -59,7 +59,7 @@ trap rollback_tags ERR
 
 dc() { scripts/compose.sh "$@"; }
 data="${DATA_DIR:-./data}"
-mkdir -p "$data"/{media,analyzer_tmp,certs,letsencrypt,acme,postgres,backups}
+mkdir -p "$data"/{media,analyzer_tmp,logs,certs,letsencrypt,acme,postgres,backups}
 
 echo "==> images $api_image:$tag, $analyzer_image:$tag"
 if [[ $local_images -eq 0 ]]; then

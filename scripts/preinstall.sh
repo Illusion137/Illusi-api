@@ -9,7 +9,8 @@
 # Installs Docker + compose + docker-rollout, a firewall, fail2ban, unattended upgrades and swap;
 # creates the `illusi` deploy user (the CI SSH target) and /opt/illusi with .env, generating any secret it lacks
 # (run scripts/upload-env.sh from your machine first to use your own .env, database password included);
-# installs systemd timers for certificate renewal, nightly Postgres backups and image cleanup; then
+# installs systemd timers for certificate renewal, nightly Postgres backups, media backups, a monthly restore test
+# and image cleanup (each reported to a Sentry Cron Monitor through scripts/cron.sh when SENTRY_DSN is set); then
 # runs the first deploy and issues the TLS certificate. Re-running only fills in what's missing.
 #
 # Env:
@@ -127,6 +128,7 @@ set_env() {
 [[ -n "${LETSENCRYPT_EMAIL:-}" ]] && sed -i "s|^LETSENCRYPT_EMAIL=.*|LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL|" "$env_file"
 set_env DATA_DIR "$APP_DIR/data"
 set_env POSTGRES_PASSWORD "$(openssl rand -hex 24)"
+set_env POSTGRES_APP_PASSWORD "$(openssl rand -hex 24)"
 set_env JWT_ACCESS_SECRET "$(openssl rand -hex 32)"
 set_env ACTION_TOKEN_SECRET "$(openssl rand -hex 32)"
 
@@ -134,10 +136,10 @@ set -a
 # shellcheck disable=SC1090
 . "$env_file"
 set +a
-mkdir -p "$DATA_DIR"/{media,analyzer_tmp,certs,letsencrypt,acme,postgres,backups}
+mkdir -p "$DATA_DIR"/{media,analyzer_tmp,logs,certs,letsencrypt,acme,postgres,backups}
 chown -R "$APP_USER:$APP_USER" "$DATA_DIR"/{certs,acme,backups}
 # The api container runs as uid 1000 (`node`).
-chown -R 1000:1000 "$DATA_DIR"/{media,analyzer_tmp}
+chown -R 1000:1000 "$DATA_DIR"/{media,analyzer_tmp,logs}
 
 if [[ -n "${GHCR_TOKEN:-}" ]]; then
 	log "registry login"
@@ -153,7 +155,7 @@ After=docker.service
 Type=oneshot
 User=$APP_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/scripts/ssl.sh renew
+ExecStart=$APP_DIR/scripts/cron.sh certs-renew -- $APP_DIR/scripts/ssl.sh renew
 EOF
 cat > /etc/systemd/system/illusi-certs.timer <<'EOF'
 [Unit]
@@ -173,7 +175,7 @@ After=docker.service
 Type=oneshot
 User=$APP_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/scripts/backup.sh
+ExecStart=$APP_DIR/scripts/cron.sh db-backup -- $APP_DIR/scripts/backup.sh
 EOF
 cat > /etc/systemd/system/illusi-backup.timer <<'EOF'
 [Unit]
@@ -192,7 +194,7 @@ After=docker.service
 Type=oneshot
 User=$APP_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/scripts/backup-media.sh
+ExecStart=$APP_DIR/scripts/cron.sh media-backup -- $APP_DIR/scripts/backup-media.sh
 EOF
 cat > /etc/systemd/system/illusi-media-backup.timer <<'EOF'
 [Unit]
@@ -203,12 +205,14 @@ OnUnitActiveSec=15min
 [Install]
 WantedBy=timers.target
 EOF
-cat > /etc/systemd/system/illusi-prune.service <<'EOF'
+cat > /etc/systemd/system/illusi-prune.service <<EOF
 [Unit]
 Description=Remove old Docker images
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/docker image prune -af --filter until=336h
+User=$APP_USER
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/scripts/cron.sh docker-prune -- /usr/bin/docker image prune -af --filter until=336h
 EOF
 cat > /etc/systemd/system/illusi-prune.timer <<'EOF'
 [Unit]
@@ -219,8 +223,27 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
+cat > /etc/systemd/system/illusi-restore-test.service <<EOF
+[Unit]
+Description=Restore the newest Illusi backup into a throwaway Postgres and check it
+After=docker.service
+[Service]
+Type=oneshot
+User=$APP_USER
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/scripts/cron.sh restore-test -- $APP_DIR/scripts/restore-test.sh
+EOF
+cat > /etc/systemd/system/illusi-restore-test.timer <<'EOF'
+[Unit]
+Description=Monthly Illusi backup restore test
+[Timer]
+OnCalendar=*-*-01 04:00:00
+Persistent=true
+[Install]
+WantedBy=timers.target
+EOF
 systemctl daemon-reload
-systemctl enable --now illusi-certs.timer illusi-backup.timer illusi-media-backup.timer illusi-prune.timer
+systemctl enable --now illusi-certs.timer illusi-backup.timer illusi-media-backup.timer illusi-prune.timer illusi-restore-test.timer
 
 if [[ "${SKIP_DEPLOY:-0}" == 1 ]]; then
 	log "host ready (SKIP_DEPLOY=1). Next: scripts/deploy.sh <tag> && scripts/ssl.sh issue as $APP_USER"

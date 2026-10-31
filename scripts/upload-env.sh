@@ -40,12 +40,13 @@ get() { values "$2" | grep -E "^$1=" | tail -n 1 | cut -d= -f2- || true; }
 
 # --- validate the local file ---
 problems=()
-for k in DOMAIN LETSENCRYPT_EMAIL DATA_DIR POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD JWT_ACCESS_SECRET ACTION_TOKEN_SECRET; do
+for k in DOMAIN LETSENCRYPT_EMAIL DATA_DIR POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD POSTGRES_APP_USER POSTGRES_APP_PASSWORD JWT_ACCESS_SECRET ACTION_TOKEN_SECRET; do
 	[[ -n "$(get "$k" .env)" ]] || problems+=("$k is empty")
 done
 [[ "$(get DOMAIN .env)" == *example.com ]] && problems+=("DOMAIN is still the example")
 [[ "$(get LETSENCRYPT_EMAIL .env)" == *example.com ]] && problems+=("LETSENCRYPT_EMAIL is still the example")
 [[ "$(get POSTGRES_PASSWORD .env)" =~ ^[0-9a-fA-F]*$ ]] || problems+=("POSTGRES_PASSWORD must be hex (it is embedded in DATABASE_URL)")
+[[ "$(get POSTGRES_APP_PASSWORD .env)" =~ ^[0-9a-fA-F]*$ ]] || problems+=("POSTGRES_APP_PASSWORD must be hex (it is embedded in DATABASE_URL)")
 for k in JWT_ACCESS_SECRET ACTION_TOKEN_SECRET; do
 	v="$(get "$k" .env)"
 	[[ -z "$v" || ${#v} -ge 32 ]] || problems+=("$k must be at least 32 characters")
