@@ -1,0 +1,337 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5e63708f-609d-40fa-9d66-2997b761e881",
+  "prevIds": [
+    "ae8c162f-9d78-4971-b8fe-348d1e90f48c"
+  ],
+  "footprints": [
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "albums_table",
+        "albums_search_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.albums_search_trgm_idx",
+        "n|idx|public.albums_search_trgm_idx",
+        "e|idx|public.albums_search_trgm_idx",
+        "n|rel|public.albums_search_trgm_idx"
+      ],
+      "reads": [
+        "e|tbl|public.albums_table",
+        "n|sch|public"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "artists_table",
+        "artists_search_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.artists_search_trgm_idx",
+        "n|idx|public.artists_search_trgm_idx",
+        "e|idx|public.artists_search_trgm_idx",
+        "n|rel|public.artists_search_trgm_idx"
+      ],
+      "reads": [
+        "e|tbl|public.artists_table",
+        "n|sch|public"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "tracks_table",
+        "tracks_search_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.tracks_search_trgm_idx",
+        "n|idx|public.tracks_search_trgm_idx",
+        "e|idx|public.tracks_search_trgm_idx",
+        "n|rel|public.tracks_search_trgm_idx"
+      ],
+      "reads": [
+        "e|tbl|public.tracks_table",
+        "n|sch|public"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "albums_table",
+        "search_name"
+      ],
+      "writes": [
+        "s|col|public.albums_table.search_name",
+        "n|col|public.albums_table.search_name",
+        "e|col|public.albums_table.search_name"
+      ],
+      "reads": [
+        "n|tbl|public.albums_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "artists_table",
+        "search_name"
+      ],
+      "writes": [
+        "s|col|public.artists_table.search_name",
+        "n|col|public.artists_table.search_name",
+        "e|col|public.artists_table.search_name"
+      ],
+      "reads": [
+        "n|tbl|public.artists_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "tracks_table",
+        "search_title"
+      ],
+      "writes": [
+        "s|col|public.tracks_table.search_title",
+        "n|col|public.tracks_table.search_title",
+        "e|col|public.tracks_table.search_title"
+      ],
+      "reads": [
+        "n|tbl|public.tracks_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "albums_table",
+        "albums_search_name_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.albums_search_name_trgm_idx",
+        "n|idx|public.albums_search_name_trgm_idx",
+        "e|idx|public.albums_search_name_trgm_idx",
+        "n|rel|public.albums_search_name_trgm_idx"
+      ],
+      "reads": [
+        "n|tbl|public.albums_table",
+        "n|sch|public",
+        "n|col|public.albums_table.search_name"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "artists_table",
+        "artists_search_name_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.artists_search_name_trgm_idx",
+        "n|idx|public.artists_search_name_trgm_idx",
+        "e|idx|public.artists_search_name_trgm_idx",
+        "n|rel|public.artists_search_name_trgm_idx"
+      ],
+      "reads": [
+        "n|tbl|public.artists_table",
+        "n|sch|public",
+        "n|col|public.artists_table.search_name"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "tracks_table",
+        "tracks_search_title_trgm_idx"
+      ],
+      "writes": [
+        "s|idx|public.tracks_search_title_trgm_idx",
+        "n|idx|public.tracks_search_title_trgm_idx",
+        "e|idx|public.tracks_search_title_trgm_idx",
+        "n|rel|public.tracks_search_title_trgm_idx"
+      ],
+      "reads": [
+        "n|tbl|public.tracks_table",
+        "n|sch|public",
+        "n|col|public.tracks_table.search_title"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "albums_table",
+        "name": "search_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": {
+          "as": "illusi_search_text(\"albums_table\".\"name\")",
+          "type": "stored"
+        },
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "artists_table",
+        "name": "search_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": {
+          "as": "illusi_search_text(\"artists_table\".\"name\")",
+          "type": "stored"
+        },
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "tracks_table",
+        "name": "search_title",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": {
+          "as": "illusi_search_text(\"tracks_table\".\"title\")",
+          "type": "stored"
+        },
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "albums_table",
+        "name": "albums_search_name_trgm_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "search_name",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": {
+              "name": "gin_trgm_ops",
+              "default": false
+            }
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "gin",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "artists_table",
+        "name": "artists_search_name_trgm_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "search_name",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": {
+              "name": "gin_trgm_ops",
+              "default": false
+            }
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "gin",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "tracks_table",
+        "name": "tracks_search_title_trgm_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "search_title",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": {
+              "name": "gin_trgm_ops",
+              "default": false
+            }
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "gin",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"albums_search_trgm_idx\"]"
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"artists_search_trgm_idx\"]"
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"tracks_search_trgm_idx\"]"
+    }
+  ]
+}

@@ -1,0 +1,465 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "94660ec0-a794-402b-a442-d495a493c8e4",
+  "prevIds": [
+    "f198c7c4-c176-4893-9419-4f4d5d724001"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "read_versions_table"
+      ],
+      "writes": [
+        "s|tbl|public.read_versions_table",
+        "n|tbl|public.read_versions_table",
+        "e|tbl|public.read_versions_table",
+        "n|rel|public.read_versions_table",
+        "n|type|public.read_versions_table",
+        "n|rel|public.read_versions_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "track_play_counts_table"
+      ],
+      "writes": [
+        "s|tbl|public.track_play_counts_table",
+        "n|tbl|public.track_play_counts_table",
+        "e|tbl|public.track_play_counts_table",
+        "n|rel|public.track_play_counts_table",
+        "n|type|public.track_play_counts_table",
+        "n|rel|public.track_play_counts_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "user_read_versions_table"
+      ],
+      "writes": [
+        "s|tbl|public.user_read_versions_table",
+        "n|tbl|public.user_read_versions_table",
+        "e|tbl|public.user_read_versions_table",
+        "n|rel|public.user_read_versions_table",
+        "n|type|public.user_read_versions_table",
+        "n|rel|public.user_read_versions_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "track_plays_table",
+        "track_plays_user_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.track_plays_user_id_idx",
+        "n|idx|public.track_plays_user_id_idx",
+        "e|idx|public.track_plays_user_id_idx",
+        "n|rel|public.track_plays_user_id_idx"
+      ],
+      "reads": [
+        "e|tbl|public.track_plays_table",
+        "n|sch|public",
+        "e|col|public.track_plays_table.user_id"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "track_plays_table",
+        "track_plays_user_id_track_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.track_plays_user_id_track_id_idx",
+        "n|idx|public.track_plays_user_id_track_id_idx",
+        "e|idx|public.track_plays_user_id_track_id_idx",
+        "n|rel|public.track_plays_user_id_track_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.track_plays_table",
+        "n|sch|public",
+        "n|col|public.track_plays_table.user_id",
+        "n|col|public.track_plays_table.track_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "track_plays_table",
+        "track_plays_user_id_created_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.track_plays_user_id_created_at_idx",
+        "n|idx|public.track_plays_user_id_created_at_idx",
+        "e|idx|public.track_plays_user_id_created_at_idx",
+        "n|rel|public.track_plays_user_id_created_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.track_plays_table",
+        "n|sch|public",
+        "n|col|public.track_plays_table.user_id",
+        "n|col|public.track_plays_table.created_at",
+        "n|col|public.track_plays_table.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "track_play_counts_table"
+      ],
+      "writes": [
+        "s|fk|public.track_play_counts_table.track_play_counts_table_track_id_tracks_table_id_fkey",
+        "n|fk|public.track_play_counts_table.track_play_counts_table_track_id_tracks_table_id_fkey",
+        "e|fk|public.track_play_counts_table.track_play_counts_table_track_id_tracks_table_id_fkey",
+        "n|con|public.track_play_counts_table.track_play_counts_table_track_id_tracks_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.track_play_counts_table",
+        "n|sch|public",
+        "n|tbl|public.tracks_table",
+        "n|sch|public",
+        "n|col|public.track_play_counts_table.track_id",
+        "n|col|public.tracks_table.id",
+        "e|uniqueness|public.tracks_table.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "user_read_versions_table"
+      ],
+      "writes": [
+        "s|fk|public.user_read_versions_table.user_read_versions_table_user_id_users_table_id_fkey",
+        "n|fk|public.user_read_versions_table.user_read_versions_table_user_id_users_table_id_fkey",
+        "e|fk|public.user_read_versions_table.user_read_versions_table_user_id_users_table_id_fkey",
+        "n|con|public.user_read_versions_table.user_read_versions_table_user_id_users_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.user_read_versions_table",
+        "n|sch|public",
+        "n|tbl|public.users_table",
+        "n|sch|public",
+        "n|col|public.user_read_versions_table.user_id",
+        "n|col|public.users_table.id",
+        "e|uniqueness|public.users_table.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "read_versions_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "track_play_counts_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "user_read_versions_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "read_versions_table",
+        "name": "key",
+        "type": "varchar(32)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "read_versions_table",
+        "name": "version",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_play_counts_table",
+        "name": "track_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_play_counts_table",
+        "name": "plays",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_read_versions_table",
+        "name": "user_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_read_versions_table",
+        "name": "version",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_plays_table",
+        "name": "track_plays_user_id_track_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "track_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_plays_table",
+        "name": "track_plays_user_id_created_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": false,
+            "nullsFirst": true,
+            "opclass": null
+          },
+          {
+            "value": "id",
+            "isExpression": false,
+            "asc": false,
+            "nullsFirst": true,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_play_counts_table",
+        "name": "track_play_counts_table_track_id_tracks_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "track_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "tracks_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_read_versions_table",
+        "name": "user_read_versions_table_user_id_users_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "user_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "read_versions_table",
+        "name": "read_versions_table_pkey",
+        "columns": [
+          "key"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_play_counts_table",
+        "name": "track_play_counts_table_pkey",
+        "columns": [
+          "track_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_read_versions_table",
+        "name": "user_read_versions_table_pkey",
+        "columns": [
+          "user_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_play_counts_table",
+        "name": "track_play_counts_plays_check",
+        "value": "\"plays\" >= 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"track_plays_user_id_idx\"]"
+    }
+  ]
+}

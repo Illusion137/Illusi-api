@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { bigint, boolean, check, date, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, varchar, vector } from 'drizzle-orm/pg-core';
 
 const ITUNES_EXPLICITNESS = ['explicit', 'cleaned', 'notExplicit'] as const;
@@ -443,18 +444,21 @@ export const thumbnails_table = pgTable('thumbnails_table', {
 export const artists_table = pgTable('artists_table', {
 	id: uuid().primaryKey().references(() => service_ids_table.illusi_id),
 	name: varchar({ length: 256 }).notNull(),
+	/** `name` folded for search (lowercase, no accents); stored so lookups don't re-fold every row. */
+	search_name: text().notNull().generatedAlwaysAs((): SQL => sql`illusi_search_text(${artists_table.name})`),
 	description: text(),
 	primary_genre_name: varchar({ length: 80 }),
 	...timestamps
 }, table => [
 	index('artists_modified_at_idx').on(table.modified_at),
 	index('artists_name_key_idx').on(sql`illusi_name_key(${table.name})`),
-	index('artists_search_trgm_idx').using('gin', sql`illusi_search_text(${table.name}) gin_trgm_ops`)
+	index('artists_search_name_trgm_idx').using('gin', table.search_name.op('gin_trgm_ops'))
 ]);
 export const albums_table = pgTable('albums_table', {
 	id: uuid().primaryKey().references(() => service_ids_table.illusi_id),
 	artist_id: uuid().references(() => artists_table.id, { onDelete: 'set null' }),
 	name: varchar({ length: 256 }).notNull(),
+	search_name: text().notNull().generatedAlwaysAs((): SQL => sql`illusi_search_text(${albums_table.name})`),
 	album_type: album_type(),
 	release_date: timestamptz(),
 	track_count: integer(),
@@ -465,11 +469,12 @@ export const albums_table = pgTable('albums_table', {
 	index('albums_modified_at_idx').on(table.modified_at),
 	index('albums_release_date_idx').on(table.release_date),
 	index('albums_name_key_idx').on(sql`illusi_name_key(${table.name})`),
-	index('albums_search_trgm_idx').using('gin', sql`illusi_search_text(${table.name}) gin_trgm_ops`)
+	index('albums_search_name_trgm_idx').using('gin', table.search_name.op('gin_trgm_ops'))
 ]);
 export const tracks_table = pgTable('tracks_table', {
 	id: uuid().primaryKey().references(() => service_ids_table.illusi_id),
 	title: varchar({ length: 256 }).notNull(),
+	search_title: text().notNull().generatedAlwaysAs((): SQL => sql`illusi_search_text(${tracks_table.title})`),
 	album_id: uuid().references(() => albums_table.id, { onDelete: 'set null' }),
 	duration_ms: bigint({ mode: 'number' }),
 	explicit: boolean(),
@@ -482,7 +487,7 @@ export const tracks_table = pgTable('tracks_table', {
 	index('tracks_album_id_idx').on(table.album_id),
 	index('tracks_modified_at_idx').on(table.modified_at),
 	index('tracks_backpacked_at_idx').on(table.backpacked_at).where(sql`${table.backpacked}`),
-	index('tracks_search_trgm_idx').using('gin', sql`illusi_search_text(${table.title}) gin_trgm_ops`)
+	index('tracks_search_title_trgm_idx').using('gin', table.search_title.op('gin_trgm_ops'))
 ]);
 export const tracks_artists_table = pgTable('tracks_artists_table', {
 	artist_id: uuid().notNull().references(() => artists_table.id, { onDelete: 'cascade' }),
@@ -542,6 +547,29 @@ export const track_sample_lookups_table = pgTable('track_sample_lookups_table', 
 	source_ref: varchar({ length: 512 })
 }, table => [primaryKey({ columns: [table.track_id, table.source] })]);
 
+/**
+ * Vocal activity of a track's newest media file (the analyzer's `/vocals`; never run on iTunes previews). The row is
+ * also the lookup record: only DONE rows carry results, and a newer upload makes the track eligible again.
+ */
+export const track_vocals_table = pgTable('track_vocals_table', {
+	track_id: uuid().primaryKey().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	/** The media file that was analyzed (or failed). */
+	resource_id: varchar({ length: 256 }).notNull(),
+	status: sample_lookup_status().notNull(),
+	attempts: integer().notNull().default(0),
+	attempted_at: timestamptz().notNull().defaultNow(),
+	retry_after: timestamptz(),
+	model: varchar({ length: 128 }),
+	hop_ms: integer(),
+	window_ms: integer(),
+	duration_ms: integer(),
+	/** Voice probability (0-1) of window i, `[i * hop_ms, i * hop_ms + window_ms)`. */
+	voice: real().array(),
+	/** Voiced spans, flat: `[start_ms, end_ms, start_ms, end_ms, ...]`. */
+	segments: integer().array(),
+	...timestamps
+});
+
 /** Dimensions of `track_vectors_table.embedding`. Must match the encoding in the vector service. */
 export const TRACK_VECTOR_DIMENSIONS = 40;
 
@@ -598,9 +626,23 @@ export const users_table = pgTable('users_table', {
 	email: varchar({ length: 256 }).notNull().unique(),
 	password_hash: varchar({ length: 255 }).notNull(),
 	role: user_role().notNull().default('USER'),
+	/** Null until the user follows the link emailed to them; unverified users can sign in but only reach `/auth`. */
+	email_verified_at: timestamptz(),
 	edited_at: timestamptz(),
 	...timestamps
 }, table => [check('users_email_lowercase_check', sql`${table.email} = lower(${table.email})`)]);
+
+/** One-time email confirmation links; only the sha256 of the token is stored. */
+export const email_verifications_table = pgTable('email_verifications_table', {
+	id: uuid().primaryKey().defaultRandom(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	/** The address the link was sent to; verification only counts while it still equals the account email. */
+	email: varchar({ length: 256 }).notNull(),
+	token_hash: varchar({ length: 64 }).notNull().unique(),
+	expires_at: timestamptz().notNull(),
+	used_at: timestamptz(),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [index('email_verifications_user_id_idx').on(table.user_id)]);
 
 export const sessions_table = pgTable('sessions_table', {
 	id: uuid().primaryKey().defaultRandom(),
@@ -658,9 +700,31 @@ export const track_plays_table = pgTable('track_plays_table', {
 	client_id: uuid().unique(),
 	created_at: timestamptz().notNull().defaultNow()
 }, table => [
-	index('track_plays_user_id_idx').on(table.user_id),
+	index('track_plays_user_id_track_id_idx').on(table.user_id, table.track_id),
+	index('track_plays_user_id_created_at_idx').on(table.user_id, table.created_at.desc().nullsFirst(), table.id.desc().nullsFirst()),
 	index('track_plays_track_id_idx').on(table.track_id)
 ]);
+
+/** Total plays per track over every user, kept by triggers on `track_plays_table` (inserts, deletes and merges). */
+export const track_play_counts_table = pgTable('track_play_counts_table', {
+	track_id: uuid().primaryKey().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	plays: bigint({ mode: 'number' }).notNull().default(0)
+}, table => [check('track_play_counts_plays_check', sql`${table.plays} >= 0`)]);
+
+/**
+ * Change counters for read-API validators (ETags). `catalog` moves when any catalog row a view is built from
+ * changes, `plays` when play totals change; bumped by deferred triggers at commit.
+ */
+export const read_versions_table = pgTable('read_versions_table', {
+	key: varchar({ length: 32 }).primaryKey(),
+	version: bigint({ mode: 'number' }).notNull().default(0)
+});
+
+/** Per-user change counter for the library overlay in read-API views (library rows and plays). */
+export const user_read_versions_table = pgTable('user_read_versions_table', {
+	user_id: uuid().primaryKey().references(() => users_table.id, { onDelete: 'cascade' }),
+	version: bigint({ mode: 'number' }).notNull().default(0)
+});
 
 export const linked_playlists_table = pgTable('linked_playlists_table', {
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
@@ -684,10 +748,15 @@ export const playlists_table = pgTable('playlists_table', {
 	sort_mode: sort_type().notNull().default('OLDEST'),
 	deleted: boolean().notNull().default(false),
 	edited_at: timestamptz(),
+	/** `<uuid>.jpg` under `MEDIA_DIR/artwork/`; set only by the artwork endpoints, never by sync push. */
+	artwork_id: varchar({ length: 64 }),
+	/** Last-write-wins clock for `artwork_id`, separate from `edited_at` so artwork and row edits don't overwrite each other. */
+	artwork_edited_at: timestamptz(),
 	...timestamps
 }, table => [
 	index('playlists_user_id_idx').on(table.user_id),
 	index('playlists_user_id_modified_at_idx').on(table.user_id, table.modified_at),
+	index('playlists_artwork_id_idx').on(table.artwork_id).where(sql`${table.artwork_id} is not null`),
 	index('playlists_search_trgm_idx').using('gin', sql`illusi_search_text(${table.title}) gin_trgm_ops`)
 ]);
 export const playlist_inherited_searches_table = pgTable('playlist_inherited_searches_table', {
@@ -756,7 +825,8 @@ export const contributions_log_table = pgTable('contributions_log_table', {
 	id: uuid().primaryKey().defaultRandom(),
 	/** Client UUID for `/contribute` (idempotency key). Null for ingests that have none. */
 	contribution_id: uuid().unique(),
-	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	/** Null once the contributor deleted their account: what they contributed stays in the catalog. */
+	user_id: uuid().references(() => users_table.id, { onDelete: 'set null' }),
 	source: provenance_source().notNull(),
 	token_jti: varchar({ length: 64 }),
 	/** `[{ table, id, filled: string[] }]`: every entity touched and the fields it filled. */
@@ -765,6 +835,27 @@ export const contributions_log_table = pgTable('contributions_log_table', {
 	response: jsonb(),
 	received_at: timestamptz().notNull().defaultNow()
 }, table => [index('contributions_log_user_id_idx').on(table.user_id, table.received_at)]);
+
+export const EXPORT_STATUSES = ['PENDING', 'RUNNING', 'READY', 'FAILED', 'EXPIRED'] as const;
+export const export_status = pgEnum('export_status', EXPORT_STATUSES);
+
+/** Data export jobs (`POST /me/export`): generated in the background, the file lives until `expires_at`. */
+export const export_jobs_table = pgTable('export_jobs_table', {
+	id: uuid().primaryKey().defaultRandom(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	status: export_status().notNull().default('PENDING'),
+	/** File name under `MEDIA_DIR/.exports/` once ready. */
+	file_name: varchar({ length: 64 }),
+	size: bigint({ mode: 'number' }),
+	error: varchar({ length: 256 }),
+	created_at: timestamptz().notNull().defaultNow(),
+	started_at: timestamptz(),
+	finished_at: timestamptz(),
+	expires_at: timestamptz()
+}, table => [
+	index('export_jobs_user_id_created_at_idx').on(table.user_id, table.created_at),
+	index('export_jobs_status_idx').on(table.status)
+]);
 
 /** Idempotency for `/sync/push`: a retried `push_id` replays the stored response. */
 export const sync_pushes_table = pgTable('sync_pushes_table', {
@@ -837,3 +928,70 @@ export const track_research_table = pgTable('track_research_table', {
 	found_value: varchar({ length: 512 }),
 	...timestamps
 }, table => [primaryKey({ columns: [table.track_id, table.service] })]);
+
+/** Streaming services whose catalog objects clients ingest as-is (YouTube and YouTube Music are too irregular to store). */
+export const CATALOG_SERVICES = ['spotify', 'applemusic', 'amazonmusic', 'deezer', 'tidal', 'pandora', 'bandlab', 'audiomack'] as const;
+export type CatalogService = typeof CATALOG_SERVICES[number];
+export const catalog_service = pgEnum('catalog_service', CATALOG_SERVICES);
+
+/** Artists as a service shows them; `illusi_id` is set once a global artist carries the same service id. */
+export const service_artists_table = pgTable('service_artists_table', {
+	service: catalog_service().notNull(),
+	external_id: varchar({ length: 256 }).notNull(),
+	illusi_id: uuid().references(() => artists_table.id, { onDelete: 'set null' }),
+	name: varchar({ length: 1024 }).notNull(),
+	artwork_url: varchar({ length: 1024 }),
+	verified: boolean(),
+	description: text(),
+	followers_count: bigint({ mode: 'number' }),
+	raw: jsonb(),
+	last_seen_at: timestamptz().notNull().defaultNow(),
+	...timestamps
+}, table => [
+	primaryKey({ columns: [table.service, table.external_id] }),
+	index('service_artists_illusi_id_idx').on(table.illusi_id)
+]);
+
+export const service_albums_table = pgTable('service_albums_table', {
+	service: catalog_service().notNull(),
+	external_id: varchar({ length: 256 }).notNull(),
+	illusi_id: uuid().references(() => albums_table.id, { onDelete: 'set null' }),
+	title: varchar({ length: 1024 }).notNull(),
+	artist_names: text().array(),
+	artist_external_ids: text().array(),
+	album_type: varchar({ length: 32 }),
+	release_date: timestamptz(),
+	explicit: boolean(),
+	track_count: integer(),
+	artwork_url: varchar({ length: 1024 }),
+	raw: jsonb(),
+	last_seen_at: timestamptz().notNull().defaultNow(),
+	...timestamps
+}, table => [
+	primaryKey({ columns: [table.service, table.external_id] }),
+	index('service_albums_illusi_id_idx').on(table.illusi_id)
+]);
+
+export const service_tracks_table = pgTable('service_tracks_table', {
+	service: catalog_service().notNull(),
+	external_id: varchar({ length: 256 }).notNull(),
+	illusi_id: uuid().references(() => tracks_table.id, { onDelete: 'set null' }),
+	title: varchar({ length: 1024 }).notNull(),
+	alt_title: varchar({ length: 1024 }),
+	artist_names: text().array(),
+	artist_external_ids: text().array(),
+	album_title: varchar({ length: 1024 }),
+	album_external_id: varchar({ length: 256 }),
+	duration_ms: integer(),
+	explicit: boolean(),
+	plays: bigint({ mode: 'number' }),
+	isrc: varchar({ length: 12 }),
+	artwork_url: varchar({ length: 1024 }),
+	raw: jsonb(),
+	last_seen_at: timestamptz().notNull().defaultNow(),
+	...timestamps
+}, table => [
+	primaryKey({ columns: [table.service, table.external_id] }),
+	index('service_tracks_illusi_id_idx').on(table.illusi_id),
+	index('service_tracks_isrc_idx').on(table.isrc)
+]);

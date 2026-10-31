@@ -1,0 +1,302 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "8dc62f30-5886-465e-8584-87f54ed4fc4d",
+  "prevIds": [
+    "75268db6-56b6-4146-af23-e9c7b2655dbc"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "email_verifications_table"
+      ],
+      "writes": [
+        "s|tbl|public.email_verifications_table",
+        "n|tbl|public.email_verifications_table",
+        "e|tbl|public.email_verifications_table",
+        "n|rel|public.email_verifications_table",
+        "n|type|public.email_verifications_table",
+        "n|rel|public.email_verifications_table_pkey",
+        "n|rel|public.email_verifications_table_token_hash_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users_table",
+        "email_verified_at"
+      ],
+      "writes": [
+        "s|col|public.users_table.email_verified_at",
+        "n|col|public.users_table.email_verified_at",
+        "e|col|public.users_table.email_verified_at"
+      ],
+      "reads": [
+        "n|tbl|public.users_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "email_verifications_table",
+        "email_verifications_user_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.email_verifications_user_id_idx",
+        "n|idx|public.email_verifications_user_id_idx",
+        "e|idx|public.email_verifications_user_id_idx",
+        "n|rel|public.email_verifications_user_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.email_verifications_table",
+        "n|sch|public",
+        "n|col|public.email_verifications_table.user_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "email_verifications_table"
+      ],
+      "writes": [
+        "s|fk|public.email_verifications_table.email_verifications_table_user_id_users_table_id_fkey",
+        "n|fk|public.email_verifications_table.email_verifications_table_user_id_users_table_id_fkey",
+        "e|fk|public.email_verifications_table.email_verifications_table_user_id_users_table_id_fkey",
+        "n|con|public.email_verifications_table.email_verifications_table_user_id_users_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.email_verifications_table",
+        "n|sch|public",
+        "n|tbl|public.users_table",
+        "n|sch|public",
+        "n|col|public.email_verifications_table.user_id",
+        "n|col|public.users_table.id",
+        "e|uniqueness|public.users_table.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "email_verifications_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "user_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "email",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "token_hash",
+        "type": "varchar(64)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "used_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users_table",
+        "name": "email_verified_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "email_verifications_user_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "email_verifications_table_user_id_users_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "user_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "email_verifications_table_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_verifications_table",
+        "name": "email_verifications_table_token_hash_key",
+        "nameExplicit": false,
+        "columns": [
+          "token_hash"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1202 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "8594c8c0-4823-4409-8933-28d5eb43a7cf",
+  "prevIds": [
+    "e9ce503e-4464-423d-879f-e5c95c3c1c8c"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "catalog_service"
+      ],
+      "writes": [
+        "s|enum|public.catalog_service",
+        "n|enum|public.catalog_service",
+        "e|enum|public.catalog_service",
+        "n|type|public.catalog_service"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_albums_table"
+      ],
+      "writes": [
+        "s|tbl|public.service_albums_table",
+        "n|tbl|public.service_albums_table",
+        "e|tbl|public.service_albums_table",
+        "n|rel|public.service_albums_table",
+        "n|type|public.service_albums_table",
+        "n|rel|public.service_albums_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.catalog_service"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_artists_table"
+      ],
+      "writes": [
+        "s|tbl|public.service_artists_table",
+        "n|tbl|public.service_artists_table",
+        "e|tbl|public.service_artists_table",
+        "n|rel|public.service_artists_table",
+        "n|type|public.service_artists_table",
+        "n|rel|public.service_artists_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.catalog_service"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_tracks_table"
+      ],
+      "writes": [
+        "s|tbl|public.service_tracks_table",
+        "n|tbl|public.service_tracks_table",
+        "e|tbl|public.service_tracks_table",
+        "n|rel|public.service_tracks_table",
+        "n|type|public.service_tracks_table",
+        "n|rel|public.service_tracks_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.catalog_service"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "service_albums_table",
+        "service_albums_illusi_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.service_albums_illusi_id_idx",
+        "n|idx|public.service_albums_illusi_id_idx",
+        "e|idx|public.service_albums_illusi_id_idx",
+        "n|rel|public.service_albums_illusi_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.service_albums_table",
+        "n|sch|public",
+        "n|col|public.service_albums_table.illusi_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "service_artists_table",
+        "service_artists_illusi_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.service_artists_illusi_id_idx",
+        "n|idx|public.service_artists_illusi_id_idx",
+        "e|idx|public.service_artists_illusi_id_idx",
+        "n|rel|public.service_artists_illusi_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.service_artists_table",
+        "n|sch|public",
+        "n|col|public.service_artists_table.illusi_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "service_tracks_table",
+        "service_tracks_illusi_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.service_tracks_illusi_id_idx",
+        "n|idx|public.service_tracks_illusi_id_idx",
+        "e|idx|public.service_tracks_illusi_id_idx",
+        "n|rel|public.service_tracks_illusi_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.service_tracks_table",
+        "n|sch|public",
+        "n|col|public.service_tracks_table.illusi_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "service_tracks_table",
+        "service_tracks_isrc_idx"
+      ],
+      "writes": [
+        "s|idx|public.service_tracks_isrc_idx",
+        "n|idx|public.service_tracks_isrc_idx",
+        "e|idx|public.service_tracks_isrc_idx",
+        "n|rel|public.service_tracks_isrc_idx"
+      ],
+      "reads": [
+        "n|tbl|public.service_tracks_table",
+        "n|sch|public",
+        "n|col|public.service_tracks_table.isrc"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_albums_table"
+      ],
+      "writes": [
+        "s|fk|public.service_albums_table.service_albums_table_illusi_id_albums_table_id_fkey",
+        "n|fk|public.service_albums_table.service_albums_table_illusi_id_albums_table_id_fkey",
+        "e|fk|public.service_albums_table.service_albums_table_illusi_id_albums_table_id_fkey",
+        "n|con|public.service_albums_table.service_albums_table_illusi_id_albums_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.service_albums_table",
+        "n|sch|public",
+        "n|tbl|public.albums_table",
+        "n|sch|public",
+        "n|col|public.service_albums_table.illusi_id",
+        "n|col|public.albums_table.id",
+        "e|uniqueness|public.albums_table.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_artists_table"
+      ],
+      "writes": [
+        "s|fk|public.service_artists_table.service_artists_table_illusi_id_artists_table_id_fkey",
+        "n|fk|public.service_artists_table.service_artists_table_illusi_id_artists_table_id_fkey",
+        "e|fk|public.service_artists_table.service_artists_table_illusi_id_artists_table_id_fkey",
+        "n|con|public.service_artists_table.service_artists_table_illusi_id_artists_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.service_artists_table",
+        "n|sch|public",
+        "n|tbl|public.artists_table",
+        "n|sch|public",
+        "n|col|public.service_artists_table.illusi_id",
+        "n|col|public.artists_table.id",
+        "e|uniqueness|public.artists_table.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_tracks_table"
+      ],
+      "writes": [
+        "s|fk|public.service_tracks_table.service_tracks_table_illusi_id_tracks_table_id_fkey",
+        "n|fk|public.service_tracks_table.service_tracks_table_illusi_id_tracks_table_id_fkey",
+        "e|fk|public.service_tracks_table.service_tracks_table_illusi_id_tracks_table_id_fkey",
+        "n|con|public.service_tracks_table.service_tracks_table_illusi_id_tracks_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.service_tracks_table",
+        "n|sch|public",
+        "n|tbl|public.tracks_table",
+        "n|sch|public",
+        "n|col|public.service_tracks_table.illusi_id",
+        "n|col|public.tracks_table.id",
+        "e|uniqueness|public.tracks_table.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "service_albums_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "service_artists_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "service_tracks_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "catalog_service",
+        "values": [
+          "spotify",
+          "applemusic",
+          "amazonmusic",
+          "deezer",
+          "tidal",
+          "pandora",
+          "bandlab",
+          "audiomack"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "service",
+        "type": "catalog_service",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "external_id",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "illusi_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "title",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "artist_names",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "artist_external_ids",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "album_type",
+        "type": "varchar(32)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "release_date",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "explicit",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "track_count",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "artwork_url",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "raw",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "last_seen_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "modified_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "service",
+        "type": "catalog_service",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "external_id",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "illusi_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "name",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "artwork_url",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "verified",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "description",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "followers_count",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "raw",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "last_seen_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "modified_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "service",
+        "type": "catalog_service",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "external_id",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "illusi_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "title",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "alt_title",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "artist_names",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "artist_external_ids",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "album_title",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "album_external_id",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "duration_ms",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "explicit",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "plays",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "isrc",
+        "type": "varchar(12)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "artwork_url",
+        "type": "varchar(1024)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "raw",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "last_seen_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "modified_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "service_albums_illusi_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "illusi_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "service_artists_illusi_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "illusi_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "service_tracks_illusi_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "illusi_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "service_tracks_isrc_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "isrc",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "service_albums_table_illusi_id_albums_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "illusi_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "albums_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "service_artists_table_illusi_id_artists_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "illusi_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "artists_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "service_tracks_table_illusi_id_tracks_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "illusi_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "tracks_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_albums_table",
+        "name": "service_albums_table_pkey",
+        "columns": [
+          "service",
+          "external_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_artists_table",
+        "name": "service_artists_table_pkey",
+        "columns": [
+          "service",
+          "external_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_tracks_table",
+        "name": "service_tracks_table_pkey",
+        "columns": [
+          "service",
+          "external_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

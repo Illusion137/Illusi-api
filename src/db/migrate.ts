@@ -3,20 +3,61 @@
  * one-shot container before every rollout, while the previous API version is still serving, so
  * every migration must be backward compatible with the running code (expand first, contract in a
  * later release).
+ *
+ * With MIGRATE_DATABASE_URL set (the table owner), the DATABASE_URL role is created or synced here and granted plain
+ * DML on every table; it can't alter the schema and has no BYPASSRLS, so row-level security binds it.
  */
 import path from 'node:path';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { db } from './index';
+import { create_pool } from './index';
 import { logger } from '../core/log';
 
 const log = logger('migrate');
+
+// One connection, so the advisory lock and the migration share a session; no statement timeout, since index builds
+// and backfills on large tables legitimately run long.
+const db = drizzle({ client: create_pool({ max: 1, statement_timeout: false, idle_in_transaction_session_timeout: 0 }) });
+
+const ROLE_NAME_RE = /^[a-z_][a-z0-9_]{0,62}$/u;
+
+async function sync_app_role(): Promise<string | null> {
+	const owner_url = process.env.MIGRATE_DATABASE_URL;
+	if (!owner_url || owner_url === process.env.DATABASE_URL) return null;
+	const app_url = new URL(process.env.DATABASE_URL ?? '');
+	const role = decodeURIComponent(app_url.username);
+	if (!ROLE_NAME_RE.test(role)) throw new Error(`DATABASE_URL role "${role}" must match ${ROLE_NAME_RE}`);
+	if (role === decodeURIComponent(new URL(owner_url).username)) throw new Error('DATABASE_URL and MIGRATE_DATABASE_URL must use different roles');
+	const password = decodeURIComponent(app_url.password);
+	const exists = await db.$client.query('select 1 from pg_roles where rolname = $1', [role]);
+	const verb = exists.rowCount ? 'ALTER' : 'CREATE';
+	const { rows } = await db.$client.query<{ stmt: string }>(
+		`select format('%s ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', $1::text, $2::text, $3::text) as stmt`,
+		[verb, role, password]
+	);
+	await db.$client.query(rows[0].stmt);
+	return role;
+}
+
+async function grant_app_role(role: string) {
+	const { rows } = await db.$client.query<{ stmt: string }>(
+		`select format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), $1::text) as stmt
+		union all select format('GRANT USAGE ON SCHEMA public TO %I', $1::text)
+		union all select format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %I', $1::text)
+		union all select format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I', $1::text)`,
+		[role]
+	);
+	for (const { stmt } of rows) await db.$client.query(stmt);
+}
 
 async function main() {
 	const started = Date.now();
 	// Serializes concurrent runs (e.g. a CI deploy racing a force-deploy).
 	await db.$client.query('select pg_advisory_lock(7340002)');
 	try {
+		const app_role = await sync_app_role();
 		await migrate(db, { migrationsFolder: path.resolve(process.env.MIGRATIONS_DIR ?? 'drizzle') });
+		if (app_role) await grant_app_role(app_role);
 	} finally {
 		await db.$client.query('select pg_advisory_unlock(7340002)').catch(() => undefined);
 	}

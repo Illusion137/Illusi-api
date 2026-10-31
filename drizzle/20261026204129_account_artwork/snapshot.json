@@ -1,0 +1,554 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "ae8c162f-9d78-4971-b8fe-348d1e90f48c",
+  "prevIds": [
+    "94bb2ab0-84c0-4e89-8782-e6defb253131"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "export_status"
+      ],
+      "writes": [
+        "s|enum|public.export_status",
+        "n|enum|public.export_status",
+        "e|enum|public.export_status",
+        "n|type|public.export_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "export_jobs_table"
+      ],
+      "writes": [
+        "s|tbl|public.export_jobs_table",
+        "n|tbl|public.export_jobs_table",
+        "e|tbl|public.export_jobs_table",
+        "n|rel|public.export_jobs_table",
+        "n|type|public.export_jobs_table",
+        "n|rel|public.export_jobs_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.export_status"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "playlists_table",
+        "artwork_id"
+      ],
+      "writes": [
+        "s|col|public.playlists_table.artwork_id",
+        "n|col|public.playlists_table.artwork_id",
+        "e|col|public.playlists_table.artwork_id"
+      ],
+      "reads": [
+        "n|tbl|public.playlists_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "playlists_table",
+        "artwork_edited_at"
+      ],
+      "writes": [
+        "s|col|public.playlists_table.artwork_edited_at",
+        "n|col|public.playlists_table.artwork_edited_at",
+        "e|col|public.playlists_table.artwork_edited_at"
+      ],
+      "reads": [
+        "n|tbl|public.playlists_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "contributions_log_table",
+        "user_id"
+      ],
+      "writes": [
+        "s|colprop|public.contributions_log_table.user_id.notNull"
+      ],
+      "reads": [
+        "n|tbl|public.contributions_log_table",
+        "n|sch|public",
+        "n|col|public.contributions_log_table.user_id"
+      ],
+      "sqlHash": "43386b5ffbb2e8fe"
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "export_jobs_table",
+        "export_jobs_user_id_created_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.export_jobs_user_id_created_at_idx",
+        "n|idx|public.export_jobs_user_id_created_at_idx",
+        "e|idx|public.export_jobs_user_id_created_at_idx",
+        "n|rel|public.export_jobs_user_id_created_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.export_jobs_table",
+        "n|sch|public",
+        "n|col|public.export_jobs_table.user_id",
+        "n|col|public.export_jobs_table.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "export_jobs_table",
+        "export_jobs_status_idx"
+      ],
+      "writes": [
+        "s|idx|public.export_jobs_status_idx",
+        "n|idx|public.export_jobs_status_idx",
+        "e|idx|public.export_jobs_status_idx",
+        "n|rel|public.export_jobs_status_idx"
+      ],
+      "reads": [
+        "n|tbl|public.export_jobs_table",
+        "n|sch|public",
+        "n|col|public.export_jobs_table.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "playlists_table",
+        "playlists_artwork_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.playlists_artwork_id_idx",
+        "n|idx|public.playlists_artwork_id_idx",
+        "e|idx|public.playlists_artwork_id_idx",
+        "n|rel|public.playlists_artwork_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.playlists_table",
+        "n|sch|public",
+        "n|col|public.playlists_table.artwork_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "export_jobs_table"
+      ],
+      "writes": [
+        "s|fk|public.export_jobs_table.export_jobs_table_user_id_users_table_id_fkey",
+        "n|fk|public.export_jobs_table.export_jobs_table_user_id_users_table_id_fkey",
+        "e|fk|public.export_jobs_table.export_jobs_table_user_id_users_table_id_fkey",
+        "n|con|public.export_jobs_table.export_jobs_table_user_id_users_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.export_jobs_table",
+        "n|sch|public",
+        "n|tbl|public.users_table",
+        "n|sch|public",
+        "n|col|public.export_jobs_table.user_id",
+        "n|col|public.users_table.id",
+        "e|uniqueness|public.users_table.id"
+      ]
+    },
+    {
+      "statementType": "recreate_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "contributions_log_table"
+      ],
+      "writes": [
+        "s|fk|public.contributions_log_table.contributions_log_table_user_id_users_table_id_fkey",
+        "n|fk|public.contributions_log_table.contributions_log_table_user_id_users_table_id_fkey",
+        "e|fk|public.contributions_log_table.contributions_log_table_user_id_users_table_id_fkey",
+        "n|con|public.contributions_log_table.contributions_log_table_user_id_users_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.contributions_log_table",
+        "n|sch|public",
+        "n|tbl|public.users_table",
+        "n|sch|public",
+        "n|col|public.contributions_log_table.user_id",
+        "n|col|public.users_table.id",
+        "e|uniqueness|public.users_table.id"
+      ],
+      "sqlHash": "b5fe1f685fd591b3"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "export_jobs_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "export_status",
+        "values": [
+          "PENDING",
+          "RUNNING",
+          "READY",
+          "FAILED",
+          "EXPIRED"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "user_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "status",
+        "type": "export_status",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'PENDING'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "file_name",
+        "type": "varchar(64)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "size",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "error",
+        "type": "varchar(256)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "started_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "finished_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "playlists_table",
+        "name": "artwork_id",
+        "type": "varchar(64)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "playlists_table",
+        "name": "artwork_edited_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "export_jobs_user_id_created_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "export_jobs_status_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "status",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "playlists_table",
+        "name": "playlists_artwork_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "artwork_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": "\"artwork_id\" is not null",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "export_jobs_table_user_id_users_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "user_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "export_jobs_table",
+        "name": "export_jobs_table_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"contributions_log_table\",\"user_id\"]",
+      "set": {
+        "notNull": false
+      }
+    },
+    {
+      "op": "alter",
+      "key": "fks\u0000[\"public\",\"contributions_log_table\",\"contributions_log_table_user_id_users_table_id_fkey\"]",
+      "set": {
+        "onDelete": "SET NULL"
+      }
+    }
+  ]
+}
