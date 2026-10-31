@@ -109,6 +109,13 @@ them: `update users_table set email_verified_at = now() where email_verified_at 
 
 ## Monitoring
 
+**Admin dashboard.** `https://<DOMAIN>/admin/`: sign in with an account whose role is `ADMIN`
+(`update users_table set role = 'ADMIN' where email = '<you>';`, afterwards from the dashboard's Users page). It shows a live
+status snapshot (database, analyzer, disk, leader roles, connections per process, queue sizes, when each service last
+logged), searches the log files below, and covers the review queue (field and service id conflicts), backpacked
+tracks, track lookup with media removal and service id edits, users (role, verification, sign out, delete) and the
+audit log. Every action goes through `/api/v1/admin` and is written to the audit log.
+
 **Logs.** The `api`, `worker` and `migrate` containers write JSON lines to `data/logs/<service>-<YYYY-MM-DD>.log`
 (UTC days), kept for `LOG_RETENTION_DAYS` (7). Every line carries the request id and user id when it belongs to a
 request, and every request also gets an access line (`"scope":"access"`: method, route, status, duration, user,

@@ -15,9 +15,13 @@ export function is_draining() {
 	return draining;
 }
 
+export function uptime_s(): number {
+	return Math.round((Date.now() - started_at) / 1000);
+}
+
 const DB_TIMEOUT_MS = 2_000;
 
-async function ping_database(): Promise<{ ok: boolean; latency_ms: number; error?: string }> {
+export async function ping_database(): Promise<{ ok: boolean; latency_ms: number; error?: string }> {
 	const start = performance.now();
 	let timer: NodeJS.Timeout | undefined;
 	try {
@@ -52,7 +56,7 @@ health_router.get('/health', async (_req, res) => {
 		ok,
 		status: draining ? 'draining' : database.ok ? 'ok' : 'degraded',
 		version: config.APP_VERSION,
-		uptime_s: Math.round((Date.now() - started_at) / 1000),
+		uptime_s: uptime_s(),
 		checks: { database }
 	});
 });

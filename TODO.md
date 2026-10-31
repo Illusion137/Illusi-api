@@ -59,6 +59,17 @@ Custom playlist artwork used to live in Supabase storage and is still on users' 
 - [x] Illusive calls the endpoints that update backend data wherever it changes that data locally (reports, ingests, contributions, uploads, ...).
 - [x] Client methods and app calls for the new endpoints: search suggestions, artwork upload/removal, data export, account deletion.
 
+## Admin dashboard
+
+- [x] Static dashboard at `/admin/` (no build step), signed in with the existing login and the `ADMIN` role.
+- [x] Live status: database, analyzer, disk, leader roles, connections per process, queue sizes, log activity per service.
+- [x] Log viewer over `LOG_DIR`: per service and day, level/scope/request/user/text filters, paging and live tail.
+- [x] Review queue UI for field conflicts, service id conflict plans and automatic merges/splits.
+- [x] Media removal, backpack overview (most-reported and stuck tracks), track lookup with service id edits.
+- [x] User management (role, verification, sign out everywhere, deletion) and an audit log viewer.
+- [x] When an admin gives a backpacked track a `youtube_id`/`soundcloud_permalink`/`bandlab_id`/`audiomack_id` (a resolved
+  conflict or a direct edit), `backpacked` is cleared.
+
 ## Vocal detection
 
 - [x] Analyzer `POST /vocals` (Essentia Discogs-EffNet + voice/instrumental, ONNX), run on full media files only.
@@ -70,10 +81,3 @@ Custom playlist artwork used to live in Supabase storage and is still on users' 
 
 To discuss: how to build recommendations (mixes and radio from a track, an artist or the whole library) on top of
 `track_vectors_table`, play history and similar artists.
-
-## Backburner
-
-- Admin tools: media removal, backpack overview (most-reported and stuck tracks from `track_unavailable_reports_table`
-  and `track_research_table`), user management.
-- When an admin resolves a `youtube_id`/`soundcloud_permalink`/`bandlab_id`/`audiomack_id` conflict in favour of
-  the incoming value on a backpacked track, clear `backpacked` too.

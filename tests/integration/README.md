@@ -21,6 +21,7 @@ against the same database.
 | `12_email_verification` | unverified users can sign in but only reach `/auth`, hashed single-use links, expiry, changed address, resend limits, HTML and JSON confirmation |
 | `13_row_level_security` | the API role has no BYPASSRLS, per-user isolation, public playlists, cross-user writes refused, no schema changes |
 | `14_cors_headers` | preflight and response headers for `sumii.me` and subdomains, every other origin refused, no-Origin requests untouched |
+| `15_admin_dashboard` | dashboard page, admin-only data routes, status snapshot, log search by request id, user role/verification/sign-out/deletion with audit, backpack overview, track lookup, media removal, backpacked cleared by an admin-assigned playable id |
 
 Run everything locally without act (throwaway Postgres, restricted API role) with `scripts/test-integration.sh`; add `--coverage` for the API's own code coverage.
 

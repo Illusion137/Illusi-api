@@ -105,6 +105,18 @@ describe('create_app', () => {
 		expect(API_PREFIX).toBe('/api/v1');
 		expect((await fetch(`${base}/api/v1/health/live`)).status).toBe(401);
 	});
+
+	it('serves the admin dashboard under a strict content security policy', async () => {
+		const redirect = await fetch(`${base}/admin`, { redirect: 'manual' });
+		expect(redirect.status).toBe(301);
+		const page = await fetch(`${base}/admin/`);
+		expect(page.status).toBe(200);
+		expect(await page.text()).toContain('<script src="app.js"');
+		expect(page.headers.get('content-security-policy')).toContain('script-src \'self\';');
+		expect(page.headers.get('content-security-policy')).toContain('frame-ancestors \'none\'');
+		expect((await fetch(`${base}/admin/app.js`)).headers.get('content-type')).toMatch(/javascript/u);
+		expect((await fetch(`${base}/admin/missing.js`)).status).toBe(404);
+	});
 });
 
 describe('cors', () => {

@@ -15,7 +15,7 @@ import { resolve_redirects } from '../../core/redirects';
 import type { ProposedValue } from '../../core/review';
 import { apply_review_plan } from '../../worker/reconcile/apply';
 import type { ReviewPlan } from '../../worker/reconcile/apply';
-import { admin_update_entity, parse_entity_patch, resolve_table } from './entities';
+import { admin_update_entity, clear_backpacked_if_playable, parse_entity_patch, resolve_table } from './entities';
 
 export const list_query_schema = z.object({
 	kind: z.enum(REVIEW_KINDS).optional(),
@@ -152,6 +152,11 @@ export async function apply_review(id: number, body: z.infer<typeof apply_body_s
 			const plan = proposals[index]?.plan as ReviewPlan | undefined;
 			if (!plan?.steps.length) throw new HttpError(400, 'review item has no plan to apply');
 			const steps = await apply_review_plan(tx, plan, { actor: 'admin', actor_user_id: admin_id, review_item_id: item.id });
+			for (const { step, applied } of steps) {
+				if (!applied || step.type !== 'move') continue;
+				const to = (await resolve_redirects(tx, [step.to])).get(step.to)!;
+				await clear_backpacked_if_playable(tx, to, Object.keys(step.values));
+			}
 			await resolve_item(tx, item.id, 'APPLIED', admin_id);
 			return { id: item.id, status: 'APPLIED', steps: steps.map(s => ({ type: s.step.type, applied: s.applied, skipped: s.skipped ?? null, new_id: s.new_id ?? null })) };
 		}

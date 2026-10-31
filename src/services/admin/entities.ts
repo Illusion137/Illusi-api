@@ -8,6 +8,7 @@ import { HttpError } from '../../core/http';
 import { normalize_service_id, SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
 import { pg_error_code, pg_error_detail, PG_ERRORS } from '../../core/pg_errors';
+import { clear_backpacked, RESEARCH_COLUMNS } from '../backpack';
 
 /** Shared tables an admin may correct directly, keyed by table name. */
 export const EDITABLE_TABLES = ['tracks_table', 'albums_table', 'artists_table', 'service_ids_table'] as const;
@@ -95,6 +96,13 @@ const TABLES: Record<EditableTable, { table: AnyTable; pk: AnyTable['id'] }> = {
 	service_ids_table: { table: service_ids_table as unknown as AnyTable, pk: service_ids_table.illusi_id as unknown as AnyTable['id'] }
 };
 
+const PLAYABLE_ID_COLUMNS = new Set<string>(Object.values(RESEARCH_COLUMNS));
+
+/** A backpacked track an admin gives an id clients can download from (a resolved conflict, a manual edit) is playable again. */
+export async function clear_backpacked_if_playable(tx: Tx, track_id: string, columns: readonly string[]) {
+	if (columns.some(c => PLAYABLE_ID_COLUMNS.has(c))) await clear_backpacked(tx, track_id);
+}
+
 export interface AdminEditContext {
 	admin_id: string;
 	review_item_id?: number | null;
@@ -128,10 +136,11 @@ export async function admin_update_entity(tx: Tx, table: EditableTable, entity_i
 		details: { changes: values, review_item_id: ctx.review_item_id ?? null },
 		undo: { table, id: entity_id, values: old }
 	});
-	if (table === 'service_ids_table' && ctx.events) {
+	if (table === 'service_ids_table') {
 		const filled = Object.keys(values).filter(k => values[k] != null && String(values[k] as string | number) !== String(old[k] as string | number | null));
-		if (filled.length > 0) ctx.events.push('service_ids_filled', { illusi_id: entity_id, columns: filled });
-		if (filled.includes('applemusic_id')) ctx.events.push('applemusic_id_filled', { illusi_id: entity_id, applemusic_id: String(values.applemusic_id) });
+		await clear_backpacked_if_playable(tx, entity_id, filled);
+		if (filled.length > 0) ctx.events?.push('service_ids_filled', { illusi_id: entity_id, columns: filled });
+		if (filled.includes('applemusic_id')) ctx.events?.push('applemusic_id_filled', { illusi_id: entity_id, applemusic_id: String(values.applemusic_id) });
 	}
 	return { before: old, after };
 }

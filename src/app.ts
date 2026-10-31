@@ -7,7 +7,7 @@ import { error_handler } from './core/http';
 import { request_context } from './core/request_id';
 import { auth_router } from './routes/auth';
 import { account_router } from './services/account';
-import { admin_router } from './services/admin';
+import { admin_router, admin_ui } from './services/admin';
 import { backpack_router } from './services/backpack';
 import { catalog_router } from './services/catalog';
 import { entities_router } from './services/entities';
@@ -30,6 +30,7 @@ export function create_app() {
 	app.use(request_context);
 	app.use(cors(config.CORS_ALLOWED_DOMAIN));
 	app.use(health_router);
+	app.use('/admin', admin_ui());
 	app.use(API_PREFIX, api_v1());
 
 	app.use((_req, res) => { res.status(404).json({ error: 'not found' }); });

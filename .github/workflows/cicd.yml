@@ -92,6 +92,7 @@ jobs:
       LYRICS_SERVERS_STUB: not_found
       MEDIA_DIR: /tmp/illusi/media
       ANALYZER_TMP_DIR: /tmp/illusi/analyzer_tmp
+      LOG_DIR: /tmp/illusi/logs
       PORT: '3000'
       API_URL: http://127.0.0.1:3000
     steps:
