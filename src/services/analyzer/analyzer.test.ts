@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { map_analysis, normalize_key } from './contract';
+import { map_analysis, map_vocals, normalize_key, unflatten_segments } from './contract';
 import type { LookupState } from './decisions';
 import {
 	assert_tmp_dir_safe, choose_source, classify_analyzer_status, classify_download_status, decide_failure, error_retry_delay_ms,
@@ -40,6 +40,28 @@ describe('analyzer response mapping', () => {
 
 	it('ignores extra fields', () => {
 		expect(map_analysis(TRACK, { ...valid, energy: 0.2, explanation: 'x' })).toEqual({ id: TRACK, ...valid });
+	});
+});
+
+describe('vocals response mapping', () => {
+	const vocals = {
+		model: 'discogs-effnet-bsdynamic-1+voice_instrumental-discogs-effnet-1', hop_ms: 256, window_ms: 2048, duration_ms: 30_000,
+		voice: [0.01, 0.62, 0.93, 0.4], segments: [{ start_ms: 9856, end_ms: 17024 }, { start_ms: 20_000, end_ms: 21_500 }]
+	};
+
+	it('flattens segments for storage and back', () => {
+		const mapped = map_vocals(vocals);
+		expect(mapped).toEqual({ ...vocals, segments: [9856, 17024, 20_000, 21_500] });
+		expect(unflatten_segments(mapped!.segments)).toEqual(vocals.segments);
+		expect(unflatten_segments([1, 2, 3])).toEqual([{ start_ms: 1, end_ms: 2 }]);
+	});
+
+	it('rejects responses that break the contract', () => {
+		expect(map_vocals({ ...vocals, voice: [1.2] })).toBeNull();
+		expect(map_vocals({ ...vocals, hop_ms: 0 })).toBeNull();
+		expect(map_vocals({ ...vocals, segments: [{ start_ms: 5, end_ms: 4 }] })).toBeNull();
+		expect(map_vocals({ ...vocals, model: undefined })).toBeNull();
+		expect(map_vocals(null)).toBeNull();
 	});
 });
 

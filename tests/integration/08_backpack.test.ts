@@ -60,8 +60,8 @@ describe('backpacked tracks', () => {
 
 		const actions = await pull_actions(owner);
 		const uploads = actions.filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
-		expect(uploads[0]).toBe(target);
-		expect(new Set(uploads)).toEqual(new Set(tracks));
+		// Only the backpacked track: the other downloads can still be played from a service.
+		expect(uploads).toEqual([target]);
 
 		// Still inside the upload window: nobody is asked to research it.
 		expect((await research_requests(reporter)).body.actions).toEqual([]);

@@ -10,12 +10,15 @@ function upload(user: TestUser, track_id: string, file: Buffer, fields: Record<s
 }
 
 describe('media uploads (§13)', () => {
-	it('asks for downloaded tracks, accepts the upload with the token, dedupes, and streams with ranges', async () => {
+	it('asks for downloaded imported tracks, accepts the upload with the token, dedupes, and streams with ranges', async () => {
 		const user = await create_user('media');
-		const created = await contribute(user, mock_album({ artist: unique('Media Artist'), album: unique('Media Album'), n: 2 }));
+		const created = await contribute(user, mock_album({ artist: unique('Media Artist'), album: unique('Media Album'), n: 2, imported: true }));
 		const [t0, t1] = [created.body.refs.t0, created.body.refs.t1];
 		await add_to_library(user, [t0], { downloaded_at: new Date().toISOString() });
 		await add_to_library(user, [t1]);
+		// Downloaded but neither imported nor backpacked: a service can still play it, so no copy is asked for.
+		const streamed = await contribute(user, mock_album({ artist: unique('Streamed Artist'), album: unique('Streamed Album'), n: 1 }));
+		await add_to_library(user, [streamed.body.refs.t0], { downloaded_at: new Date().toISOString() });
 
 		const requests = await api('GET', '/media/requests', { token: user.access_token });
 		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id)).toEqual([t0]);
@@ -26,29 +29,72 @@ describe('media uploads (§13)', () => {
 		const stored = await upload(user, t0, file, { token: action.token, quality: 'lossless' });
 		expect(stored.status).toBe(201);
 		const resource_id: string = stored.body.media.resource_id;
-		expect(resource_id).toMatch(/\.wav$/u);
+		// Stored as AAC .m4a, whatever was uploaded.
+		expect(resource_id).toMatch(/\.m4a$/u);
 		expect((await api('GET', '/media/requests', { token: user.access_token })).body.actions).toEqual([]);
 
-		// Same bytes again (no token needed for a user's own library track): deduped by content hash.
+		// Same bytes again (no token needed for a user's own library track): deduped by the uploaded bytes' hash.
 		const dup = await upload(user, t0, file);
 		expect(dup.status).toBe(200);
 		expect(dup.body.duplicate).toBe(true);
 
 		const full = await fetch_media(user, resource_id);
 		expect(full.status).toBe(200);
-		expect(Buffer.from(await full.arrayBuffer()).equals(file)).toBe(true);
+		expect(full.headers.get('content-type')).toBe('audio/mp4');
+		const stored_file = Buffer.from(await full.arrayBuffer());
+		expect(stored_file.toString('ascii', 4, 8)).toBe('ftyp');
 		expect(full.headers.get('accept-ranges')).toBe('bytes');
 		const part = await fetch_media(user, resource_id, { range: 'bytes=0-11' });
 		expect(part.status).toBe(206);
-		expect(part.headers.get('content-range')).toBe(`bytes 0-11/${file.length}`);
-		expect(Buffer.from(await part.arrayBuffer()).toString('ascii', 8, 12)).toBe('WAVE');
-		expect((await fetch_media(user, resource_id, { range: `bytes=${file.length + 10}-` })).status).toBe(416);
+		expect(part.headers.get('content-range')).toBe(`bytes 0-11/${stored_file.length}`);
+		expect(Buffer.from(await part.arrayBuffer()).equals(stored_file.subarray(0, 12))).toBe(true);
+		expect((await fetch_media(user, resource_id, { range: `bytes=${stored_file.length + 10}-` })).status).toBe(416);
 
 		// Another user only gets it once the track is in their library.
 		const other = await create_user('media-other');
 		expect((await fetch_media(other, resource_id)).status).toBe(403);
 		await add_to_library(other, [t0]);
 		expect((await fetch_media(other, resource_id)).status).toBe(200);
+	});
+
+	it('asks for downloaded tracks whose only lyrics are unsynced', async () => {
+		const user = await create_user('media-lyrics');
+		const created = await contribute(user, mock_album({ artist: unique('Lyrics Media'), album: unique('Lyrics Media Album'), n: 4 }));
+		const [plain, synced, both, none] = [0, 1, 2, 3].map(i => created.body.refs[`t${i}`] as string);
+		await add_to_library(user, [plain, synced, both, none], { downloaded_at: new Date().toISOString() });
+		const add_lyrics = (track_id: string, sync_type: string) => query(
+			`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'LRCLIB', $2, 'PLAIN', $3, md5($3) || md5($3))`,
+			[track_id, sync_type, `${track_id} ${sync_type}`]
+		);
+		await add_lyrics(plain, 'NONE');
+		await add_lyrics(synced, 'LINE');
+		await add_lyrics(both, 'NONE');
+		await add_lyrics(both, 'WORD');
+
+		const requests = await api('GET', '/media/requests', { token: user.access_token });
+		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id)).toEqual([plain]);
+	});
+
+	it('serves detected vocals once the analyzer has stored them', async () => {
+		const user = await create_user('vocals');
+		const created = await contribute(user, mock_album({ artist: unique('Vocals Artist'), album: unique('Vocals Album'), n: 1 }));
+		const t0: string = created.body.refs.t0;
+		expect((await api('GET', `/tracks/${t0}/vocals`, { token: user.access_token })).status).toBe(404);
+		await query(`insert into track_vocals_table (track_id, resource_id, status) values ($1, 'failed.m4a', 'BAD_FILE')`, [t0]);
+		expect((await api('GET', `/tracks/${t0}/vocals`, { token: user.access_token })).status).toBe(404);
+		await query(
+			`update track_vocals_table set resource_id = 'x.m4a', status = 'DONE', model = 'm', hop_ms = 256, window_ms = 2048, duration_ms = 30000,
+				voice = '{0.01,0.9,0.95}', segments = '{9856,17024}' where track_id = $1`,
+			[t0]
+		);
+		const vocals = await api('GET', `/tracks/${t0}/vocals`, { token: user.access_token });
+		expect(vocals.status).toBe(200);
+		expect(vocals.body).toMatchObject({
+			track_id: t0, resource_id: 'x.m4a', hop_ms: 256, window_ms: 2048, duration_ms: 30_000,
+			segments: [{ start_ms: 9856, end_ms: 17_024 }]
+		});
+		expect(vocals.body.voice).toHaveLength(3);
+		expect(vocals.body.voice[1]).toBeCloseTo(0.9);
 	});
 
 	it('rejects non-audio files and tracks outside the user\'s library', async () => {

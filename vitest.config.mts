@@ -17,6 +17,12 @@ export default defineConfig({
 	},
 	test: {
 		include: ['src/**/*.test.ts'],
+		coverage: {
+			provider: 'v8',
+			include: ['src/**/*.ts'],
+			exclude: ['src/**/*.test.ts', 'src/**/*.d.ts', 'src/shims/**'],
+			reporter: ['text-summary', 'html']
+		},
 		env: {
 			DATABASE_URL: 'postgres://test:test@localhost:5432/test',
 			JWT_ACCESS_SECRET: 'test-access-secret-test-access-secret-0000',

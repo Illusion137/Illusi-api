@@ -36,7 +36,7 @@ describe('auth (§12)', () => {
 		const user = await create_user('bob');
 		const ok = await api('POST', '/auth/login', { ip: user.ip, body: { email: user.email, password: user.password, device_name: 'phone' } });
 		expect(ok.status).toBe(200);
-		expect(ok.body).toEqual({ access_token: expect.any(String), refresh_token: expect.any(String) });
+		expect(ok.body).toEqual({ access_token: expect.any(String), email_verified: true, refresh_token: expect.any(String) });
 		const wrong = await api('POST', '/auth/login', { ip: user.ip, body: { email: user.email, password: 'wrong-password' } });
 		expect(wrong.status).toBe(401);
 		const unknown = await api('POST', '/auth/login', { ip: user.ip, body: { email: `${unique('ghost')}@example.test`, password: 'whatever1' } });

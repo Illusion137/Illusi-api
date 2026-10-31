@@ -235,6 +235,55 @@ describe('read API: search', () => {
 		expect(by_isrc.body.tracks.items[0].id).toBe(track_ids[0]);
 	});
 
+	it('finds albums by their primary and credited artists, in both scopes', async () => {
+		const user = await create_user('album-artist');
+		const tag = unique('cr').replace('-', '');
+		const sp = (s: string) => `sp${tag}${s}`.padEnd(22, '0').slice(0, 22);
+		const graph = {
+			artists: [
+				{ ref: 'credit', name: `Credit ${tag}`, service_ids: { spotify_id: sp('ac') } },
+				{ ref: 'lead', name: `Lead ${tag}`, service_ids: { spotify_id: sp('al') } }
+			],
+			albums: [
+				{ ref: 'own', name: 'Velvet Orchard', artist_ref: 'credit', album_type: 'ALBUM', track_count: 1, service_ids: { spotify_id: sp('bo') } },
+				{ ref: 'featured', name: 'Granite Lullaby', artist_ref: 'lead', album_type: 'ALBUM', track_count: 1, service_ids: { spotify_id: sp('bf') } },
+				{ ref: 'other', name: 'Paper Comet', artist_ref: 'lead', album_type: 'ALBUM', track_count: 1, service_ids: { spotify_id: sp('bx') } }
+			],
+			tracks: ['own', 'featured', 'other'].map(album => ({ ref: `t_${album}`, title: `Song ${album}`, album_ref: album, duration_ms: 200_000, service_ids: { spotify_id: sp(`t${album.slice(0, 2)}`) } })),
+			relations: {
+				tracks_artists: [
+					{ track_ref: 't_own', artist_ref: 'credit' },
+					{ track_ref: 't_featured', artist_ref: 'lead' },
+					{ track_ref: 't_other', artist_ref: 'lead' }
+				],
+				album_tracks: ['own', 'featured', 'other'].map(album => ({ album_ref: album, track_ref: `t_${album}`, track_number: 1 })),
+				artist_albums: [
+					{ artist_ref: 'credit', album_ref: 'own', position: 0 },
+					{ artist_ref: 'lead', album_ref: 'featured', position: 0 },
+					{ artist_ref: 'credit', album_ref: 'featured', position: 1 },
+					{ artist_ref: 'lead', album_ref: 'other', position: 0 }
+				]
+			}
+		};
+		const created = await contribute(user, graph);
+		expect(created.status).toBe(200);
+		const { own, featured, other, t_featured } = created.body.refs;
+
+		// The query names the credited artist (plus noise words): its own album and the one it's credited on, not the lead's other album.
+		const global = await api('GET', `/search?q=${encodeURIComponent(`new credit ${tag} music`)}&types=album`, { token: user.access_token });
+		expect(global.status).toBe(200);
+		expect(ids(global.body.albums.items)).toEqual(expect.arrayContaining([own, featured]));
+		expect(ids(global.body.albums.items)).not.toContain(other);
+
+		const lead = await api('GET', `/search?q=${encodeURIComponent(`lead ${tag}`)}&types=album`, { token: user.access_token });
+		expect(ids(lead.body.albums.items)).toEqual(expect.arrayContaining([featured, other]));
+		expect(ids(lead.body.albums.items)).not.toContain(own);
+
+		await add_to_library(user, [t_featured]);
+		const library = await api('GET', `/search?q=${encodeURIComponent(`credit ${tag}`)}&types=album&scope=library`, { token: user.access_token });
+		expect(ids(library.body.albums.items)).toEqual([featured]);
+	});
+
 	it('limits library scope, pages one type, and validates the query', async () => {
 		const user = await create_user('scope');
 		const tag = unique('lib').replace('-', '');
