@@ -20,6 +20,11 @@ export default defineConfig({
 		fileParallelism: false,
 		testTimeout: 30_000,
 		hookTimeout: 60_000,
-		reporters: ['verbose']
+		reporters: ['verbose'],
+		coverage: {
+			provider: 'v8',
+			include: ['src/**/*.ts'],
+			exclude: ['src/**/*.test.ts', 'src/**/*.d.ts', 'src/shims/**']
+		}
 	}
 });

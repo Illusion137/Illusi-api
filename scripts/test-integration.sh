@@ -43,11 +43,13 @@ api_pid=$!
 for _ in $(seq 1 60); do curl -sf "$API_URL/health" > /dev/null && break; sleep 1; done
 
 status=0
-(unset NODE_V8_COVERAGE; npx vitest run -c vitest.integration.config.mts "$@") || status=$?
+vitest_cov=()
+if [[ $coverage == 1 ]]; then vitest_cov=(--coverage --coverage.reporter=json --coverage.reportsDirectory="${COV_OUT:-coverage-merged}/inproc"); fi
+(unset NODE_V8_COVERAGE; npx vitest run -c vitest.integration.config.mts ${vitest_cov[@]+"${vitest_cov[@]}"} "$@") || status=$?
 
 if [[ $coverage == 1 ]]; then
 	kill -TERM "$api_pid"; wait "$api_pid" 2> /dev/null || true; api_pid=""
-	npx c8 report --temp-directory="$work/v8" --include='src/**' --exclude='**/*.test.ts' --reporter=text-summary
+	npx c8 report --temp-directory="$work/v8" --include='src/**' --exclude='**/*.test.ts' --reporter=json --reporter=text-summary --reports-dir="${COV_OUT:-coverage-merged}/api"
 fi
 [[ $status == 0 ]] || tail -40 "$work/api.log"
 exit "$status"

@@ -109,14 +109,23 @@ jobs:
       - name: Start the API
         run: |
           mkdir -p "$MEDIA_DIR" "$ANALYZER_TMP_DIR"
-          nohup node --import tsx src/index.ts > api.log 2>&1 &
+          NODE_V8_COVERAGE="$RUNNER_TEMP/v8" nohup node --import tsx src/index.ts > api.log 2>&1 &
+          echo $! > api.pid
           for _ in $(seq 1 60); do
             if curl -sf "$API_URL/health" > /dev/null; then exit 0; fi
             sleep 1
           done
           cat api.log
           exit 1
-      - run: npm run test:integration
+      - name: Integration tests (with coverage of the API process and the in-process suites)
+        run: |
+          npx vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/unit > /dev/null
+          npm run test:integration -- --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/inproc
+      - name: Coverage gate (unit + in-process + API process, every src/ file at least 80% of lines)
+        run: |
+          kill -TERM "$(cat api.pid)"; sleep 3
+          npx c8 report --temp-directory="$RUNNER_TEMP/v8" --include='src/**' --exclude='**/*.test.ts' --reporter=json --reports-dir=coverage-merged/api
+          node scripts/merge-coverage.mjs coverage-merged 80
       - name: API warnings and errors
         if: always()
         run: |

@@ -7,3 +7,4 @@ data
 
 # Vocal models downloaded for local analyzer runs
 analyzer/models/
+coverage-merged

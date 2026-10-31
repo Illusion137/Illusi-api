@@ -19,6 +19,9 @@ const log = logger('migrate');
 // and backfills on large tables legitimately run long.
 const db = drizzle({ client: create_pool({ max: 1, statement_timeout: false, idle_in_transaction_session_timeout: 0 }) });
 
+// Not a leader lock: the API being replaced still holds those (7_340_001, 7_340_002) while this runs.
+const MIGRATE_LOCK = 7_340_003;
+
 const ROLE_NAME_RE = /^[a-z_][a-z0-9_]{0,62}$/u;
 
 async function sync_app_role(): Promise<string | null> {
@@ -52,14 +55,14 @@ async function grant_app_role(role: string) {
 
 async function main() {
 	const started = Date.now();
-	// Serializes concurrent runs (e.g. a CI deploy racing a force-deploy).
-	await db.$client.query('select pg_advisory_lock(7340002)');
+	// Serializes concurrent runs (e.g. a CI deploy racing a force-deploy). Its own key: the serving API holds the leader locks.
+	await db.$client.query(`select pg_advisory_lock(${MIGRATE_LOCK})`);
 	try {
 		const app_role = await sync_app_role();
 		await migrate(db, { migrationsFolder: path.resolve(process.env.MIGRATIONS_DIR ?? 'drizzle') });
 		if (app_role) await grant_app_role(app_role);
 	} finally {
-		await db.$client.query('select pg_advisory_unlock(7340002)').catch(() => undefined);
+		await db.$client.query(`select pg_advisory_unlock(${MIGRATE_LOCK})`).catch(() => undefined);
 	}
 	log.info(`migrations applied in ${Date.now() - started}ms`);
 	await db.$client.end();
