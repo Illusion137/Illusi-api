@@ -11,7 +11,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push",
-    "test:integration": "vitest run -c vitest.integration.config.mts"
+    "test:integration": "vitest run -c vitest.integration.config.mts",
+    "test:coverage": "vitest run --coverage",
+    "test:integration:local": "scripts/test-integration.sh"
   },
   "description": "",
   "homepage": "https://github.com/Illusion137/Illusi-api#readme",
@@ -54,6 +56,8 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^4.1.12",
+    "c8": "^12.0.0",
     "drizzle-kit": "^1.0.0-rc.5",
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.13.0",

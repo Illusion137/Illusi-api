@@ -61,7 +61,7 @@ jobs:
       - name: Compose file is valid
         run: |
           cp deploy/.env.production.example .env
-          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=x/' .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=x/;s/^POSTGRES_APP_PASSWORD=.*/POSTGRES_APP_PASSWORD=x/' .env
           touch .env.deploy
           docker compose --env-file .env --env-file .env.deploy config --quiet
 
@@ -84,7 +84,8 @@ jobs:
           --health-retries 30
     env:
       NODE_ENV: test
-      DATABASE_URL: postgres://illusi:illusi@postgres:5432/illusi
+      DATABASE_URL: postgres://illusi_app:illusi_app@postgres:5432/illusi
+      MIGRATE_DATABASE_URL: postgres://illusi:illusi@postgres:5432/illusi
       JWT_ACCESS_SECRET: integration-access-secret-0000000000000000
       ACTION_TOKEN_SECRET: integration-action-secret-0000000000000000
       BACKGROUND_SERVICES: 'false'
@@ -96,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Tools
-        run: apt-get update -qq && apt-get install -y -qq rsync postgresql-client > /dev/null
+        run: apt-get update -qq && apt-get install -y -qq rsync postgresql-client ffmpeg > /dev/null
       - name: Fetch lib-origin
         # act runs against a working copy that already has ./lib-origin: --env LIB_ORIGIN_SOURCE=workspace skips this.
         if: env.LIB_ORIGIN_SOURCE != 'workspace'

@@ -4,3 +4,6 @@ node_modules
 .env.deploy
 data
 .secrets
+
+# Vocal models downloaded for local analyzer runs
+analyzer/models/

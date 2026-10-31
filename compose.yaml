@@ -7,9 +7,14 @@ x-logging: &logging
     max-file: "5"
 
 x-app-env: &app-env
-  DATABASE_URL: postgres://${POSTGRES_USER:-illusi}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-illusi}
+  # Authenticated requests run as this role, under row-level security. It is created and granted by the migrate service.
+  DATABASE_URL: postgres://${POSTGRES_APP_USER:-illusi_app}:${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env}@db:5432/${POSTGRES_DB:-illusi}
+  # The table owner: migrations, background jobs, login and admin requests.
+  MIGRATE_DATABASE_URL: postgres://${POSTGRES_USER:-illusi}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-illusi}
   MEDIA_DIR: /data/media
   ANALYZER_TMP_DIR: /data/analyzer_tmp
+  # Daily JSON-lines files per service (<service>-<day>.log), kept LOG_RETENTION_DAYS (7).
+  LOG_DIR: /data/logs
   ANALYZER_URL: http://analyzer:8765
   TRUST_PROXY: loopback, uniquelocal
   APP_VERSION: ${API_TAG:-latest}
@@ -20,6 +25,7 @@ x-app: &app
   volumes:
     - ${DATA_DIR:-./data}/media:/data/media
     - ${DATA_DIR:-./data}/analyzer_tmp:/data/analyzer_tmp
+    - ${DATA_DIR:-./data}/logs:/data/logs
   depends_on:
     db:
       condition: service_healthy
@@ -39,6 +45,9 @@ services:
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - ./deploy/nginx/conf.d/illusi.conf:/etc/nginx/conf.d/illusi.conf:ro
+      - ./deploy/nginx/vhost.d/default:/etc/nginx/vhost.d/default:ro
+      # nginx serves media itself once the API has checked access (X-Accel-Redirect).
+      - ${DATA_DIR:-./data}/media:/data/media:ro
       - ${DATA_DIR:-./data}/certs:/etc/nginx/certs:ro
       - ${DATA_DIR:-./data}/letsencrypt:/etc/letsencrypt:ro
       - ${DATA_DIR:-./data}/acme:/usr/share/nginx/html
@@ -66,6 +75,35 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     shm_size: 256mb
+    # Memory settings default to a small VPS (about 4 GB RAM shared with the API and analyzer); raise them in .env.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-128MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-100}
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_compression=on
+      - -c
+      - track_io_timing=on
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=top
+      - -c
+      - log_min_duration_statement=${PG_LOG_SLOW_MS:-1000}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
@@ -78,9 +116,13 @@ services:
     <<: *app
     environment:
       <<: *app-env
+      LOG_SERVICE: api
       VIRTUAL_HOST: ${DOMAIN:?set DOMAIN in .env}
       VIRTUAL_PORT: "3000"
       PORT: "3000"
+      MEDIA_ACCEL_PREFIX: /_internal_media/
+      # argon2 hashing and file I/O share libuv's pool (4 threads by default).
+      UV_THREADPOOL_SIZE: ${UV_THREADPOOL_SIZE:-16}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 5s
@@ -95,6 +137,9 @@ services:
     command: ["node", "--import", "tsx", "src/worker/reconcile.ts"]
     environment:
       <<: *app-env
+      LOG_SERVICE: worker
+      # Full reconcile scans run far longer than an API query may.
+      DB_STATEMENT_TIMEOUT_MS: "600000"
     healthcheck:
       disable: true
     stop_grace_period: 60s
@@ -106,6 +151,7 @@ services:
     command: ["node", "--import", "tsx", "src/db/migrate.ts"]
     environment:
       <<: *app-env
+      LOG_SERVICE: migrate
     healthcheck:
       disable: true
     restart: "no"
