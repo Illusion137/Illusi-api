@@ -310,6 +310,24 @@ The database is the source of truth, so no separate queue table is needed. On st
 
 - **Check Mood-Detector's actual output** against its repo: field names, units, the format of `key`, and whether `mood` is one label or a set of per-mood scores. Then update the contract in 2.2 and the mood encoding in §3.2.
 
+### 2.11 Vocal detection
+
+Finds where a track has a voice (singing or talking) and where it's instrumental, for line-syncing unsynced lyrics.
+
+- **Model**: Essentia's Discogs-EffNet embeddings and its voice/instrumental head, both as ONNX, run by the analyzer.
+  The models are CC BY-NC-SA 4.0 (non-commercial).
+- **Full media files only.** Only `media_table` files are analyzed, never iTunes previews (they're 30 s excerpts).
+- **Analyzer API**: `POST /vocals` with `{ "path": "/abs/path" }`, same errors as `/analyze`. It returns
+  `{ model, hop_ms, window_ms, duration_ms, voice: number[], segments: [{ start_ms, end_ms }] }`:
+  - `voice[i]` is the voice probability (0–1) of the window `[i * hop_ms, i * hop_ms + window_ms)`
+    (2048 ms windows, one every 256 ms by default);
+  - `segments` are the voiced spans derived from it, accurate to about half a second.
+- **Trigger**: every media insert queues a vocals job next to the sample job, and the startup backlog queues tracks
+  whose newest media file has no result. Failures follow the lookup rules of 2.8, keyed by the media `resource_id`.
+  A newer upload is analyzed again.
+- **Storage**: `track_vocals_table`, one row per track holding both the lookup state and the result.
+- **Read API**: `GET /tracks/:id/vocals` returns the stored result for the track, or `404`.
+
 ---
 
 ## 3. Track Feature Vectors (for recommendations)
@@ -913,6 +931,7 @@ For each entity in the payload, the server looks for an existing entity in this 
 - The copied tracks enter the caller's sync scope (§8.1) on their next pull. The response returns the new playlist so the client can insert it locally right away.
 
 - **No attribution.** The copy behaves exactly as if the user had created it themselves. Nothing about the source is stored, and there's no `copied_from` column.
+- Custom artwork isn't copied.
 
 ### 10.3 Server-side resolution
 
@@ -928,6 +947,21 @@ view.
 - **Adapter**: lib-origin's query flags and sorts work on its `Track` type. The server needs one adapter from database rows to `Track`, which joins the user-specific fields the flags and sorts use: the user's title override, `downloaded_at`, plays (`track_plays_table`), and added date.
 - **Caching**: results are cached for each user and playlist. The cache is cleared when any of the user's library, playlists, or inheritance rows change. Search-inherited playlists change whenever the library does.
 - **lib-origin dependency**: these functions currently live in Illusive's client code, which uses client-side stores and SQLite. They need to be pulled out into pure functions (tracks in, tracks out) that both the client and the server can import.
+
+### 10.4 Custom artwork
+
+A playlist can have its own artwork image instead of the generated cover (the first tracks' thumbnails).
+
+- **Upload**: `PUT /playlists/:id/artwork`, owner only (otherwise `404`). Body is `multipart/form-data`: a `file` part, plus an optional `edited_at` field (ISO time of the edit on the device).
+  - Up to `ARTWORK_MAX_BYTES` (default 10 MB). JPEG, PNG or WebP, checked by sniffing the magic bytes (`415` otherwise, `422` if it doesn't decode).
+  - Refused with `507` while the disk is below `DISK_MIN_FREE_GB`, like media uploads.
+  - Re-encoded with ffmpeg as a JPEG no larger than `ARTWORK_MAX_PX` (default 1024) on its longest side, never upscaled, with every metadata block dropped (EXIF location included).
+  - Stored as `MEDIA_DIR/artwork/<uuid>.jpg`. The file name is `playlists_table.artwork_id`. Each upload gets a new id.
+- **Removal**: `DELETE /playlists/:id/artwork`, owner only, optional `?edited_at=`.
+- **Conflicts**: last-write-wins on its own clock, `playlists_table.artwork_edited_at`, separate from the row's `edited_at`. Artwork changes and playlist row edits never overwrite each other. The device's `edited_at` is clamped to server time like sync pushes (§8.4). An older change is ignored. Both routes answer `{ applied, playlist }` with the stored playlist row either way.
+- **Sync**: `artwork_id` and `artwork_edited_at` are columns of the playlist row, so the read API (§16.4) and sync pull (§8.2) return them. Sync push never writes them.
+- **Download**: `GET /artwork/:artwork_id`. Allowed for the owner, or anyone while the playlist is public and not deleted (`404` otherwise). The id never changes for the same file, so the response is cached forever (`ETag` = the id, `Cache-Control: private, max-age=31536000, immutable`). Behind nginx the file is served through `X-Accel-Redirect`, like media.
+- **Files**: a replaced or removed image's file is deleted after commit. Artwork files are backed up like media.
 
 ---
 
@@ -1001,6 +1035,38 @@ requirement in this document refers to this section.
 - Login and register are rate limited per IP and per email. Failed logins get progressively slower.
 - Every endpoint is authenticated except `/auth/register`, `/auth/login`, and `/auth/refresh`.
 - **Out of scope for now**: password reset, email verification, OAuth / social login.
+- **Deleted accounts**: access tokens are stateless, so `require_auth` also checks that the user still exists. A user seen recently is cached for up to a minute. Deletion removes them from that cache in every API process at once (a Postgres `NOTIFY`), so their tokens stop working immediately.
+
+### 12.4 Data export
+
+- `POST /me/export` starts an export of everything the server holds about the caller, and answers `202` with the job: `{ id, status, created_at, started_at, finished_at, expires_at, size, error }`.
+  - One export can be `PENDING` or `RUNNING` per user. Asking again meanwhile answers `409` with `{ error, export }`.
+  - After one that didn't fail, the next can be requested once `EXPORT_COOLDOWN_HOURS` (default 24) have passed. Earlier answers `429` with `{ error, export, retry_after_s }` and a `Retry-After` header.
+- `GET /me/export/:id` returns the job; poll it until `status` is `READY` (or `FAILED`). `GET /me/exports` lists the caller's latest 20.
+- `GET /me/export/:id/file` downloads it once `READY`: `application/gzip`, `Content-Disposition: attachment; filename="illusi-export-<date>.json.gz"`. `409` before it's ready, `410` once expired.
+- Another user's export is a `404`.
+- **Contents**: one gzipped JSON document: `{ format: "illusi-export", version, exported_at, user, sessions, library, playlists, linked_playlists, plays, recent_searches, unavailable_reports, media_uploads, contributions, tracks }`.
+  - Sessions are listed without any token material.
+  - Each playlist carries its `tracks`, `inherited_searches` and `inherited_playlists`.
+  - `tracks` maps every track id mentioned anywhere in the file to its read-API view (§16.2), so the file can be read on its own.
+- **Jobs** live in `export_jobs_table` (status `PENDING | RUNNING | READY | FAILED | EXPIRED`), so they survive restarts.
+  - One API process runs them, the holder of the `exports` advisory lock, whether or not `BACKGROUND_SERVICES` is on.
+  - A job left `RUNNING` by a process that died is queued again.
+  - A job that fails, or finds the disk below `DISK_MIN_FREE_GB`, ends `FAILED` with a short `error`.
+- **Files** are written to `MEDIA_DIR/.exports/<id>.json.gz`, which is never served directly and never backed up.
+  - Ready exports expire after `EXPORT_TTL_DAYS` (default 7). An hourly cleanup removes expired files and anything without a ready job.
+  - Finished job rows are forgotten after 30 days.
+
+### 12.5 Account deletion: `DELETE /me`
+
+- Body `{ password }`. The password is required again even with a valid session.
+- Rate limited per user (5 per 15 minutes) and per IP. A wrong password is a `401`. Success is a `204`.
+- One transaction:
+  - **Deleted**: the user row, and with it every personal row through its foreign keys: sessions, library, playlists with their tracks and inheritance rows, plays, recent searches, linked playlists, unavailable reports, export jobs and sync push replays. Their used action-token ids are deleted too.
+  - **Kept**: what the user added to the shared catalog (artists, albums, tracks, service ids, lyrics, media), with their id removed. `media_table.uploaded_by`, `contributions_log_table.user_id` (now nullable), `service_id_conflicts_table.source_user_id`, the lyrics `source_user_id`s, `audit_log_table.actor_user_id` and the release-check and research `checked_by` become null. The user is removed from review items' `source_user_ids`, including inside `proposed_values`.
+  - **Play totals**: they drop by the user's plays.
+- After commit their playlist artwork and export files are deleted. Their access and refresh tokens stop working at once (§12.3).
+- Playlist artwork already copied to the off-site media backup stays there, because that bucket is append-only (`scripts/backup-media.sh`).
 
 ---
 
@@ -1016,12 +1082,14 @@ Rows in `media_table` are created **only by client uploads**.
 ### 13.2 Validation and storage
 
 - **Size**: up to `MEDIA_MAX_BYTES`.
+- **Disk space**: with less than `DISK_MIN_FREE_GB` free on the media disk, refuse the upload with `507` before reading the body. Database writes are never refused for disk space.
 - **Audio only**: check the type by sniffing the file's magic bytes (for example mp3, m4a/aac, flac, ogg/opus, wav). Don't trust the client's `Content-Type`.
 - **Storing the file**:
   1. Stream it to a temp file in `MEDIA_DIR/.incoming/`, computing a SHA-256 along the way.
-  2. Rename it atomically to `MEDIA_DIR/<uuid>.<ext>`.
-  3. `resource_id` = `<uuid>.<ext>`.
-- **No duplicates**: if this track already has media with the same hash, discard the upload and return the existing row.
+  2. Convert it with ffmpeg to AAC in an `.m4a` container, at `MEDIA_AAC_BITRATE` (default `256k`). AAC input is remuxed without re-encoding. Only the first audio stream is kept, with `+faststart` so ranged playback starts early. Input ffmpeg can't decode is rejected with `422`.
+  3. Rename it atomically to `MEDIA_DIR/<uuid>.m4a`.
+  4. `resource_id` = `<uuid>.m4a`.
+- **No duplicates**: if this track already has media with the same hash of the **uploaded** bytes, discard the upload and return the existing row.
   - **Schema change**: add `content_hash` to `media_table`, with a unique index on `(track_id, content_hash)`.
 - **After insert**: the `media_table` row starts the analyzer (§2.3). The upload is written to the provenance log (§9.5).
 - **Never deleted** by the analyzer or any automated job. Only admin tools can remove media.
@@ -1036,7 +1104,12 @@ Rows in `media_table` are created **only by client uploads**.
 The server asks clients to upload audio they've **already downloaded locally**.
 `user_tracks_table.downloaded_at` shows which tracks those are.
 
-- **New action** (§0.1): `{ type: 'UPLOAD_MEDIA', token, track_id }`. It's issued for tracks where the user's `downloaded_at` is set and the track has **no** `media_table` row yet.
+- **New action** (§0.1): `{ type: 'UPLOAD_MEDIA', token, track_id }`. It's issued for tracks where:
+  - the user's `downloaded_at` is set;
+  - the track is `imported` or `backpacked` (§17), or it has lyrics and all of them are unsynced (`sync_type` `NONE`),
+    so vocal detection (§2.11) can help line-sync them. Other tracks can still be played from a service, so no copy is
+    asked for;
+  - the track has **no** `media_table` row yet.
 - **Where requests come from**:
   - attached to `/sync/pull` responses, a limited number per pull;
   - `GET /media/requests`, which returns `{ actions: [...] }` with every pending `UPLOAD_MEDIA` request for the user, in pages.
@@ -1207,6 +1280,32 @@ Every list and detail endpoint returns these shapes:
   - `global` searches the whole catalog, and playlists are public ones plus the caller's own.
 - Searching doesn't write `user_recent_searches`. Clients record searches themselves and push them through sync (§8.3).
 - **Schema change**: enable `pg_trgm` and `unaccent`, and add GIN trigram indexes on the four searched columns.
+  - Tracks, albums and artists store the folded text as generated columns (`tracks_table.search_title`, `albums_table.search_name`, `artists_table.search_name`), and the trigram indexes are on those, so a lookup doesn't fold every matched row again. Playlists keep an index on the folded expression.
+  - The generated columns are lookup helpers only: sync pull doesn't send them.
+
+### 16.7 Search suggestions: `GET /search/suggestions`
+
+Asked on every keystroke while the user types, so it has to be cheap.
+
+- Query:
+  - `q`: up to 256 characters. After case and accent folding and collapsing whitespace, a `q` shorter than **2** characters returns empty lists. With exactly 2 characters only the caller's recent searches are suggested. The catalog is searched from 3 characters on, because shorter text can't use the trigram indexes.
+  - `limit`: per list, 1–10, default 5.
+- Response: `{ tracks, artists, albums, text }`, each at most `limit` long:
+  - `tracks`: `{ id, title, artists, thumbnail, in_library }`, where `artists` lists credited artist names in credit order.
+  - `artists`: `{ id, name, thumbnail, in_library }`.
+  - `albums`: `{ id, name, artists, thumbnail, in_library }`.
+  - `thumbnail` is `{ url, width, height }` or `null`: the smallest one at least 120 px wide, otherwise the largest known.
+  - `in_library`: the track is in the caller's non-deleted library. For artists and albums it means one of their tracks is.
+  - `text`: `{ text, kind }` completions, `kind` being `recent`, `artist`, `track` or `album`. The caller's recent searches containing `q` come first, most recent first. Then come artist names, `artist title` combinations, track titles and album names, best match first. They're de-duplicated by folded text and never equal to `q`.
+- **Matching and ranking**:
+  - Case- and accent-insensitive, like search.
+  - Order: exact match, then prefix, then substring, then trigram similarity. Within the same match kind, items in the caller's library come first, then the closer text (by trigram similarity), then total plays.
+  - A broader match kind is only looked up while fewer than 10 better matches were found: it couldn't outrank them.
+  - When the leading words of `q` name an artist exactly, the rest is matched against that artist's track titles, so `drake hotl` suggests Drake's "Hotline Bling".
+- **Caching**:
+  - The response carries a weak `ETag` and `Cache-Control: private, max-age=30`. A matching `If-None-Match` gets a `304` until the catalog, play totals, the caller's library or their recent searches change.
+  - The catalog part of an answer is shared by all users and kept in memory for 30 seconds per catalog version and query.
+- Rate limit: 300 requests per minute per user. The per-IP limit at the proxy (120 per minute) still applies.
 
 ---
 
