@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">81.81% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>18/22</span>
+                <span class='fraction'>22/22</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">91.66% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>11/12</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">50% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/4</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">82.35% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>14/17</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
@@ -122,34 +122,34 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Similar artists: pairs are stored exactly as submitted (one row or both directions), the server
@@ -180,20 +180,20 @@ export function other_artists(rows: readonly SimilarPair[], artist_id: string): 
 	const out = new Set&lt;string&gt;();
 	for (const r of rows) {
 		if (r.artist_id === artist_id &amp;&amp; r.similar_artist_id !== artist_id) out.add(r.similar_artist_id);
-		else <span class="missing-if-branch" title="else path not taken" >E</span>if (r.similar_artist_id === artist_id &amp;&amp; r.artist_id !== artist_id) out.add(r.artist_id);
+		else if (r.similar_artist_id === artist_id &amp;&amp; r.artist_id !== artist_id) out.add(r.artist_id);
 	}
 	return [...out];
 }
 &nbsp;
 /** `WHERE artist_id = $1 OR similar_artist_id = $1`, returning the other artist, `DISTINCT` (uses both indexes). */
-export async function <span class="fstat-no" title="function not covered" >similar_artist_ids(e</span>x: Executor, artist_id: string): Promise&lt;string[]&gt; {
-	const t = <span class="cstat-no" title="statement not covered" >similar_artists_table;</span>
-	const rows = <span class="cstat-no" title="statement not covered" >await ex.execute&lt;{ id: string }&gt;(sql`</span>
+export async function similar_artist_ids(ex: Executor, artist_id: string): Promise&lt;string[]&gt; {
+	const t = similar_artists_table;
+	const rows = await ex.execute&lt;{ id: string }&gt;(sql`
 		select ${t.similar_artist_id} as id from ${t} where ${t.artist_id} = ${artist_id}
 		union
 		select ${t.artist_id} as id from ${t} where ${t.similar_artist_id} = ${artist_id}
 	`, 'objects');
-<span class="cstat-no" title="statement not covered" >	return rows.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.id)</span>;</span>
+	return rows.map(r =&gt; r.id);
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -202,7 +202,7 @@ export async function <span class="fstat-no" title="function not covered" >simil
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

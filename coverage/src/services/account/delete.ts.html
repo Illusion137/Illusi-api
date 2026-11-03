@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">4% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>1/25</span>
+                <span class='fraction'>25/25</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">4.54% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>1/22</span>
+                <span class='fraction'>22/22</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -150,26 +150,24 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -185,15 +183,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { db } from '../../db';
@@ -215,25 +215,25 @@ const log = logger('account');
  * reports, exports, sync replays). What the user added to the shared catalog stays, with the user's id removed
  * from every column that recorded it. Their playlist artwork and export files are removed after commit.
  */
-export async function <span class="fstat-no" title="function not covered" >delete_account(u</span>ser_id: string): Promise&lt;void&gt; {
-	const events = <span class="cstat-no" title="statement not covered" >new PendingEvents();</span>
-	const files = <span class="cstat-no" title="statement not covered" >await db.transaction(<span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
-		const [user] = <span class="cstat-no" title="statement not covered" >await tx.select({ id: users_table.id }).from(users_table).where(eq(users_table.id, user_id)).for('update');</span>
-<span class="cstat-no" title="statement not covered" >		if (!user) <span class="cstat-no" title="statement not covered" >throw new HttpError(404, 'user not found');</span></span>
+export async function delete_account(user_id: string): Promise&lt;void&gt; {
+	const events = new PendingEvents();
+	const files = await db.transaction(async (tx) =&gt; {
+		const [user] = await tx.select({ id: users_table.id }).from(users_table).where(eq(users_table.id, user_id)).for('update');
+		if (!user) throw new HttpError(404, 'user not found');
 &nbsp;
-		const artwork = <span class="cstat-no" title="statement not covered" >await tx.select({ id: playlists_table.artwork_id }).from(playlists_table)</span>
+		const artwork = await tx.select({ id: playlists_table.artwork_id }).from(playlists_table)
 			.where(and(eq(playlists_table.user_id, user_id), isNotNull(playlists_table.artwork_id)));
-		const exports = <span class="cstat-no" title="statement not covered" >await tx.select({ file_name: export_jobs_table.file_name }).from(export_jobs_table)</span>
+		const exports = await tx.select({ file_name: export_jobs_table.file_name }).from(export_jobs_table)
 			.where(and(eq(export_jobs_table.user_id, user_id), isNotNull(export_jobs_table.file_name)));
 &nbsp;
 		// Columns that record a user id without a foreign key.
-<span class="cstat-no" title="statement not covered" >		await tx.update(media_table).set({ uploaded_by: null }).where(eq(media_table.uploaded_by, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.update(service_id_conflicts_table).set({ source_user_id: null }).where(eq(service_id_conflicts_table.source_user_id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.update(audit_log_table).set({ actor_user_id: null }).where(eq(audit_log_table.actor_user_id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.update(track_lyrics_table).set({ source_user_id: null }).where(eq(track_lyrics_table.source_user_id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.update(track_lyrics_lookups_table).set({ source_user_id: null }).where(eq(track_lyrics_lookups_table.source_user_id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.delete(action_token_uses_table).where(eq(action_token_uses_table.user_id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		await tx.execute(sql`</span>
+		await tx.update(media_table).set({ uploaded_by: null }).where(eq(media_table.uploaded_by, user_id));
+		await tx.update(service_id_conflicts_table).set({ source_user_id: null }).where(eq(service_id_conflicts_table.source_user_id, user_id));
+		await tx.update(audit_log_table).set({ actor_user_id: null }).where(eq(audit_log_table.actor_user_id, user_id));
+		await tx.update(track_lyrics_table).set({ source_user_id: null }).where(eq(track_lyrics_table.source_user_id, user_id));
+		await tx.update(track_lyrics_lookups_table).set({ source_user_id: null }).where(eq(track_lyrics_lookups_table.source_user_id, user_id));
+		await tx.delete(action_token_uses_table).where(eq(action_token_uses_table.user_id, user_id));
+		await tx.execute(sql`
 			update ${review_items_table} set
 				source_user_ids = array_remove(${review_items_table.source_user_ids}, ${user_id}::uuid),
 				proposed_values = (
@@ -251,15 +251,15 @@ export async function <span class="fstat-no" title="function not covered" >delet
 &nbsp;
 		// Foreign keys do the rest: cascades for personal rows, set null for catalog bookkeeping
 		// (contributions_log_table, review_items_table.resolved_by, release checks, research).
-<span class="cstat-no" title="statement not covered" >		await tx.delete(users_table).where(eq(users_table.id, user_id));</span>
-<span class="cstat-no" title="statement not covered" >		events.push('user_library_changed', { user_id });</span>
-<span class="cstat-no" title="statement not covered" >		events.push('user_deleted', { user_id });</span>
-<span class="cstat-no" title="statement not covered" >		return { artwork: artwork.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.id)</span>, exports: exports.<span class="fstat-no" title="function not covered" >map(r</span> =&gt; <span class="cstat-no" title="statement not covered" >r.file_name)</span> };</span>
+		await tx.delete(users_table).where(eq(users_table.id, user_id));
+		events.push('user_library_changed', { user_id });
+		events.push('user_deleted', { user_id });
+		return { artwork: artwork.map(r =&gt; r.id), exports: exports.map(r =&gt; r.file_name) };
 	});
-<span class="cstat-no" title="statement not covered" >	events.flush();</span>
-<span class="cstat-no" title="statement not covered" >	await remove_artwork_files(files.artwork);</span>
-<span class="cstat-no" title="statement not covered" >	await remove_export_files(files.exports);</span>
-<span class="cstat-no" title="statement not covered" >	log.info('account deleted', { user_id, artwork_files: files.artwork.length, export_files: files.exports.length });</span>
+	events.flush();
+	await remove_artwork_files(files.artwork);
+	await remove_export_files(files.exports);
+	log.info('account deleted', { user_id, artwork_files: files.artwork.length, export_files: files.exports.length });
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -268,7 +268,7 @@ export async function <span class="fstat-no" title="function not covered" >delet
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

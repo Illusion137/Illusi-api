@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">55.55% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>10/18</span>
+                <span class='fraction'>18/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">42.1% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>8/19</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">80% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>4/5</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">46.66% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>7/15</span>
+                <span class='fraction'>15/15</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -130,7 +130,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -141,8 +141,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -151,10 +151,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -163,7 +163,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -172,14 +172,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -200,7 +200,7 @@ export interface ValidatorParts {
 &nbsp;
 /** Hex fingerprint of everything a response depends on; pure so it can be tested. */
 export function validator_tag(url: string, versions: { catalog: number; plays: number | null; user: number | null }, user_id: string | null): string {
-	const key = [config.APP_VERSION, url, versions.catalog, versions.plays ?? '-', user_id ?? <span class="branch-1 cbranch-no" title="branch not covered" >'-', v</span>ersions.user ?? <span class="branch-1 cbranch-no" title="branch not covered" >'-']</span>.join('|');
+	const key = [config.APP_VERSION, url, versions.catalog, versions.plays ?? '-', user_id ?? '-', versions.user ?? '-'].join('|');
 	return `W/"${createHash('sha1').update(key).digest('base64url').slice(0, 22)}"`;
 }
 &nbsp;
@@ -221,8 +221,8 @@ export function matches_if_none_match(header: string | undefined, tag: string): 
  * response is built (so a write committing meanwhile can only cost a later 304, never cache stale data). Returns
  * true after answering 304 when the client's copy is current; the handler then stops.
  */
-export async function <span class="fstat-no" title="function not covered" >answer_not_modified(r</span>eq: Request, res: Response, parts: ValidatorParts = <span class="branch-0 cbranch-no" title="branch not covered" >{}): Promise&lt;boolean&gt; {</span>
-	const [row] = <span class="cstat-no" title="statement not covered" >await db.select({</span>
+export async function answer_not_modified(req: Request, res: Response, parts: ValidatorParts = {}): Promise&lt;boolean&gt; {
+	const [row] = await db.select({
 		catalog: sql&lt;number&gt;`coalesce((select ${read_versions_table.version} from ${read_versions_table} where ${read_versions_table.key} = 'catalog'), 0)`.mapWith(Number),
 		plays: parts.plays
 			? sql&lt;number&gt;`coalesce((select ${read_versions_table.version} from ${read_versions_table} where ${read_versions_table.key} = 'plays'), 0)`.mapWith(Number)
@@ -231,14 +231,14 @@ export async function <span class="fstat-no" title="function not covered" >answe
 			? sql&lt;number&gt;`coalesce((select ${user_read_versions_table.version} from ${user_read_versions_table} where ${user_read_versions_table.user_id} = ${parts.user_id}), 0)`.mapWith(Number)
 			: sql&lt;null&gt;`null`
 	}).from(sql`(select 1) one`);
-	const tag = <span class="cstat-no" title="statement not covered" >validator_tag(req.originalUrl, { catalog: row.catalog, plays: row.plays, user: row.user }, parts.user_id ?? null);</span>
-<span class="cstat-no" title="statement not covered" >	res.setHeader('ETag', tag);</span>
-<span class="cstat-no" title="statement not covered" >	res.setHeader('Cache-Control', `private, max-age=${MAX_AGE_S}`);</span>
-<span class="cstat-no" title="statement not covered" >	if (matches_if_none_match(req.headers['if-none-match'], tag)) {</span>
-<span class="cstat-no" title="statement not covered" >		res.status(304).end();</span>
-<span class="cstat-no" title="statement not covered" >		return true;</span>
+	const tag = validator_tag(req.originalUrl, { catalog: row.catalog, plays: row.plays, user: row.user }, parts.user_id ?? null);
+	res.setHeader('ETag', tag);
+	res.setHeader('Cache-Control', `private, max-age=${MAX_AGE_S}`);
+	if (matches_if_none_match(req.headers['if-none-match'], tag)) {
+		res.status(304).end();
+		return true;
 	}
-<span class="cstat-no" title="statement not covered" >	return false;</span>
+	return false;
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -247,7 +247,7 @@ export async function <span class="fstat-no" title="function not covered" >answe
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

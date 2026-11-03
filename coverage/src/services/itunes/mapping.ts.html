@@ -23,23 +23,23 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">89.28% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>25/28</span>
+                <span class='fraction'>28/28</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">74.5% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>38/51</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>12/12</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
@@ -200,27 +200,27 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">32x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">15x</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -297,7 +297,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -336,7 +336,7 @@ export function map_explicitness(value: unknown): Explicitness | null {
 }
 &nbsp;
 function date_or_null(value: string | undefined): Date | null {
-	<span class="missing-if-branch" title="if path not taken" >I</span>if (!value) <span class="cstat-no" title="statement not covered" >return null;</span>
+	if (!value) return null;
 	const d = new Date(value);
 	return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -348,7 +348,7 @@ const str_array = (v: unknown) =&gt; (Array.isArray(v) ? v.map(String) : null);
 &nbsp;
 /** iTunes rarely returns `artworkUrl600`; the same image is served at 600x600 by rewriting the size. */
 export function artwork_600(url600: string | undefined, url100: string | undefined): string | null {
-	<span class="missing-if-branch" title="if path not taken" >I</span>if (url600) <span class="cstat-no" title="statement not covered" >return url600;</span>
+	if (url600) return url600;
 	if (url100?.includes('100x100bb')) return url100.replace('100x100bb', '600x600bb');
 	return null;
 }
@@ -356,8 +356,8 @@ export function artwork_600(url600: string | undefined, url100: string | undefin
 export function map_artist(a: ITunesArtist): ITunesArtistRow {
 	return {
 		id: a.artistId!,
-		name: a.artistName ?? <span class="branch-1 cbranch-no" title="branch not covered" >'',</span>
-		link_url: str(a.artistLinkUrl) ?? <span class="branch-1 cbranch-no" title="branch not covered" >str(a.artistViewUrl),</span>
+		name: a.artistName ?? '',
+		link_url: str(a.artistLinkUrl) ?? str(a.artistViewUrl),
 		artist_type: str(a.artistType),
 		amg_artist_id: int(a.amgArtistId),
 		primary_genre_name: str(a.primaryGenreName),
@@ -369,7 +369,7 @@ export function map_collection(c: ITunesCollection): ITunesCollectionRow {
 	return {
 		id: c.collectionId!,
 		artist_id: int(c.artistId),
-		name: c.collectionName ?? <span class="branch-1 cbranch-no" title="branch not covered" >c.collectionCensoredName ?? <span class="branch-2 cbranch-no" title="branch not covered" >'</span>',</span>
+		name: c.collectionName ?? c.collectionCensoredName ?? '',
 		censored_name: str(c.collectionCensoredName),
 		kind: str(c.kind),
 		view_url: str(c.collectionViewUrl),
@@ -397,7 +397,7 @@ export function map_track(t: ITunesTrack): ITunesTrackRow {
 		id: t.trackId!,
 		artist_id: int(t.artistId),
 		collection_id: int(t.collectionId),
-		name: t.trackName ?? <span class="branch-1 cbranch-no" title="branch not covered" >t.trackCensoredName ?? <span class="branch-2 cbranch-no" title="branch not covered" >'</span>',</span>
+		name: t.trackName ?? t.trackCensoredName ?? '',
 		censored_name: str(t.trackCensoredName),
 		kind: str(t.kind),
 		view_url: str(t.trackViewUrl),
@@ -413,7 +413,7 @@ export function map_track(t: ITunesTrack): ITunesTrackRow {
 		track_count: int(t.trackCount),
 		track_number: int(t.trackNumber),
 		track_time_millis: int(t.trackTimeMillis),
-		is_streamable: typeof t.isStreamable === 'boolean' ? t.isStreamable : <span class="branch-1 cbranch-no" title="branch not covered" >null,</span>
+		is_streamable: typeof t.isStreamable === 'boolean' ? t.isStreamable : null,
 		country: str(t.country),
 		currency: str(t.currency),
 		release_date: date_or_null(t.releaseDate),
@@ -432,11 +432,11 @@ export function derive_artist(r: ITunesTrack | ITunesCollection): ITunesArtistRo
 &nbsp;
 /** A minimal collection row from a song result, used only when the full collection row isn't known (FK target). */
 export function derive_collection(t: ITunesTrack): ITunesCollectionRow | null {
-	<span class="missing-if-branch" title="if path not taken" >I</span>if (t.collectionId == null || !(t.collectionName ?? <span class="branch-1 cbranch-no" title="branch not covered" >t.collectionCensoredName)) <span class="cstat-no" title="statement not covered" >r</span>eturn null;</span>
+	if (t.collectionId == null || !(t.collectionName ?? t.collectionCensoredName)) return null;
 	return {
 		id: t.collectionId,
 		artist_id: int(t.artistId),
-		name: t.collectionName ?? <span class="branch-1 cbranch-no" title="branch not covered" >t.collectionCensoredName ?? <span class="branch-2 cbranch-no" title="branch not covered" >'</span>',</span>
+		name: t.collectionName ?? t.collectionCensoredName ?? '',
 		censored_name: str(t.collectionCensoredName),
 		view_url: str(t.collectionViewUrl),
 		artwork_url_30: str(t.artworkUrl30),
@@ -457,7 +457,7 @@ export function derive_collection(t: ITunesTrack): ITunesCollectionRow | null {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

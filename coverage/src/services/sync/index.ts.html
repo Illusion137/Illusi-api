@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">21.42% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>3/14</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/12</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>3/12</span>
+                <span class='fraction'>12/12</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -104,18 +104,18 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Router } from 'express';
 import { HttpError, json_body, parse_body, require_user } from '../../core/http';
@@ -130,19 +130,19 @@ export type { SyncPullResponse, SyncPushResponse, SyncRows } from './types';
 /** Mounted after `require_auth`: `POST /sync/pull`, `POST /sync/push`. */
 export const sync_router = Router();
 &nbsp;
-sync_router.post('/sync/pull', rate_limit_user('sync_pull', 240, 60_000), json_body('16kb'), <span class="fstat-no" title="function not covered" >async (r</span>eq, res) =&gt; {
-	const user = <span class="cstat-no" title="statement not covered" >require_user(req);</span>
-	const body = <span class="cstat-no" title="statement not covered" >parse_body(pull_body_schema, req.body ?? {});</span>
-	const cursor = <span class="cstat-no" title="statement not covered" >body.cursor ? decode_cursor(body.cursor) : null;</span>
-<span class="cstat-no" title="statement not covered" >	if (body.cursor &amp;&amp; !cursor) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, 'invalid cursor');</span></span>
-<span class="cstat-no" title="statement not covered" >	res.json(await pull(user, cursor));</span>
+sync_router.post('/sync/pull', rate_limit_user('sync_pull', 240, 60_000), json_body('16kb'), async (req, res) =&gt; {
+	const user = require_user(req);
+	const body = parse_body(pull_body_schema, req.body ?? {});
+	const cursor = body.cursor ? decode_cursor(body.cursor) : null;
+	if (body.cursor &amp;&amp; !cursor) throw new HttpError(400, 'invalid cursor');
+	res.json(await pull(user, cursor));
 });
 &nbsp;
-sync_router.post('/sync/push', rate_limit_user('sync_push', 120, 60_000), json_body('16mb'), <span class="fstat-no" title="function not covered" >async (r</span>eq, res) =&gt; {
-	const user = <span class="cstat-no" title="statement not covered" >require_user(req);</span>
-	const body = <span class="cstat-no" title="statement not covered" >parse_body(push_body_schema, req.body);</span>
-<span class="cstat-no" title="statement not covered" >	if (body.base_cursor &amp;&amp; !decode_cursor(body.base_cursor)) <span class="cstat-no" title="statement not covered" >throw new HttpError(400, 'invalid base_cursor');</span></span>
-<span class="cstat-no" title="statement not covered" >	res.json(await push(user, body));</span>
+sync_router.post('/sync/push', rate_limit_user('sync_push', 120, 60_000), json_body('16mb'), async (req, res) =&gt; {
+	const user = require_user(req);
+	const body = parse_body(push_body_schema, req.body);
+	if (body.base_cursor &amp;&amp; !decode_cursor(body.base_cursor)) throw new HttpError(400, 'invalid base_cursor');
+	res.json(await push(user, body));
 });
 &nbsp;</pre></td></tr></table></pre>
 
@@ -151,7 +151,7 @@ sync_router.post('/sync/push', rate_limit_user('sync_push', 120, 60_000), json_b
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

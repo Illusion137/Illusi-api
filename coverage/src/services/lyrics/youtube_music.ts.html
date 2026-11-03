@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/19</span>
+                <span class='fraction'>19/19</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/12</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/1</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/17</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -126,26 +126,26 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import type { Tx } from '../../db';
 import { consume_action_token } from '../../core/actions';
@@ -167,27 +167,27 @@ export interface YoutubeMusicIngestBody {
 }
 &nbsp;
 /** Stores the payload as `YOUTUBE_MUSIC` (raw), records the lookup, and enriches `youtube_id`. */
-export async function <span class="fstat-no" title="function not covered" >ingest_youtube_music(t</span>x: Tx, user: AuthUser, body: YoutubeMusicIngestBody, events: PendingEvents): Promise&lt;{ track_id: string; found: boolean }&gt; {
-	const consumed = <span class="cstat-no" title="statement not covered" >await consume_action_token(tx, user, body.token, 'CHECK_YOUTUBE_MUSIC', body.track_id);</span>
-	const track_id = <span class="cstat-no" title="statement not covered" >await resolve_redirect(tx, body.track_id);</span>
-	const ctx = <span class="cstat-no" title="statement not covered" >await load_track_context(tx, track_id);</span>
-<span class="cstat-no" title="statement not covered" >	if (!ctx) <span class="cstat-no" title="statement not covered" >throw new HttpError(404, 'track not found');</span></span>
-	const prov = <span class="cstat-no" title="statement not covered" >new ProvenanceLog('youtube_music', user.id, consumed.jti);</span>
-	const <span class="cstat-no" title="statement not covered" >previous = (await load_lookups(tx, [track_id])).get(track_id) ?? new Map();</span>
+export async function ingest_youtube_music(tx: Tx, user: AuthUser, body: YoutubeMusicIngestBody, events: PendingEvents): Promise&lt;{ track_id: string; found: boolean }&gt; {
+	const consumed = await consume_action_token(tx, user, body.token, 'CHECK_YOUTUBE_MUSIC', body.track_id);
+	const track_id = await resolve_redirect(tx, body.track_id);
+	const ctx = await load_track_context(tx, track_id);
+	if (!ctx) throw new HttpError(404, 'track not found');
+	const prov = new ProvenanceLog('youtube_music', user.id, consumed.jti);
+	const previous = (await load_lookups(tx, [track_id])).get(track_id) ?? new Map();
 &nbsp;
-	const version = <span class="cstat-no" title="statement not covered" >body.result === 'NOT_FOUND' ? null : ytm_version(body.lyrics);</span>
-<span class="cstat-no" title="statement not covered" >	if (version) {</span>
-		const ids = <span class="cstat-no" title="statement not covered" >await insert_versions(tx, track_id, 'YOUTUBE_MUSIC', [version], { user_id: user.id, token_jti: consumed.jti });</span>
-<span class="cstat-no" title="statement not covered" >		for (const id of ids) <span class="cstat-no" title="statement not covered" >prov.touch('track_lyrics_table', id, ['*']);</span></span>
+	const version = body.result === 'NOT_FOUND' ? null : ytm_version(body.lyrics);
+	if (version) {
+		const ids = await insert_versions(tx, track_id, 'YOUTUBE_MUSIC', [version], { user_id: user.id, token_jti: consumed.jti });
+		for (const id of ids) prov.touch('track_lyrics_table', id, ['*']);
 	}
-<span class="cstat-no" title="statement not covered" >	if (body.youtube_id) {</span>
-		const r = <span class="cstat-no" title="statement not covered" >await enrich_service_ids(tx, track_id, { youtube_id: body.youtube_id }, { source: 'youtube_music', user_id: user.id, token_jti: consumed.jti, events });</span>
-<span class="cstat-no" title="statement not covered" >		prov.touch('service_ids_table', track_id, r.filled);</span>
+	if (body.youtube_id) {
+		const r = await enrich_service_ids(tx, track_id, { youtube_id: body.youtube_id }, { source: 'youtube_music', user_id: user.id, token_jti: consumed.jti, events });
+		prov.touch('service_ids_table', track_id, r.filled);
 	}
-<span class="cstat-no" title="statement not covered" >	await write_lookups(tx, track_id, [{ service: 'YOUTUBE_MUSIC', status: version ? 'FOUND' : 'NOT_FOUND', source_user_id: user.id }], previous);</span>
-<span class="cstat-no" title="statement not covered" >	prov.touch('track_lyrics_lookups_table', `${track_id}:YOUTUBE_MUSIC`, ['status']);</span>
-<span class="cstat-no" title="statement not covered" >	await prov.write(tx);</span>
-<span class="cstat-no" title="statement not covered" >	return { track_id, found: version !== null };</span>
+	await write_lookups(tx, track_id, [{ service: 'YOUTUBE_MUSIC', status: version ? 'FOUND' : 'NOT_FOUND', source_user_id: user.id }], previous);
+	prov.touch('track_lyrics_lookups_table', `${track_id}:YOUTUBE_MUSIC`, ['status']);
+	await prov.write(tx);
+	return { track_id, found: version !== null };
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -196,7 +196,7 @@ export async function <span class="fstat-no" title="function not covered" >inges
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

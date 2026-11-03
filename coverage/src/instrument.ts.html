@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/17</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/13</span>
+                <span class='fraction'>13/13</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -106,35 +106,35 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// Must be the first import of every entrypoint so Sentry can patch http/express/pg before they load.
@@ -143,35 +143,35 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { config } from './config';
 &nbsp;
 /** Attribute or extra keys whose values never leave the process. */
-const SECRET_KEY_RE = <span class="cstat-no" title="statement not covered" >/pass(word)?|secret|token|authorization|cookie|api[_-]?key/iu;</span>
-const SEND_LOG_LEVELS = <span class="cstat-no" title="statement not covered" >new Set(['error', 'fatal', 'critical']);</span>
+const SECRET_KEY_RE = /pass(word)?|secret|token|authorization|cookie|api[_-]?key/iu;
+const SEND_LOG_LEVELS = new Set(['error', 'fatal', 'critical']);
 &nbsp;
-function <span class="fstat-no" title="function not covered" >scrub(v</span>alues: Record&lt;string, unknown&gt; | undefined) {
-<span class="cstat-no" title="statement not covered" >	if (!values) <span class="cstat-no" title="statement not covered" >return;</span></span>
-<span class="cstat-no" title="statement not covered" >	for (const key of Object.keys(values)) <span class="cstat-no" title="statement not covered" >if (SECRET_KEY_RE.test(key)) <span class="cstat-no" title="statement not covered" >values[key] = '[redacted]';</span></span></span>
+function scrub(values: Record&lt;string, unknown&gt; | undefined) {
+	if (!values) return;
+	for (const key of Object.keys(values)) if (SECRET_KEY_RE.test(key)) values[key] = '[redacted]';
 }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >Sentry.init({</span>
+Sentry.init({
 	dsn: config.SENTRY_DSN,
 	integrations: [nodeProfilingIntegration()],
 	enabled: !!config.SENTRY_DSN,
 	environment: config.SENTRY_ENVIRONMENT ?? config.NODE_ENV,
 	release: config.APP_VERSION,
 	tracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE,
-<span class="fstat-no" title="function not covered" >	beforeSend(e</span>vent) {
+	beforeSend(event) {
 		// Never ship credentials that rode along on a request.
-<span class="cstat-no" title="statement not covered" >		if (event.request?.headers) {</span>
-<span class="cstat-no" title="statement not covered" >			delete event.request.headers.authorization;</span>
-<span class="cstat-no" title="statement not covered" >			delete event.request.headers.cookie;</span>
+		if (event.request?.headers) {
+			delete event.request.headers.authorization;
+			delete event.request.headers.cookie;
 		}
-<span class="cstat-no" title="statement not covered" >		scrub(event.extra);</span>
-<span class="cstat-no" title="statement not covered" >		return event;</span>
+		scrub(event.extra);
+		return event;
 	},
 	// Sentry only gets errors; everything quieter stays in the log files on the VPS.
-<span class="fstat-no" title="function not covered" >	beforeSendLog(l</span>og) {
-<span class="cstat-no" title="statement not covered" >		if (!SEND_LOG_LEVELS.has(log.level)) <span class="cstat-no" title="statement not covered" >return null;</span></span>
-<span class="cstat-no" title="statement not covered" >		scrub(log.attributes);</span>
-<span class="cstat-no" title="statement not covered" >		return log;</span>
+	beforeSendLog(log) {
+		if (!SEND_LOG_LEVELS.has(log.level)) return null;
+		scrub(log.attributes);
+		return log;
 	}
 });
 &nbsp;</pre></td></tr></table></pre>
@@ -181,7 +181,7 @@ function <span class="fstat-no" title="function not covered" >scrub(v</span>alue
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-10-31T03:58:50.585Z
+                at 2026-10-31T08:57:45.201Z
             </div>
         <script src="../prettify.js"></script>
         <script>
