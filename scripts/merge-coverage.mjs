@@ -7,6 +7,7 @@ const dir = process.argv.slice(2).find(a => !a.startsWith('--') && Number.isNaN(
 const threshold = Number(process.argv.slice(2).find(a => a !== '--lines' && !Number.isNaN(Number(a))) ?? 80);
 const root = process.cwd() + path.sep;
 const lines = new Map(); // file -> Map(line -> covered)
+const maps = new Map(); // file -> the first statement map seen, for the HTML report
 
 for (const part of ['unit', 'inproc', 'api'] /* api last */) {
 	const file = path.join(dir, part, 'coverage-final.json');
@@ -17,6 +18,7 @@ for (const part of ['unit', 'inproc', 'api'] /* api last */) {
 		// The API process (c8) only marks lines the vitest runs know about: its line numbers include unmapped generated code.
 		if (part === 'api' && !lines.has(rel)) continue;
 		const map = lines.get(rel) ?? new Map();
+		if (part !== 'api' && !maps.has(rel)) maps.set(rel, cov);
 		for (const [id, loc] of Object.entries(cov.statementMap)) {
 			const n = loc.start.line;
 			if (part === 'api' && !map.has(n)) continue;
@@ -39,3 +41,25 @@ for (const [f, n, p, miss] of rows) if (p < 100) console.log(`${p.toFixed(1).pad
 console.log(`\nTotal ${(100 * covered / total).toFixed(2)}% of ${total} lines`);
 const bad = rows.filter(r => r[2] < threshold);
 if (bad.length) { console.error(`${bad.length} file(s) below ${threshold}%`); process.exit(1); }
+
+// `--html <dir>`: an HTML report of the merged line coverage (statements only; branches and functions aren't merged).
+const html_at = process.argv.indexOf('--html');
+if (html_at !== -1) {
+	const { createCoverageMap } = (await import('istanbul-lib-coverage')).default;
+	const { createContext } = (await import('istanbul-lib-report')).default;
+	const reports = (await import('istanbul-reports')).default;
+	const { rmSync } = await import('node:fs');
+	const out = process.argv[html_at + 1] ?? 'coverage';
+	const data = {};
+	for (const [file, cov] of maps) {
+		const covered = lines.get(file);
+		data[cov.path] = {
+			path: cov.path, statementMap: cov.statementMap, fnMap: {}, branchMap: {},
+			s: Object.fromEntries(Object.entries(cov.statementMap).map(([id, loc]) => [id, covered.get(loc.start.line) ? 1 : 0])),
+			f: {}, b: {}
+		};
+	}
+	rmSync(out, { recursive: true, force: true });
+	reports.create('html').execute(createContext({ dir: out, coverageMap: createCoverageMap(data) }));
+	console.log(`HTML report: ${out}/index.html`);
+}

@@ -14,7 +14,7 @@
     "test:integration": "vitest run -c vitest.integration.config.mts",
     "test:coverage": "vitest run --coverage",
     "test:integration:local": "scripts/test-integration.sh",
-    "test:coverage:all": "rm -rf coverage-merged && vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/unit > /dev/null && scripts/test-integration.sh --coverage > /dev/null && node scripts/merge-coverage.mjs coverage-merged 80"
+    "test:coverage:all": "rm -rf coverage-merged && vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/unit > /dev/null && scripts/test-integration.sh --coverage > /dev/null && node scripts/merge-coverage.mjs coverage-merged 80 --html coverage"
   },
   "description": "",
   "homepage": "https://github.com/Illusion137/Illusi-api#readme",
