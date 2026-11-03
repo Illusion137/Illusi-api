@@ -43,6 +43,11 @@ function itunes_row(entity_type: ItunesFields['entity_type'], r: { id: string; e
 
 // The folded search columns are server-side lookup helpers, not part of the synced rows.
 const { search_title: _track_search, ...track_columns } = getColumns(tracks_table);
+const {
+	version: _version, tempo_confidence: _tempo_confidence, rms_energy: _rms_energy, spectral_rolloff: _spectral_rolloff,
+	zero_crossing_rate: _zero_crossing_rate, mfccs: _mfccs, chroma: _chroma, mood_scores: _mood_scores, source_duration_ms: _source_duration_ms,
+	...sample_columns
+} = getColumns(track_sample_data_table);
 const { search_name: _album_search, ...album_columns } = getColumns(albums_table);
 const { search_name: _artist_search, ...artist_columns } = getColumns(artists_table);
 
@@ -57,7 +62,7 @@ export async function load_track_bundles(ex: Executor, track_ids: readonly strin
 		ex.select({ track_id: tracks_producers_table.track_id, producer_id: tracks_producers_table.producer_id, name: genius_artists_table.name })
 			.from(tracks_producers_table).leftJoin(genius_artists_table, eq(genius_artists_table.id, tracks_producers_table.producer_id))
 			.where(inArray(tracks_producers_table.track_id, ids)),
-		ex.select().from(track_sample_data_table).where(inArray(track_sample_data_table.id, ids)),
+		ex.select(sample_columns).from(track_sample_data_table).where(inArray(track_sample_data_table.id, ids)),
 		ex.select({
 			id: service_ids_table.illusi_id,
 			explicitness: itunes_tracks_table.explicitness,

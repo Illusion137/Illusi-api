@@ -1,5 +1,6 @@
 import { config } from '../../config';
 import { db } from '../../db';
+import { emit } from '../../core/events';
 import { logger } from '../../core/log';
 import { due_server_services } from './schedule';
 import { query_service } from './servers';
@@ -33,12 +34,14 @@ async function run_lookup(track_id: string): Promise<void> {
 
 	const outcomes = await Promise.all(due.map(service => query_service(service, query)));
 	const now = new Date();
+	let stored = 0;
 	await db.transaction(async (tx) => {
 		for (const o of outcomes) {
-			if (o.versions.length > 0) await insert_versions(tx, track_id, o.service, o.versions);
+			if (o.versions.length > 0) stored += (await insert_versions(tx, track_id, o.service, o.versions)).length;
 		}
 		await write_lookups(tx, track_id, outcomes.map(o => ({ service: o.service, status: o.status, cooldown_until: o.cooldown_until })), previous, now);
 	});
+	if (stored > 0) emit('lyrics_stored', { track_id });
 	log.info(`lookup ${track_id}`, Object.fromEntries(outcomes.map(o => [o.service, `${o.status}${o.versions.length > 0 ? `(${o.versions.length})` : ''}`])));
 }
 

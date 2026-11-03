@@ -1,10 +1,11 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
 import { itunes_tracks_table, media_table, service_ids_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table } from '../../db/schema';
 import { write_vector } from '../vectors';
 import type { SampleInsert, VocalsResult } from './contract';
+import { SAMPLE_VERSION } from './contract';
 import type { LookupState, SampleLookupStatus, SampleSource, SourceCandidate } from './decisions';
 import { choose_source, next_attempts, source_eligible } from './decisions';
 
@@ -53,10 +54,20 @@ export async function eligible_track_ids(only?: readonly string[]): Promise<stri
 	return rows.map(r => r.track_id);
 }
 
-/** Resolves the source a job should analyze right now, or null (sample exists / nothing eligible). */
-export async function resolve_source(track_id: string, prefer?: SampleSource): Promise<ResolvedSource | null> {
-	const [sample] = await db.select({ id: track_sample_data_table.id }).from(track_sample_data_table).where(eq(track_sample_data_table.id, track_id));
-	if (sample) return null;
+/** Tracks whose sample came from an older analyzer and lacks what it returns now. */
+export async function outdated_sample_track_ids(): Promise<string[]> {
+	const rows = await db.select({ id: track_sample_data_table.id }).from(track_sample_data_table).where(lt(track_sample_data_table.version, SAMPLE_VERSION));
+	return rows.map(r => r.id);
+}
+
+/**
+ * Resolves the source a job should analyze right now, or null (sample exists / nothing eligible). With `upgrade`, a
+ * sample from an older analyzer is analyzed again, from a source that already succeeded too.
+ */
+export async function resolve_source(track_id: string, prefer?: SampleSource, upgrade = false): Promise<ResolvedSource | null> {
+	const [sample] = await db.select({ version: track_sample_data_table.version }).from(track_sample_data_table).where(eq(track_sample_data_table.id, track_id));
+	if (sample && (!upgrade || sample.version >= SAMPLE_VERSION)) return null;
+	if (!sample && upgrade) return null;
 
 	const candidates: SourceCandidate[] = [];
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
@@ -70,7 +81,8 @@ export async function resolve_source(track_id: string, prefer?: SampleSource): P
 	if (candidates.length === 0) return null;
 
 	const lookup_rows = await db.select().from(track_sample_lookups_table).where(eq(track_sample_lookups_table.track_id, track_id));
-	const lookups = new Map<SampleSource, LookupRow>(lookup_rows.map(l => [l.source, { status: l.status, retry_after: l.retry_after, source_ref: l.source_ref, attempts: l.attempts }]));
+	const lookups = new Map<SampleSource, LookupRow>(lookup_rows.filter(l => !(upgrade && l.status === 'DONE'))
+		.map(l => [l.source, { status: l.status, retry_after: l.retry_after, source_ref: l.source_ref, attempts: l.attempts }]));
 	const chosen = choose_source(candidates, lookups, prefer);
 	return chosen ? { ...chosen, prior: lookups.get(chosen.source) ?? null } : null;
 }
@@ -92,29 +104,71 @@ export async function record_lookup(ex: Executor, track_id: string, source: Reso
 	});
 }
 
-/** Track ids whose newest media file has no vocals result and no failure blocking it (`source_eligible` rules). */
+/**
+ * Whether the track's lyrics are all unsynced: only then does the app line them up with the vocals, so only then is
+ * the costly `/vocals` worth running.
+ */
+const has_only_unsynced_lyrics = (track_id: SQL) => sql`(
+	exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type = 'NONE')
+	and not exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type <> 'NONE')
+)`;
+
+export async function has_only_unsynced_lyrics_now(track_id: string): Promise<boolean> {
+	const rows = await db.execute<{ ok: boolean }>(sql`select ${has_only_unsynced_lyrics(sql`${track_id}::uuid`)} as ok`, 'objects');
+	return rows[0]?.ok ?? false;
+}
+
+export interface TrackPriority { plays: number; views: number }
+
+/**
+ * How much each track is listened to: plays by Illusi users, then the most plays any streaming service reports.
+ * Tracks without either are 0, 0.
+ */
+export async function track_priorities(track_ids: readonly string[]): Promise<Map<string, TrackPriority>> {
+	const out = new Map<string, TrackPriority>();
+	const unique = [...new Set(track_ids)];
+	for (let i = 0; i < unique.length; i += 1000) {
+		const part = unique.slice(i, i + 1000);
+		const rows = await db.execute<{ track_id: string; plays: string | number; views: string | number }>(sql`
+			select t.id as track_id, coalesce(pc.plays, 0) as plays, coalesce((select max(st.plays) from service_tracks_table st where st.illusi_id = t.id), 0) as views
+			from unnest(${`{${part.join(',')}}`}::uuid[]) as t(id)
+			left join track_play_counts_table pc on pc.track_id = t.id`, 'objects');
+		for (const r of rows) out.set(r.track_id, { plays: Number(r.plays), views: Number(r.views) });
+	}
+	return out;
+}
+
+/**
+ * Track ids whose newest media file has no vocals result and no failure blocking it (`source_eligible` rules), among
+ * tracks whose lyrics are all unsynced.
+ */
 export async function eligible_vocals_track_ids(): Promise<string[]> {
 	const rows = await db.execute<{ track_id: string }>(sql`
 		select lm.track_id from (
 			select distinct on (m.track_id) m.track_id, m.resource_id from media_table m order by m.track_id, m.id desc
 		) lm
 		left join track_vocals_table v on v.track_id = lm.track_id
-		where v.track_id is null
+		where (v.track_id is null
 			or v.resource_id <> lm.resource_id
-			or (v.status = 'ERROR' and (v.retry_after is null or v.retry_after <= now()))`, 'objects');
+			or (v.status = 'ERROR' and (v.retry_after is null or v.retry_after <= now()))
+			or (v.status = 'DONE' and (v.beats is null or v.words is null)))
+		and ${has_only_unsynced_lyrics(sql`lm.track_id`)}`, 'objects');
 	return rows.map(r => r.track_id);
 }
 
 export interface VocalsTarget { resource_id: string; prior: LookupRow | null }
 
-/** The media file a vocals job should analyze right now, or null (no media / already done / blocked). */
+/** The media file a vocals job should analyze right now, or null (no media / lyrics synced or missing / already done / blocked). */
 export async function resolve_vocals_target(track_id: string): Promise<VocalsTarget | null> {
+	if (!(await has_only_unsynced_lyrics_now(track_id))) return null;
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
 		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
 	if (!media) return null;
 	const [row] = await db.select().from(track_vocals_table).where(eq(track_vocals_table.track_id, track_id));
 	const prior: LookupRow | null = row ? { status: row.status, retry_after: row.retry_after, source_ref: row.resource_id, attempts: row.attempts } : null;
-	return source_eligible(prior, media.resource_id) ? { resource_id: media.resource_id, prior } : null;
+	// Rows from before beat tracking or the lyrics alignment features are analyzed again for them
+	const outdated = row?.status === 'DONE' && (row.beats === null || row.words === null) && row.resource_id === media.resource_id;
+	return outdated || source_eligible(prior, media.resource_id) ? { resource_id: media.resource_id, prior } : null;
 }
 
 /** Stores a vocals result (DONE) or failure for the target's file. A failure clears results from an older file. */
@@ -131,16 +185,41 @@ export async function record_vocals(track_id: string, target: VocalsTarget, stat
 		window_ms: result?.window_ms ?? null,
 		duration_ms: result?.duration_ms ?? null,
 		voice: result?.voice ?? null,
-		segments: result?.segments ?? null
+		segments: result?.segments ?? null,
+		rhythm_model: result?.rhythm_model ?? null,
+		rhythm_bpm: result?.rhythm_bpm ?? null,
+		rhythm_confidence: result?.rhythm_confidence ?? null,
+		beats: result?.beats ?? null,
+		bpm_estimates: result?.bpm_estimates ?? null,
+		words_model: result?.words_model ?? null,
+		words: result?.words ?? null,
+		word_times: result?.word_times ?? null,
+		word_probabilities: result?.word_probabilities ?? null,
+		speech_model: result?.speech_model ?? null,
+		speech_hop_ms: result?.speech_hop_ms ?? null,
+		speech: result?.speech ?? null,
+		beat_grid_model: result?.beat_grid_model ?? null,
+		grid_beats: result?.grid_beats ?? null,
+		downbeats: result?.downbeats ?? null
 	};
 	await db.insert(track_vocals_table).values({ track_id, ...values })
 		.onConflictDoUpdate({ target: track_vocals_table.track_id, set: { ...values, modified_at: now } });
 }
 
-/** Inserts the sample (first sample wins), its vector, and the DONE lookup in one transaction. */
+/**
+ * Inserts the sample, its vector, and the DONE lookup in one transaction. The first sample wins, except that one from
+ * a newer analyzer replaces a sample from an older one.
+ */
 export async function save_sample(row: SampleInsert, source: ResolvedSource): Promise<boolean> {
 	return db.transaction(async (tx) => {
-		const inserted = await tx.insert(track_sample_data_table).values(row).onConflictDoNothing().returning({ id: track_sample_data_table.id });
+		const { id: _id, ...columns } = row;
+		const inserted = await tx.insert(track_sample_data_table).values(row)
+			.onConflictDoUpdate({
+				target: track_sample_data_table.id,
+				set: { ...columns, modified_at: new Date() },
+				setWhere: sql`${track_sample_data_table.version} < excluded.version`
+			})
+			.returning({ id: track_sample_data_table.id });
 		if (inserted.length > 0) await write_vector(tx, row.id);
 		await record_lookup(tx, row.id, source, 'DONE', null);
 		return inserted.length > 0;

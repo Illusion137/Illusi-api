@@ -128,10 +128,12 @@ export async function receive_upload(req: Request, incoming_dir: string, max_byt
 				return;
 			}
 			file_task.then((file) => {
+				/* v8 ignore start: only if the request fails between the parser closing and the temp file finishing */
 				if (settled) {
 					rm(file.temp_path, { force: true }).catch(() => undefined);
 					return;
 				}
+				/* v8 ignore stop */
 				settled = true;
 				resolve({ ...file, fields });
 			}, fail);

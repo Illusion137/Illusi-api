@@ -12,26 +12,38 @@ import { map_analysis, map_vocals } from './contract';
 import type { JobFailure, SampleLookupStatus, SampleSource } from './decisions';
 import { assert_tmp_dir_safe, decide_failure, health_backoff_ms, is_strictly_inside, may_delete, next_attempts, preview_extension, safe_media_path } from './decisions';
 import { JobQueue } from './queue';
-import type { ResolvedSource } from './repo';
-import { eligible_track_ids, eligible_vocals_track_ids, record_lookup, record_vocals, resolve_source, resolve_vocals_target, save_sample } from './repo';
+import type { ResolvedSource, TrackPriority } from './repo';
+import { eligible_track_ids, eligible_vocals_track_ids, outdated_sample_track_ids, record_lookup, record_vocals, resolve_source, resolve_vocals_target, save_sample, track_priorities } from './repo';
 
 const log = logger('analyzer');
 
 interface Job {
-	/** `sample`: `/analyze` on media or an iTunes preview. `vocals`: `/vocals`, on full media files only. */
+	/**
+	 * `sample`: `/analyze` on media or an iTunes preview, for every track. `vocals`: `/vocals`, on full media files of
+	 * tracks whose lyrics are all unsynced.
+	 */
 	kind: 'sample' | 'vocals';
 	track_id: string;
 	/** Source named by the live trigger, tried first. */
 	prefer?: SampleSource;
+	/** `sample`: analyze again because the stored sample is from an older analyzer. */
+	upgrade?: boolean;
 	/** Analyzer 5xx responses seen by this job. */
 	analyzer_5xx: number;
+	priority: TrackPriority;
 }
+
+type NewJob = Omit<Job, 'analyzer_5xx' | 'priority'>;
 
 /** Failures of the analysis itself (reported to Sentry with the file path); download problems are only logged. */
 const ANALYZER_FAILURES = new Set<JobFailure['kind']>(['bad_file', 'analyzer_unavailable', 'timeout', 'internal']);
 
 const job_key = (job: Pick<Job, 'kind' | 'track_id'>) => `${job.kind}:${job.track_id}`;
-const queue = new JobQueue<Job>(job_key);
+/** Most played by Illusi users first, then most played on streaming services; refreshing old samples comes last. */
+function job_order(a: Job, b: Job): number {
+	return Number(a.upgrade ?? false) - Number(b.upgrade ?? false) || b.priority.plays - a.priority.plays || b.priority.views - a.priority.views;
+}
+const queue = new JobQueue<Job>(job_key, job_order);
 let tmp_dir = path.resolve(config.ANALYZER_TMP_DIR);
 let media_dir = path.resolve(config.MEDIA_DIR);
 
@@ -44,19 +56,32 @@ let workers: Promise<void>[] = [];
 let gate = new Promise<void>(() => undefined);
 let gate_pending = true;
 
-function enqueue(job: Omit<Job, 'analyzer_5xx'>) {
-	if (queue.push({ ...job, analyzer_5xx: 0 })) log.debug(`queued ${job.kind} ${job.track_id}`, job.prefer);
+/** Queues jobs by their tracks' priorities; a job whose track is already queued for the same kind is dropped. */
+async function enqueue(jobs: readonly NewJob[]): Promise<number> {
+	const fresh = jobs.filter(job => !queue.has(job_key(job)));
+	if (fresh.length === 0) return 0;
+	const priorities = await track_priorities(fresh.map(job => job.track_id));
+	let queued = 0;
+	for (const job of fresh) {
+		if (!queue.push({ ...job, analyzer_5xx: 0, priority: priorities.get(job.track_id) ?? { plays: 0, views: 0 } })) continue;
+		queued++;
+		log.debug(`queued ${job.kind} ${job.track_id}`, job.prefer);
+	}
+	return queued;
 }
 
 function register_listeners() {
 	if (listeners_registered) return;
 	listeners_registered = true;
-	on('itunes_track_linked', ({ track_id, preview_url }) => {
-		if (preview_url) enqueue({ kind: 'sample', track_id, prefer: 'itunes_preview' });
+	on('itunes_track_linked', async ({ track_id, preview_url }) => {
+		if (preview_url) await enqueue([{ kind: 'sample', track_id, prefer: 'itunes_preview' }]);
 	});
-	on('media_inserted', ({ track_id }) => {
-		enqueue({ kind: 'sample', track_id, prefer: 'media' });
-		enqueue({ kind: 'vocals', track_id });
+	on('media_inserted', async ({ track_id }) => {
+		await enqueue([{ kind: 'sample', track_id, prefer: 'media' }, { kind: 'vocals', track_id }]);
+	});
+	// The vocals job itself checks that the lyrics are all unsynced
+	on('lyrics_stored', async ({ track_id }) => {
+		await enqueue([{ kind: 'vocals', track_id }]);
 	});
 }
 
@@ -84,10 +109,12 @@ async function wait_gate() {
 
 /** Deletes a downloaded preview. Refuses anything that isn't a preview inside ANALYZER_TMP_DIR. */
 async function delete_temp_file(source: SampleSource, file_path: string) {
+	/* v8 ignore start: defence in depth; temp files are always created inside tmp_dir for previews */
 	if (!may_delete(source, file_path, tmp_dir)) {
 		log.error(`refusing to delete ${file_path} (source ${source})`);
 		return;
 	}
+	/* v8 ignore stop */
 	await unlink(file_path).catch((err: unknown) => {
 		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log.warn(`failed to delete ${file_path}`, err);
 	});
@@ -165,7 +192,7 @@ async function run_vocals_job(job: Job): Promise<boolean> {
 		const result = map_vocals(await call_analyze(config.ANALYZER_URL, file_path, signal, '/vocals'));
 		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await record_vocals(job.track_id, target, 'DONE', null, result);
-		log.info(`detected vocals in ${job.track_id}: ${result.segments.length / 2} segment(s)`);
+		log.info(`detected vocals in ${job.track_id}: ${result.segments.length / 2} segment(s), ${result.beats?.length ?? 0} beat(s), ${result.words?.length ?? 0} word(s)`);
 		return false;
 	} catch (err) {
 		return handle_failure(job, err, signal, { source: 'media', path: file_path ?? target.resource_id }, next_attempts(target.prior, target.resource_id),
@@ -174,7 +201,7 @@ async function run_vocals_job(job: Job): Promise<boolean> {
 }
 
 async function run_sample_job(job: Job): Promise<boolean> {
-	const source = await resolve_source(job.track_id, job.prefer);
+	const source = await resolve_source(job.track_id, job.prefer, job.upgrade);
 	if (!source) return false;
 
 	const signal = AbortSignal.timeout(config.ANALYZER_JOB_TIMEOUT_MS);
@@ -271,10 +298,14 @@ async function start_inner() {
 	if (stopping) return;
 
 	const backlog = await eligible_track_ids();
-	for (const track_id of backlog) enqueue({ kind: 'sample', track_id });
 	const vocals_backlog = await eligible_vocals_track_ids();
-	for (const track_id of vocals_backlog) enqueue({ kind: 'vocals', track_id });
-	log.info(`queued ${backlog.length} sample and ${vocals_backlog.length} vocals job(s) from the backlog`);
+	const outdated = await outdated_sample_track_ids();
+	await enqueue([
+		...backlog.map((track_id): NewJob => ({ kind: 'sample', track_id })),
+		...vocals_backlog.map((track_id): NewJob => ({ kind: 'vocals', track_id })),
+		...outdated.map((track_id): NewJob => ({ kind: 'sample', track_id, upgrade: true }))
+	]);
+	log.info(`queued ${backlog.length} sample, ${vocals_backlog.length} vocals and ${outdated.length} sample refresh job(s) from the backlog`);
 }
 
 /** Graceful shutdown: stop pulling jobs, let running jobs finish or time out, then clear temp files. */
@@ -295,6 +326,6 @@ export async function enqueue_if_needed(track_ids: readonly string[]): Promise<v
 	if (track_ids.length === 0) return;
 	const unqueued = [...new Set(track_ids)].filter(id => !queue.has(job_key({ kind: 'sample', track_id: id })));
 	for (let i = 0; i < unqueued.length; i += 1000) {
-		for (const track_id of await eligible_track_ids(unqueued.slice(i, i + 1000))) enqueue({ kind: 'sample', track_id });
+		await enqueue((await eligible_track_ids(unqueued.slice(i, i + 1000))).map((track_id): NewJob => ({ kind: 'sample', track_id })));
 	}
 }

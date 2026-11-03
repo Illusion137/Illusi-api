@@ -335,6 +335,7 @@ async function cached_catalog_candidates(ex: Executor, query: string, catalog_ve
 	value.catch(() => { if (cache.get(key)?.value === value) cache.delete(key); });
 	while (cache.size > CACHE_MAX_ENTRIES) {
 		const oldest = cache.keys().next().value;
+		/* v8 ignore next: a Map over the size limit is never empty; keeps the types honest */
 		if (oldest === undefined) break;
 		cache.delete(oldest);
 	}

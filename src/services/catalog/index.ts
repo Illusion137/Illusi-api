@@ -256,6 +256,30 @@ catalog_router.get('/tracks/:id/vocals', read_limit, async (req, res) => {
 		duration_ms: row.duration_ms,
 		voice: row.voice ?? [],
 		segments: unflatten_segments(row.segments ?? []),
+		rhythm: row.beats === null
+			? null
+			: {
+					model: row.rhythm_model,
+					bpm: row.rhythm_bpm,
+					confidence: row.rhythm_confidence,
+					beats_ms: row.beats,
+					bpm_estimates: row.bpm_estimates ?? []
+				},
+		words: row.words === null
+			? null
+			: {
+					model: row.words_model,
+					words: row.words.map((text, i) => ({
+						text,
+						start_ms: row.word_times?.[2 * i] ?? 0,
+						end_ms: row.word_times?.[2 * i + 1] ?? 0,
+						probability: row.word_probabilities?.[i] ?? 0
+					}))
+				},
+		speech: row.speech === null ? null : { model: row.speech_model, hop_ms: row.speech_hop_ms, voice: row.speech },
+		beat_grid: row.grid_beats === null
+			? null
+			: { model: row.beat_grid_model, beats_ms: row.grid_beats, downbeats_ms: row.downbeats ?? [] },
 		analyzed_at: row.modified_at
 	}, redirected_from));
 });

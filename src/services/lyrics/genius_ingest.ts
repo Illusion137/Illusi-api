@@ -161,6 +161,7 @@ export async function ingest_genius(tx: Tx, user: AuthUser, body: GeniusIngestBo
 	if (ex.lyrics) {
 		const ids = await insert_versions(tx, track_id, 'GENIUS', [ex.lyrics], { user_id: user.id, token_jti: consumed.jti });
 		for (const id of ids) prov.touch('track_lyrics_table', id, ['*']);
+		if (ids.length > 0) events.push('lyrics_stored', { track_id });
 	}
 	if (ex.producer_ids.length > 0) {
 		await tx.insert(tracks_producers_table).values(ex.producer_ids.map(producer_id => ({ producer_id, track_id }))).onConflictDoNothing();

@@ -30,6 +30,7 @@ export async function ingest_youtube_music(tx: Tx, user: AuthUser, body: Youtube
 	if (version) {
 		const ids = await insert_versions(tx, track_id, 'YOUTUBE_MUSIC', [version], { user_id: user.id, token_jti: consumed.jti });
 		for (const id of ids) prov.touch('track_lyrics_table', id, ['*']);
+		if (ids.length > 0) events.push('lyrics_stored', { track_id });
 	}
 	if (body.youtube_id) {
 		const r = await enrich_service_ids(tx, track_id, { youtube_id: body.youtube_id }, { source: 'youtube_music', user_id: user.id, token_jti: consumed.jti, events });

@@ -30,6 +30,9 @@ export interface ItunesFields {
 }
 export interface TrackProducer { track_id: string; producer_id: number; name: string | null }
 
+/** The analyzer's raw features, kept on the server and left out of sync */
+export type ServerOnlySampleColumn = 'version' | 'tempo_confidence' | 'rms_energy' | 'spectral_rolloff' | 'zero_crossing_rate' | 'mfccs' | 'chroma' | 'mood_scores' | 'source_duration_ms';
+
 /** Every syncable table, in the order a client should apply them after `redirects`. */
 export interface SyncRows {
 	/** Apply first: rewrite local ids `old_id` → `new_id` (possibly chained) before anything else. */
@@ -46,7 +49,7 @@ export interface SyncRows {
 	tracks_producers: TrackProducer[];
 	service_ids: (typeof service_ids_table.$inferSelect)[];
 	thumbnails: (typeof thumbnails_table.$inferSelect)[];
-	sample_data: (typeof track_sample_data_table.$inferSelect)[];
+	sample_data: Omit<typeof track_sample_data_table.$inferSelect, ServerOnlySampleColumn>[];
 	/** Best lyrics only, already parsed. */
 	lyrics: { track_id: string; lyrics: BestLyrics }[];
 	itunes: ItunesFields[];
