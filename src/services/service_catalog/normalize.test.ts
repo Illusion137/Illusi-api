@@ -35,3 +35,10 @@ describe('validate_items', () => {
 		expect(valid[0]).toMatchObject({ title: 'Song', raw: null });
 	});
 });
+
+describe('validate_items raw payloads', () => {
+	it('drops a raw payload that cannot be serialized', () => {
+		const { valid } = validate_items([track({ raw: { n: BigInt(1) } })]);
+		expect(valid[0]).toMatchObject({ raw: null });
+	});
+});

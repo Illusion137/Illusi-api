@@ -154,3 +154,19 @@ describe('stale rules', () => {
 		expect(is_transcoding_stale(new Date(now - 25 * 3_600_000), now)).toBe(true);
 	});
 });
+
+describe('nesting and merging gaps', () => {
+	it('stops unwrapping past the depth limit and keeps the remainder as an item', () => {
+		const deep = [[[[[{ kind: 'track', id: 1 }]]]]];
+		expect(unwrap_items(deep).length).toBe(1);
+		const wrapped = { collection: { collection: [] } };
+		const nested = { collection: [{ collection: [{ collection: [{ collection: [{ kind: 'track', id: 1 }] }] }] }] };
+		expect(unwrap_items([nested, wrapped]).length).toBeGreaterThan(0);
+	});
+	it('keeps the longer member list when neither playlist is complete', () => {
+		const stub = (id: number) => ({ kind: 'track', id });
+		const pl = (tracks: unknown[]) => ({ kind: 'playlist', id: 1, title: 'P', track_count: 5, tracks });
+		expect(flatten_items([pl([stub(1)]), pl([stub(1), stub(2)])]).batch.playlists.get(1)?.members).toEqual([1, 2]);
+		expect(flatten_items([pl([stub(1), stub(2)]), pl([stub(1)])]).batch.playlists.get(1)?.members).toEqual([1, 2]);
+	});
+});

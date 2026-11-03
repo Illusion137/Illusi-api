@@ -64,3 +64,10 @@ describe('validate_graph', () => {
 		expect(rejected[0]).toMatchObject({ kind: 'album', ref: 'b', reason: 'malformed' });
 	});
 });
+
+describe('validate_graph relations', () => {
+	it('rejects a malformed relation entry and keeps the others', () => {
+		const { rejected } = validate_graph({ relations: { tracks_artists: [{ track_ref: 1 }], album_tracks: [], artist_albums: [], similar_artists: [] } });
+		expect(rejected).toEqual([expect.objectContaining({ kind: 'tracks_artists', index: 0, reason: 'malformed' })]);
+	});
+});

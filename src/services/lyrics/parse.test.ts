@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parse_lrc, parse_lyrics, try_parse_lyrics } from './parse';
+import { find_ytm_plain_text, parse_lrc, parse_lyrics, parse_richsync, try_parse_lyrics } from './parse';
 
 const TTML_WORD = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word"><head><metadata><iTunesMetadata><songwriters><songwriter>A Writer</songwriter></songwriters></iTunesMetadata></metadata></head><body><div><p begin="0:01.000" end="0:02.500" ttm:agent="v1"><span begin="0:01.000" end="0:01.500">Hello</span> <span begin="0:01.500" end="0:02.500">world</span></p><p begin="0:03.000" end="0:04.000"><span begin="0:03.000" end="0:04.000">Again</span></p></div></body></tt>`;
 
@@ -114,5 +114,22 @@ describe('plain, Genius and YouTube Music', () => {
 	it('parses YouTube Music plain payloads (runs)', () => {
 		const raw = JSON.stringify({ description: { runs: [{ text: 'A\nB' }] } });
 		expect(parse_lyrics('YTM_JSON', 'NONE', raw).lines.map(l => l.text)).toEqual(['A', 'B']);
+	});
+});
+
+describe('parse gaps', () => {
+	it('shifts word segments by the LRC offset', () => {
+		const parsed = parse_lrc('[offset:500]\n[00:02.00]<00:02.00>Hello <00:03.00>there', 'WORD');
+		const line = parsed.lines[0];
+		expect(line.start_ms).toBe(1500);
+		expect(line.segments?.[0].start_ms).toBe(1500);
+		expect(line.segments?.[1].start_ms).toBe(2500);
+	});
+	it('builds richsync line text from its words when no text is given', () => {
+		const parsed = parse_richsync(JSON.stringify([{ ts: 1, te: 3, l: [{ c: 'Hi', o: 0 }, { c: ' ', o: 0.5 }, { c: 'you', o: 1 }] }]));
+		expect(parsed.lines[0].text).toBe('Hi you');
+	});
+	it('finds no plain text in an object without lyrics keys', () => {
+		expect(find_ytm_plain_text({ other: 1 })).toBeNull();
 	});
 });

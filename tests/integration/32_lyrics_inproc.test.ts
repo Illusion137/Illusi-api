@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { start_inproc_app } from './inproc_app';
 
 const app = await start_inproc_app();
@@ -9,6 +9,7 @@ const { issue_action } = await import('../../src/core/actions');
 const { get_best_lyrics, lyrics_actions_for_tracks, queue_never_looked_up } = await import('../../src/services/lyrics');
 const { lookup_track, lookup_track_with_deadline, lyrics_query, enqueue_background } = await import('../../src/services/lyrics/lookup');
 const store = await import('../../src/services/lyrics/store');
+const { on } = await import('../../src/core/events');
 
 afterAll(async () => { await app.stop(); });
 
@@ -125,9 +126,13 @@ describe('lyrics lookups', () => {
 	it('shares one lookup per track and records every server service', async () => {
 		const user = await create_user('lookup');
 		const t = await lyrics_track(user);
+		const stored = vi.fn();
+		on('lyrics_stored', stored);
 		const first = lookup_track(t.id);
 		expect(lookup_track(t.id)).toBe(first);
 		await first;
+		// Every service answered NOT_FOUND, so no lyrics were stored
+		expect(stored).not.toHaveBeenCalledWith({ track_id: t.id });
 		const lookups = await query(`select service::text, status::text from track_lyrics_lookups_table where track_id = $1 order by service::text`, [t.id]);
 		expect(lookups).toHaveLength(4);
 		// Nothing is due now, so a second lookup does nothing.
@@ -200,16 +205,20 @@ describe('YouTube Music ingest', () => {
 		const user = await create_user('ytm-ingest');
 		const post = async (body: Record<string, unknown>, type: 'CHECK_YOUTUBE_MUSIC' = 'CHECK_YOUTUBE_MUSIC') =>
 			api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: await action_token(user, type, body.track_id as string), ...body } });
+		const stored = vi.fn();
+		on('lyrics_stored', stored);
 		const a = await lyrics_track(user);
 		const timed = { lines: [{ cueRange: { startTimeMilliseconds: '1000' }, lyricLine: 'Timed words' }] };
 		const ok = await post({ track_id: a.id, lyrics: timed });
 		expect(ok.status).toBe(200);
+		await eventually(async () => expect(stored).toHaveBeenCalledWith({ track_id: a.id }));
 		expect(ok.body).toMatchObject({ track_id: a.id });
 		expect(await query(`select format::text, sync_type::text from track_lyrics_table where track_id = $1`, [a.id])).toEqual([{ format: 'YTM_JSON', sync_type: 'LINE' }]);
 
 		const b = await lyrics_track(user);
 		const nothing = await post({ track_id: b.id, lyrics: '   ' });
 		expect(nothing.body).toEqual({ track_id: b.id, lyrics: null });
+		expect(stored).not.toHaveBeenCalledWith({ track_id: b.id });
 		expect(await query(`select status::text from track_lyrics_lookups_table where track_id = $1 and service = 'YOUTUBE_MUSIC'`, [b.id])).toEqual([{ status: 'NOT_FOUND' }]);
 		expect((await post({ track_id: b.id, lyrics: 42 })).status).toBe(400);
 
@@ -218,6 +227,7 @@ describe('YouTube Music ingest', () => {
 		await query(`insert into illusi_id_redirects_table (old_id, new_id) values ($1, $2)`, [old, b.id]);
 		const via_redirect = await post({ track_id: old, lyrics: 'Plain words here' });
 		expect(via_redirect.body).toMatchObject({ track_id: b.id, service: 'YOUTUBE_MUSIC' });
+		await eventually(async () => expect(stored).toHaveBeenCalledWith({ track_id: b.id }));
 
 		const missing = await post({ track_id: uuid(), result: 'NOT_FOUND' });
 		expect(missing.status).toBe(404);
@@ -234,9 +244,12 @@ describe('Genius ingest', () => {
 		const t = await lyrics_track(user, unique('Rich Song'), artist);
 		const title = t.graph.tracks[0].title;
 		const { state, song_id, artist_id } = genius_state(title, artist, { song: { album: { name: t.graph.albums[0].name } } });
+		const stored = vi.fn();
+		on('lyrics_stored', stored);
 		const res = await post(user, { track_id: t.id, preloaded_state: state });
 		expect(res.status).toBe(200);
 		expect(JSON.stringify(res.body.lyrics)).toContain('Rich line one');
+		await eventually(async () => expect(stored).toHaveBeenCalledWith({ track_id: t.id }));
 		expect(await query(`select id from genius_referents_table where song_id = $1`, [song_id])).toEqual([{ id: '11' }]);
 		expect(await query(`select id, created_by_id from genius_annotations_table where referent_id = 11`, [])).toEqual([{ id: '21', created_by_id: '7' }]);
 		expect((await query(`select count(*)::int as n from genius_song_artists_table where song_id = $1`, [song_id]))[0].n).toBe(3);
@@ -285,6 +298,30 @@ describe('Genius ingest', () => {
 		expect(rejected.status).toBe(422);
 		expect(rejected.body).toMatchObject({ reason: expect.any(String) });
 		expect(await query(`select 1 from track_lyrics_table where track_id = $1`, [t.id])).toHaveLength(0);
+	});
+});
+
+describe('lyrics edge cases', () => {
+	it('keeps the first of several differing ids a Genius page reports', async () => {
+		const user = await create_user('genius-ids');
+		const artist = unique('Ids Artist');
+		const t = await lyrics_track(user, unique('Ids Song'), artist);
+		const { state } = genius_state(t.graph.tracks[0].title, artist, { song: { youtubeUrl: 'https://youtu.be/AAAAAAAAAAA' } });
+		const res = await api('POST', '/ingest/genius', { token: user.access_token, body: { token: await action_token(user, 'CHECK_GENIUS', t.id), track_id: t.id, preloaded_state: state } });
+		expect(res.status).toBe(200);
+	});
+
+	it('skips a track whose every lyrics row fails to parse, and survives a failing review write', async () => {
+		const user = await create_user('best-broken');
+		const track = await lyrics_track(user);
+		await add_lyrics(track.id, 'LRCLIB', 'TTML', 'LINE', 'definitely <not valid either');
+		const transaction = vi.spyOn(db, 'transaction').mockRejectedValueOnce(new Error('review write failed'));
+		try {
+			expect((await get_best_lyrics([track.id])).size).toBe(0);
+			await vi.waitFor(() => { expect(transaction).toHaveBeenCalled(); });
+		} finally {
+			transaction.mockRestore();
+		}
 	});
 });
 

@@ -13,6 +13,9 @@ describe('parse_args', () => {
 		expect(parse_args(['--once'], false)).toEqual({ initial: 'incremental', dry_run: false, once: true });
 		expect(parse_args(['--once', '--full'], false).initial).toBe('full');
 	});
+	it('parses the incremental flag', () => {
+		expect(parse_args(['--incremental'], false).initial).toBe('incremental');
+	});
 	it('rejects unknown arguments', () => {
 		expect(() => parse_args(['--nope'], false)).toThrow(/unknown argument/u);
 	});

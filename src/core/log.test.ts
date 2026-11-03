@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -101,6 +101,15 @@ describe('FileSink', () => {
 		sink.write('two');
 		expect(err_spy).toHaveBeenCalledTimes(1);
 		expect(err_spy).toHaveBeenCalledWith(expect.stringContaining('log file disabled'));
+	});
+
+	it('disables itself when the log file cannot be opened', async () => {
+		const blocked = path.join(dir, 'blocked');
+		mkdirSync(path.join(blocked, `y-${new Date().toISOString().slice(0, 10)}.log`), { recursive: true });
+		const sink = new FileSink(blocked, 'y', 7);
+		sink.write('one');
+		await vi.waitFor(() => { expect(err_spy).toHaveBeenCalledWith(expect.stringContaining('log file disabled')); });
+		sink.write('two');
 	});
 
 	it('sanitizes the service name and floors retention at one day', () => {

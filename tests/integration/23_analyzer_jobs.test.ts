@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { createHash, randomInt } from 'node:crypto';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ vi.mock('../../src/services/analyzer/repo', async (original) => {
 		...real,
 		eligible_track_ids: vi.fn(async (only?: readonly string[]) => real.eligible_track_ids(only ?? flags.only)),
 		eligible_vocals_track_ids: vi.fn(async () => (await real.eligible_vocals_track_ids()).filter(id => flags.only.includes(id))),
+		outdated_sample_track_ids: vi.fn(async () => (await real.outdated_sample_track_ids()).filter(id => flags.only.includes(id))),
 		resolve_source: vi.fn(async (...args: Parameters<typeof real.resolve_source>) => {
 			if (flags.fail_resolve > 0) {
 				flags.fail_resolve--;
@@ -40,7 +41,15 @@ import { enqueue_if_needed, start, stop } from '../../src/services/analyzer';
 import { pool, unique, uuid } from './helpers';
 
 const analysis = { mood: 'House/Dance', tempo: 124.5, brightness: 2810.2, key: 'F#m', arousal: 0.7, valence: 0.88, acousticness: 0.34, instrumentalness: 0.71, liveness: 0.16, danceability: 0.62, speechiness: 0.04 };
-const vocals = { model: 'test-model', hop_ms: 256, window_ms: 2048, duration_ms: 30_000, voice: [0.1, 0.9], segments: [{ start_ms: 100, end_ms: 900 }] };
+const features = {
+	tempo_confidence: 1.7, rms_energy: 0.41, spectral_rolloff: 5400, zero_crossing_rate: 0.08,
+	mfccs: [-120, ...Array<number>(12).fill(3.5)], chroma: Array<number>(12).fill(0.4), duration_ms: 214_300, mood_scores: { House: 0.81 }
+};
+const rhythm = { model: 'test-rhythm', bpm: 120, confidence: 3.4, beats_ms: [500, 1000, 1500], bpm_estimates: [120] };
+const words = { model: 'test-words', words: [{ text: 'hello', start_ms: 400, end_ms: 700, probability: 0.9 }] };
+const speech = { model: 'test-speech', hop_ms: 32, voice: [0.2, 0.8] };
+const beat_grid = { model: 'test-grid', beats_ms: [500, 1000], downbeats_ms: [500] };
+const vocals = { model: 'test-model', hop_ms: 256, window_ms: 2048, duration_ms: 30_000, voice: [0.1, 0.9], segments: [{ start_ms: 100, end_ms: 900 }], rhythm, words, speech, beat_grid };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
@@ -61,7 +70,8 @@ const seeded: string[] = [];
 const BASE = 9_700_000_000 + randomInt(1_000_000) * 1000;
 let next_it = BASE;
 
-async function seed_track(opts: { media?: string | null; write_file?: boolean; preview?: string | null } = {}) {
+/** Seeds a track; `lyrics` lists the sync types of its lyrics rows (one unsynced row by default, which vocals need). */
+async function seed_track(opts: { media?: string | null; write_file?: boolean; preview?: string | null; lyrics?: readonly string[] } = {}) {
 	const id = uuid();
 	const it_id = next_it++;
 	await pool.query('insert into service_ids_table (illusi_id, applemusic_id) values ($1, $2)', [id, opts.preview ? String(it_id) : null]);
@@ -73,8 +83,14 @@ async function seed_track(opts: { media?: string | null; write_file?: boolean; p
 		await pool.query('insert into media_table (track_id, resource_id, content_hash) values ($1, $2, $3)', [id, resource_id, unique('hash')]);
 		if (opts.write_file !== false) await writeFile(path.join(media_dir, resource_id), 'fake audio');
 	}
+	for (const sync_type of opts.lyrics ?? ['NONE']) await add_lyrics(id, sync_type);
 	seeded.push(id);
 	return { id, resource_id, it_id };
+}
+
+async function add_lyrics(track_id: string, sync_type: string) {
+	await pool.query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'GENIUS', $2, 'PLAIN', $3, $4)`,
+		[track_id, sync_type, unique('lyrics'), createHash('sha256').update(unique('lyrics')).digest('hex')]);
 }
 
 const sample_of = async (id: string) => (await pool.query('select * from track_sample_data_table where id = $1', [id])).rows[0];
@@ -114,6 +130,9 @@ afterAll(async () => {
 	if (seeded.length > 0) {
 		await pool.query('delete from track_vectors_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from track_vocals_table where track_id = any($1)', [seeded]);
+		await pool.query('delete from track_lyrics_table where track_id = any($1)', [seeded]);
+		await pool.query('delete from track_play_counts_table where track_id = any($1)', [seeded]);
+		await pool.query('delete from service_tracks_table where illusi_id = any($1)', [seeded]);
 		await pool.query('delete from track_sample_lookups_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from track_sample_data_table where id = any($1)', [seeded]);
 		await pool.query('delete from media_table where track_id = any($1)', [seeded]);
@@ -129,7 +148,9 @@ describe('analyzer jobs from media', () => {
 		await start();
 		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
 		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', resource_id: t.resource_id }));
-		expect(await sample_of(t.id)).toMatchObject({ mood: 'House/Dance', key: 'F#m', tempo: 124.5 });
+		expect(await sample_of(t.id)).toMatchObject({ mood: 'House/Dance', key: 'F#m', tempo: 124.5, version: 1 });
+		expect(await vocals_of(t.id)).toMatchObject({ beats: [500, 1000, 1500], rhythm_bpm: 120, rhythm_confidence: expect.closeTo(3.4, 5), bpm_estimates: [120] });
+		expect(await vocals_of(t.id)).toMatchObject({ words_model: 'test-words', words: ['hello'], word_times: [400, 700], speech_hop_ms: 32, grid_beats: [500, 1000], downbeats: [500] });
 		expect(await vector_of(t.id)).toMatchObject({ version: 1 });
 		expect(await lookups_of(t.id)).toEqual([expect.objectContaining({ source: 'media', status: 'DONE', source_ref: t.resource_id })]);
 		expect((await vocals_of(t.id)).segments).toEqual([100, 900]);
@@ -236,6 +257,34 @@ describe('analyzer jobs from media', () => {
 		await stop();
 	});
 
+	it('records an internal failure when the result cannot be stored', async () => {
+		const t = await seed_track({ media: uuid() });
+		await pool.query(`create or replace function refuse_sample() returns trigger language plpgsql as $$ begin
+			if new.id = '${t.id}' then raise exception 'refused by test'; end if; return new; end $$`);
+		await pool.query('create trigger refuse_sample_test before insert on track_sample_data_table for each row execute function refuse_sample()');
+		try {
+			await start();
+			emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+			await wait(async () => expect(await lookups_of(t.id)).toEqual([expect.objectContaining({ status: 'ERROR' })]));
+			await stop();
+		} finally {
+			await pool.query('drop trigger refuse_sample_test on track_sample_data_table');
+			await pool.query('drop function refuse_sample()');
+		}
+	});
+
+	it('starts when the media directory does not exist yet', async () => {
+		const mutable = config as unknown as { MEDIA_DIR: string };
+		const saved = mutable.MEDIA_DIR;
+		mutable.MEDIA_DIR = path.join(saved, 'not', 'there', 'yet');
+		try {
+			await start();
+			await stop();
+		} finally {
+			mutable.MEDIA_DIR = saved;
+		}
+	});
+
 	it('skips a track that already has a sample', async () => {
 		const t = await seed_track({ media: uuid() });
 		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0)', [t.id, 'Low Energy', 'C']);
@@ -243,6 +292,74 @@ describe('analyzer jobs from media', () => {
 		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
 		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE' }));
 		expect(calls.filter(c => c.url.endsWith('/analyze'))).toHaveLength(0);
+		await stop();
+	});
+});
+
+describe('which tracks get vocals and in what order', () => {
+	it('skips vocals for a track with synced lyrics or no lyrics, still analyzing the sample', async () => {
+		const synced = await seed_track({ media: uuid(), lyrics: ['NONE', 'LINE'] });
+		const bare = await seed_track({ media: uuid(), lyrics: [] });
+		await start();
+		emit('media_inserted', { track_id: synced.id, resource_id: synced.resource_id! });
+		emit('media_inserted', { track_id: bare.id, resource_id: bare.resource_id! });
+		await wait(async () => {
+			expect(await sample_of(synced.id)).toBeDefined();
+			expect(await sample_of(bare.id)).toBeDefined();
+		});
+		await new Promise(resolve => setTimeout(resolve, 150));
+		expect(calls.filter(c => c.url.endsWith('/vocals'))).toHaveLength(0);
+		expect(await vocals_of(synced.id)).toBeUndefined();
+		expect(await vocals_of(bare.id)).toBeUndefined();
+		await stop();
+	});
+
+	it('analyzes vocals once unsynced lyrics are stored for a track that had none', async () => {
+		const t = await seed_track({ media: uuid(), lyrics: [] });
+		await start();
+		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+		await wait(async () => expect(await sample_of(t.id)).toBeDefined());
+		expect(await vocals_of(t.id)).toBeUndefined();
+		await add_lyrics(t.id, 'NONE');
+		emit('lyrics_stored', { track_id: t.id });
+		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', words: ['hello'] }));
+		await stop();
+	});
+
+	it('leaves the backlog of vocals alone for tracks whose lyrics are synced', async () => {
+		const t = await seed_track({ media: uuid(), lyrics: ['WORD'] });
+		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness, version) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0, 2)', [t.id, 'Low Energy', 'C']);
+		flags.only = [t.id];
+		await start();
+		await new Promise(resolve => setTimeout(resolve, 200));
+		expect(calls.filter(c => c.url.endsWith('/vocals'))).toHaveLength(0);
+		await stop();
+	});
+
+	it('analyzes the most played tracks first, then the most viewed', async () => {
+		const blocker = await seed_track({ media: uuid(), lyrics: [] });
+		const quiet = await seed_track({ media: uuid(), lyrics: [] });
+		const viewed = await seed_track({ media: uuid(), lyrics: [] });
+		const played = await seed_track({ media: uuid(), lyrics: [] });
+		const played_viewed = await seed_track({ media: uuid(), lyrics: [] });
+		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, 5), ($2, 5)', [played.id, played_viewed.id]);
+		await pool.query(`insert into service_tracks_table (service, external_id, illusi_id, title, plays) values
+			('spotify', $1, $2, 't', 1000), ('deezer', $3, $2, 't', 4000000), ('spotify', $4, $5, 't', 20)`, [unique('st'), viewed.id, unique('st'), unique('st'), played_viewed.id]);
+		let unblock = () => {};
+		const blocked = new Promise<void>(resolve => { unblock = resolve; });
+		analyze = async (body) => {
+			if (body.path.endsWith(blocker.resource_id!)) await blocked;
+			return json(analysis);
+		};
+		await start();
+		emit('media_inserted', { track_id: blocker.id, resource_id: blocker.resource_id! });
+		await wait(async () => expect(calls.some(c => c.path?.endsWith(blocker.resource_id!))).toBe(true));
+		await enqueue_if_needed([quiet.id, viewed.id, played.id, played_viewed.id]);
+		unblock();
+		const all = [quiet, viewed, played, played_viewed];
+		await wait(async () => { for (const t of all) expect(await sample_of(t.id)).toBeDefined(); });
+		const order = calls.filter(c => c.url.endsWith('/analyze')).map(c => [blocker, ...all].find(t => c.path?.endsWith(t.resource_id!))!.id);
+		expect(order).toEqual([blocker.id, played_viewed.id, played.id, viewed.id, quiet.id]);
 		await stop();
 	});
 });
@@ -300,8 +417,8 @@ describe('analyzer startup and shutdown', () => {
 	it('queues the backlog of eligible tracks on start', async () => {
 		const sample = await seed_track({ media: uuid() });
 		const done = await seed_track({ media: uuid() });
-		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts) values ($1, $2, 'DONE', 1)`, [done.id, done.resource_id]);
-		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0)', [done.id, 'Low Energy', 'C']);
+		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts, beats, words) values ($1, $2, 'DONE', 1, '{}', '{}')`, [done.id, done.resource_id]);
+		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness, version) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0, 2)', [done.id, 'Low Energy', 'C']);
 		flags.only = [sample.id, done.id];
 		await start();
 		await wait(async () => {
@@ -309,6 +426,50 @@ describe('analyzer startup and shutdown', () => {
 			expect(await vocals_of(sample.id)).toMatchObject({ status: 'DONE' });
 		});
 		expect(calls.filter(c => c.path?.endsWith(done.resource_id!))).toHaveLength(0);
+		await stop();
+	});
+
+	it('analyzes vocals from before the lyrics alignment features again on start', async () => {
+		const t = await seed_track({ media: uuid() });
+		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts, beats) values ($1, $2, 'DONE', 1, '{500}')`, [t.id, t.resource_id]);
+		flags.only = [t.id];
+		await start();
+		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', words: ['hello'], beats: [500, 1000, 1500] }));
+		await stop();
+	});
+
+	it('analyzes samples from an older analyzer again on start, and vocals from before beat tracking', async () => {
+		const t = await seed_track({ media: uuid() });
+		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0)', [t.id, 'Low Energy', 'C']);
+		await pool.query(`insert into track_sample_lookups_table (track_id, source, status, attempts, source_ref) values ($1, 'media', 'DONE', 1, $2)`, [t.id, t.resource_id]);
+		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts, voice, segments) values ($1, $2, 'DONE', 1, '{0.5}', '{}')`, [t.id, t.resource_id]);
+		analyze = () => json({ ...analysis, ...features });
+		flags.only = [t.id];
+		await start();
+		await wait(async () => {
+			expect(await sample_of(t.id)).toMatchObject({ version: 2, mood: 'House/Dance', rms_energy: expect.closeTo(0.41, 5), source_duration_ms: 214_300, mood_scores: { House: 0.81 } });
+			expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', beats: [500, 1000, 1500], rhythm_bpm: 120, rhythm_model: 'test-rhythm' });
+		});
+		expect((await sample_of(t.id)).mfccs).toHaveLength(13);
+		await stop();
+
+		// Current now: another start leaves it alone
+		calls.length = 0;
+		await start();
+		await new Promise(resolve => setTimeout(resolve, 300));
+		expect(calls.filter(c => c.url.endsWith('/analyze') || c.url.endsWith('/vocals'))).toHaveLength(0);
+		await stop();
+	});
+
+	it('keeps a sample when the analyzer answers in the older format', async () => {
+		const t = await seed_track({ media: uuid() });
+		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0)', [t.id, 'Low Energy', 'C']);
+		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts, beats, words) values ($1, $2, 'DONE', 1, '{}', '{}')`, [t.id, t.resource_id]);
+		flags.only = [t.id];
+		await start();
+		await wait(async () => expect(calls.filter(c => c.url.endsWith('/analyze'))).toHaveLength(1));
+		await new Promise(resolve => setTimeout(resolve, 200));
+		expect(await sample_of(t.id)).toMatchObject({ version: 1, mood: 'Low Energy' });
 		await stop();
 	});
 

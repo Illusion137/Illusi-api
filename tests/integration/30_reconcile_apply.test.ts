@@ -586,3 +586,47 @@ describe('reconcile run', () => {
 		expect(['open', 'split', 'dismissed', 'deferred']).toContain(await conflict_status(c));
 	});
 });
+
+describe('reconcile edge cases', () => {
+	it('counts an applied move and keeps the survivor\'s album track while filling its missing number', async () => {
+		const gid = sc_id();
+		const from = await track({ genius_id: gid });
+		const to = await track();
+		const plan: GroupPlan = { key: to, kind: 'track', node_ids: [to, from], steps: [move_step(from, to, { genius_id: String(gid) }, { facet_source: 'genius' })], evidence: [], disagreements: [], conflicts: [] };
+		const report = empty_report();
+		await apply_group(plan, report, { review: false });
+		expect(report.moves).toBe(1);
+
+		const [keep, lose] = [await track(), await track()];
+		const al = await album();
+		await query('insert into album_tracks_table (album_id, track_id, track_number) values ($1, $2, null), ($1, $3, 4)', [al, keep, lose]);
+		expect((await in_tx(tx => apply_merge(tx, merge_step(keep, lose), reconcile))).applied).toBe(true);
+		expect(await query('select track_number from album_tracks_table where album_id = $1 and track_id = $2', [al, keep])).toEqual([{ track_number: 4 }]);
+	});
+
+	it('skips groups above the size limit and rolls back a group that fails to apply', async () => {
+		const code = isrc();
+		const title = unique('Edge Pass Song');
+		await track({ isrc: code }, { title });
+		await track({ isrc: code }, { title, duration_ms: 200_300 });
+
+		const skipped = await run_pass({ mode: 'full', dry_run: true, thresholds: { ...thresholds, max_group_size: 1 } });
+		expect(skipped.skipped_groups).toBeGreaterThan(0);
+
+		const marker = unique('refuse_merge').replace(/-/gu, '_');
+		await query(`create or replace function refuse_merge_audit() returns trigger language plpgsql as $$ begin
+			if new.action = 'merge' then raise exception '${marker}'; end if; return new; end $$`);
+		await query('create trigger refuse_merge_audit_test before insert on audit_log_table for each row execute function refuse_merge_audit()');
+		try {
+			let report = await run_pass({ mode: 'full', dry_run: false, thresholds });
+			for (let i = 0; i < 40 && report.locked; i++) {
+				await new Promise(r => setTimeout(r, 500));
+				report = await run_pass({ mode: 'full', dry_run: false, thresholds });
+			}
+			expect(report.failed_groups).toBeGreaterThan(0);
+		} finally {
+			await query('drop trigger refuse_merge_audit_test on audit_log_table');
+			await query('drop function refuse_merge_audit()');
+		}
+	});
+});

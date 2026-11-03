@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { map_analysis, map_vocals, normalize_key, unflatten_segments } from './contract';
+import { map_analysis, map_vocals, normalize_key, SAMPLE_VERSION, unflatten_segments } from './contract';
 import type { LookupState } from './decisions';
 import {
 	assert_tmp_dir_safe, choose_source, classify_analyzer_status, classify_download_status, decide_failure, error_retry_delay_ms,
@@ -13,9 +13,25 @@ const valid = {
 	arousal: 0.7, valence: 0.88, acousticness: 0.34, instrumentalness: 0.71, liveness: 0.16, danceability: 0.62, speechiness: 0.04
 };
 
+const no_features = {
+	version: 1, tempo_confidence: null, rms_energy: null, spectral_rolloff: null, zero_crossing_rate: null,
+	mfccs: null, chroma: null, mood_scores: null, source_duration_ms: null
+};
+const features = {
+	tempo_confidence: 1.7, rms_energy: 0.41, spectral_rolloff: 5400, zero_crossing_rate: 0.08,
+	mfccs: [-120, ...Array<number>(12).fill(3.5)], chroma: Array<number>(12).fill(0.4), duration_ms: 214_300, mood_scores: { House: 0.81, Techno: 0.64 }
+};
+
 describe('analyzer response mapping', () => {
 	it('maps a valid response to a sample row', () => {
-		expect(map_analysis(TRACK, valid)).toEqual({ id: TRACK, ...valid });
+		expect(map_analysis(TRACK, valid)).toEqual({ id: TRACK, ...valid, ...no_features });
+	});
+
+	it('keeps the rest of Mood-Detector\'s features as a current sample', () => {
+		const { duration_ms, ...stored } = features;
+		expect(map_analysis(TRACK, { ...valid, ...features })).toEqual({ id: TRACK, ...valid, ...stored, source_duration_ms: duration_ms, version: SAMPLE_VERSION });
+		expect(map_analysis(TRACK, { ...valid, ...features, mfccs: [1, 2] })).toBeNull();
+		expect(map_analysis(TRACK, { ...valid, ...features, chroma: Array<number>(12).fill(2) })).toBeNull();
 	});
 
 	it('normalizes Mood-Detector key spelling to varchar(5)', () => {
@@ -39,7 +55,7 @@ describe('analyzer response mapping', () => {
 	});
 
 	it('ignores extra fields', () => {
-		expect(map_analysis(TRACK, { ...valid, energy: 0.2, explanation: 'x' })).toEqual({ id: TRACK, ...valid });
+		expect(map_analysis(TRACK, { ...valid, energy: 0.2, explanation: 'x' })).toEqual({ id: TRACK, ...valid, ...no_features });
 	});
 });
 
@@ -51,9 +67,51 @@ describe('vocals response mapping', () => {
 
 	it('flattens segments for storage and back', () => {
 		const mapped = map_vocals(vocals);
-		expect(mapped).toEqual({ ...vocals, segments: [9856, 17024, 20_000, 21_500] });
+		expect(mapped).toEqual({
+			...vocals, segments: [9856, 17024, 20_000, 21_500],
+			rhythm_model: null, rhythm_bpm: null, rhythm_confidence: null, beats: null, bpm_estimates: null,
+			words_model: null, words: null, word_times: null, word_probabilities: null,
+			speech_model: null, speech_hop_ms: null, speech: null,
+			beat_grid_model: null, grid_beats: null, downbeats: null
+		});
 		expect(unflatten_segments(mapped!.segments)).toEqual(vocals.segments);
 		expect(unflatten_segments([1, 2, 3])).toEqual([{ start_ms: 1, end_ms: 2 }]);
+	});
+
+	it('keeps the beats and tempo estimates, sorted and without repeats', () => {
+		const rhythm = { model: 'essentia-rhythmextractor2013-multifeature', bpm: 120, confidence: 3.4, beats_ms: [1000, 500, 1000], bpm_estimates: [120.2, 119.8] };
+		expect(map_vocals({ ...vocals, rhythm })).toMatchObject({ rhythm_model: rhythm.model, rhythm_bpm: 120, rhythm_confidence: 3.4, beats: [500, 1000], bpm_estimates: [119.8, 120.2] });
+		// Essentia gives one estimate per analysis window: hundreds on a real song
+		expect(map_vocals({ ...vocals, rhythm: { ...rhythm, bpm_estimates: Array.from({ length: 400 }, (_, i) => 118 + i % 5) } })).toMatchObject({ bpm_estimates: [118, 119, 120, 121, 122] });
+		expect(map_vocals({ ...vocals, rhythm: { ...rhythm, beats_ms: [-5] } })).toBeNull();
+	});
+
+	it('keeps the words, speech curve and beat grid for lining up lyrics', () => {
+		const words = { model: 'faster-whisper-small.en-int8', words: [{ text: 'world', start_ms: 1400, end_ms: 1800, probability: 0.7 }, { text: 'Hello', start_ms: 1000, end_ms: 1300, probability: 0.92 }] };
+		const speech = { model: 'silero-vad-6', hop_ms: 32, voice: [0.1, 0.9] };
+		const beat_grid = { model: 'beat-this-final0', beats_ms: [1000, 500, 500], downbeats_ms: [500] };
+		expect(map_vocals({ ...vocals, words, speech, beat_grid })).toMatchObject({
+			words_model: words.model, words: ['Hello', 'world'], word_times: [1000, 1300, 1400, 1800], word_probabilities: [0.92, 0.7],
+			speech_model: 'silero-vad-6', speech_hop_ms: 32, speech: [0.1, 0.9],
+			beat_grid_model: 'beat-this-final0', grid_beats: [500, 1000], downbeats: [500]
+		});
+		expect(map_vocals({ ...vocals, words: { ...words, words: [] } })).toMatchObject({ words: [], word_times: [], word_probabilities: [] });
+		expect(map_vocals({ ...vocals, words: { ...words, words: [{ text: 'x', start_ms: 0, end_ms: 1, probability: 2 }] } })).toBeNull();
+		expect(map_vocals({ ...vocals, speech: { ...speech, hop_ms: 0 } })).toBeNull();
+	});
+
+	it('keeps the words, speech curve and beat grid for lining up lyrics', () => {
+		const words = { model: 'faster-whisper-small.en-int8', words: [{ text: 'world', start_ms: 1400, end_ms: 1800, probability: 0.7 }, { text: 'Hello', start_ms: 1000, end_ms: 1300, probability: 0.92 }] };
+		const speech = { model: 'silero-vad-6', hop_ms: 32, voice: [0.1, 0.9] };
+		const beat_grid = { model: 'beat-this-final0', beats_ms: [1000, 500, 500], downbeats_ms: [500] };
+		expect(map_vocals({ ...vocals, words, speech, beat_grid })).toMatchObject({
+			words_model: words.model, words: ['Hello', 'world'], word_times: [1000, 1300, 1400, 1800], word_probabilities: [0.92, 0.7],
+			speech_model: 'silero-vad-6', speech_hop_ms: 32, speech: [0.1, 0.9],
+			beat_grid_model: 'beat-this-final0', grid_beats: [500, 1000], downbeats: [500]
+		});
+		expect(map_vocals({ ...vocals, words: { ...words, words: [] } })).toMatchObject({ words: [], word_times: [], word_probabilities: [] });
+		expect(map_vocals({ ...vocals, words: { ...words, words: [{ text: 'x', start_ms: 0, end_ms: 1, probability: 2 }] } })).toBeNull();
+		expect(map_vocals({ ...vocals, speech: { ...speech, hop_ms: 0 } })).toBeNull();
 	});
 
 	it('rejects responses that break the contract', () => {

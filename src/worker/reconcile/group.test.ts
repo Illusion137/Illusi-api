@@ -110,3 +110,11 @@ describe('build_groups', () => {
 		expect(metadata_block_key(node('a', { kind: 'artist' }))).toBeNull();
 	});
 });
+
+describe('build_groups albums', () => {
+	it('joins albums that share a normalized title and primary artist', () => {
+		const a = node('a', { kind: 'album', meta: { title: 'Record', artist: 'Band' } });
+		const b = node('b', { kind: 'album', meta: { title: 'record', artist: 'Band' } });
+		expect(ids(build_groups([a, b], [], T))).toEqual([['a', 'b']]);
+	});
+});

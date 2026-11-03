@@ -120,3 +120,12 @@ describe('sort_thumbnails', () => {
 		expect(sorted.map(t => t.url)).toEqual(['l', 's', 'u']);
 	});
 });
+
+describe('detect_service_id edge cases', () => {
+	it('ignores unparseable links and links without a recognizable track id', () => {
+		expect(detect_service_id('http://[bad')).toBeNull();
+		expect(detect_service_id('https://example.com/track/123')).toBeNull();
+		expect(detect_service_id('https://www.deezer.com/en/track/123')).toEqual({ column: 'deezer_id', value: '123' });
+		expect(detect_service_id('https://tidal.com/browse/track/456')).toEqual({ column: 'tidal_id', value: '456' });
+	});
+});

@@ -59,3 +59,36 @@ describe('JobQueue', () => {
 		expect(q.held_count).toBe(0);
 	});
 });
+
+describe('JobQueue priorities', () => {
+	const by_rank = () => new JobQueue<{ id: string; rank: number }>(j => j.id, (a, b) => a.rank - b.rank);
+
+	it('hands out the highest priority first, first in first out among equals', async () => {
+		const q = by_rank();
+		for (const [id, rank] of [['a', 3], ['b', 1], ['c', 2], ['d', 1], ['e', 3], ['f', 0]] as const) q.push({ id, rank });
+		const order: string[] = [];
+		while (q.size > 0) order.push((await q.next())!.id);
+		expect(order).toEqual(['f', 'b', 'd', 'c', 'a', 'e']);
+	});
+
+	it('serves a retry before any priority', async () => {
+		const q = by_rank();
+		q.push({ id: 'a', rank: 5 });
+		q.push({ id: 'b', rank: 0 });
+		q.push({ id: 'c', rank: 1 });
+		const b = (await q.next())!;
+		q.push_front(b);
+		expect((await q.next())!.id).toBe('b');
+		expect((await q.next())!.id).toBe('c');
+		expect((await q.next())!.id).toBe('a');
+	});
+
+	it('keeps order over many jobs', async () => {
+		const q = by_rank();
+		const ranks = Array.from({ length: 200 }, (_, i) => (i * 37) % 101);
+		ranks.forEach((rank, i) => q.push({ id: String(i), rank }));
+		const out: number[] = [];
+		while (q.size > 0) out.push((await q.next())!.rank);
+		expect(out).toEqual([...ranks].sort((a, b) => a - b));
+	});
+});

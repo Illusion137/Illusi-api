@@ -154,3 +154,15 @@ describe('is_clear_cut / plan_signature', () => {
 		expect(plan_signature([m, n])).toBe(plan_signature([n, m]));
 	});
 });
+
+describe('plan_signature moves and different-value conflicts', () => {
+	it('names a move by its source, target and columns', () => {
+		expect(plan_signature([{ type: 'move', from: 'A', to: 'B', auto: false, values: { genius_id: '1' } } as never])).toBe('move:A>B:genius_id');
+	});
+	it('finds the other node holding an incoming value when the conflict names none', () => {
+		const A = node('A', { ids: { genius_id: 'G1' }, facets: [{ source: 'genius', columns: ['genius_id'] }] });
+		const B = node('B');
+		const plan = resolve_group({ nodes: [A, B], conflicts: [conflict('B', 'genius_id', 'G1')] }, T);
+		expect(plan.conflicts).toHaveLength(1);
+	});
+});

@@ -3,6 +3,9 @@ import { decode_cursor, encode_cursor, next_cursor } from './cursor';
 import { clamp_edited_at, lww_update, lww_wins } from './lww';
 import { walk_phases } from './pull';
 import { validate_push_rows } from './push';
+import { in_ids } from './rows';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { tracks_table } from '../../db/schema';
 
 const t1 = '2026-10-25 01:00:00.123456+00';
 const t2 = '2026-10-25 02:00:00.5+00';
@@ -81,5 +84,13 @@ describe('validate_push_rows', () => {
 		expect(rows.track_plays).toHaveLength(0);
 		expect(rejected.map(r => [r.table, r.index])).toEqual([['user_tracks', 1], ['track_plays', 0]]);
 		expect(profile?.username).toBe('me');
+	});
+});
+
+describe('in_ids', () => {
+	it('is false for an empty list and an any-match otherwise', () => {
+		const dialect = new PgDialect();
+		expect(dialect.sqlToQuery(in_ids(tracks_table.id, [])).sql).toBe('false');
+		expect(dialect.sqlToQuery(in_ids(tracks_table.id, ['a'])).sql).toContain('in');
 	});
 });

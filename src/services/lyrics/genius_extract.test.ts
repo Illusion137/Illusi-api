@@ -155,3 +155,28 @@ describe('match_genius_song', () => {
 		expect(match_genius_song({ ...track, title: 'x', service_ids: { applemusic_id: '1' } }, extract())).toEqual({ matched: false, reason: 'title' });
 	});
 });
+
+describe('extract_genius_payload gaps', () => {
+	it('reads deezer and tidal ids from links or bare numbers', () => {
+		const ex = extract({ media: [
+			{ provider: 'deezer', url: 'https://www.deezer.com/en/track/111' },
+			{ provider: 'tidal', url: 'https://tidal.com/browse/track/222' },
+			{ provider: 'deezer', url: '333' },
+			{ provider: 'tidal', url: '444' },
+			{ provider: 'deezer', url: 'https://deezer.com/nothing' },
+			{ provider: 'tidal', url: 'nothing' }
+		] });
+		const pairs = ex.ids.map(c => [c.column, String(c.value)]);
+		expect(pairs).toEqual(expect.arrayContaining([['deezer_id', '111'], ['tidal_id', '222'], ['deezer_id', '333'], ['tidal_id', '444']]));
+	});
+	it('finds the album name in the entities by id, or in the albums list', () => {
+		const by_id = fixture({ album: { id: 9 } });
+		(by_id.entities as Record<string, unknown>).albums = { 9: { name: 'From Entities' } };
+		expect((extract_genius_payload(by_id) as GeniusExtraction).facts.album).toBe('From Entities');
+		const listed = fixture({ album: null, albums: [{ id: 5 }, { id: 8, name: 'Listed' }] });
+		expect((extract_genius_payload(listed) as GeniusExtraction).facts.album).toBe('Listed');
+		const listed_entities = fixture({ album: null, albums: [{ id: 5 }] });
+		(listed_entities.entities as Record<string, unknown>).albums = { 5: { name: 'Listed By Id' } };
+		expect((extract_genius_payload(listed_entities) as GeniusExtraction).facts.album).toBe('Listed By Id');
+	});
+});

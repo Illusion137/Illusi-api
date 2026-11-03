@@ -133,3 +133,19 @@ describe('facet_columns', () => {
 		expect(facet_columns(n, genius, [yt_confirmer])).toEqual(['genius_id', 'spotify_id']);
 	});
 });
+
+describe('pair_evidence release years', () => {
+	it('flags release years more than a year apart as weak contradicting evidence', () => {
+		const a = node('A', { meta: { release_year: 2000 } });
+		const b = node('B', { meta: { release_year: 2005 } });
+		expect(JSON.stringify(evidence(a, b))).toContain('release_year_differs');
+		expect(JSON.stringify(evidence(a, node('C', { meta: { release_year: 2001 } })))).not.toContain('release_year_differs');
+	});
+});
+
+describe('pair_evidence artists', () => {
+	it('flags clearly different primary artists as weak contradicting evidence', () => {
+		const e = evidence(node('A', { meta: { artist: 'Completely Unrelated Band' } }), node('B', { meta: { artist: 'Zzyzx Quartet' } }));
+		expect(JSON.stringify(e)).toContain('artist_differs');
+	});
+});

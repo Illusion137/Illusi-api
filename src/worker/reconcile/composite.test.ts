@@ -99,3 +99,13 @@ describe('merge_entity_row', () => {
 		expect(set).toEqual({ album_id: 'alb', explicit: true, backpacked: true });
 	});
 });
+
+describe('plan_ref_merge fills nulls', () => {
+	it('keeps the survivor row and fills its missing track number from the loser', () => {
+		const plan = plan_ref_merge(spec('track', 'album_tracks_table', 'track_id'), 'S', 'L', [
+			{ album_id: 'al', track_id: 'S', track_number: null },
+			{ album_id: 'al', track_id: 'L', track_number: 3 }
+		]);
+		expect(plan.update[0].set).toMatchObject({ track_number: 3 });
+	});
+});

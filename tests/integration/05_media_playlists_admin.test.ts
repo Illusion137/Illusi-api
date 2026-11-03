@@ -95,6 +95,21 @@ describe('media uploads (§13)', () => {
 		});
 		expect(vocals.body.voice).toHaveLength(3);
 		expect(vocals.body.voice[1]).toBeCloseTo(0.9);
+		expect(vocals.body.rhythm).toBeNull();
+		expect(vocals.body).toMatchObject({ words: null, speech: null, beat_grid: null });
+
+		await query(`update track_vocals_table set rhythm_model = 'r', rhythm_bpm = 120, rhythm_confidence = 3.4, beats = '{500,1000}', bpm_estimates = '{120}' where track_id = $1`, [t0]);
+		const timed = await api('GET', `/tracks/${t0}/vocals`, { token: user.access_token });
+		expect(timed.body.rhythm).toMatchObject({ model: 'r', bpm: 120, beats_ms: [500, 1000], bpm_estimates: [120] });
+		expect(timed.body.rhythm.confidence).toBeCloseTo(3.4);
+
+		await query(`update track_vocals_table set words_model = 'w', words = '{hi,there}', word_times = '{100,200,300,450}', word_probabilities = '{0.5,1}', speech_model = 's', speech_hop_ms = 32, speech = '{0.25}', beat_grid_model = 'g', grid_beats = '{500,1000}', downbeats = '{500}' where track_id = $1`, [t0]);
+		const aligned = await api('GET', `/tracks/${t0}/vocals`, { token: user.access_token });
+		expect(aligned.body).toMatchObject({
+			words: { model: 'w', words: [{ text: 'hi', start_ms: 100, end_ms: 200, probability: 0.5 }, { text: 'there', start_ms: 300, end_ms: 450, probability: 1 }] },
+			speech: { model: 's', hop_ms: 32, voice: [0.25] },
+			beat_grid: { model: 'g', beats_ms: [500, 1000], downbeats_ms: [500] }
+		});
 	});
 
 	it('rejects non-audio files and tracks outside the user\'s library', async () => {

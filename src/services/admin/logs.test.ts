@@ -72,3 +72,10 @@ describe('read_logs', () => {
 		expect(logs_query_schema.safeParse({ service: 'api', day: '2026-10-30/../../x' }).success).toBe(false);
 	});
 });
+
+describe('list_log_files errors', () => {
+	it('returns nothing for a missing directory and rethrows other failures', async () => {
+		expect(await list_log_files(path.join(dir, 'missing'))).toEqual([]);
+		await expect(list_log_files(path.join(dir, 'notes.txt'))).rejects.toThrow();
+	});
+});
