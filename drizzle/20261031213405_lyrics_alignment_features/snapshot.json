@@ -1,0 +1,353 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "52716306-de86-4ec2-b310-5eb1040e12c3",
+  "prevIds": [
+    "181a7870-fd99-4cd4-ba91-f7fc4a8fe058"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "words_model"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.words_model",
+        "n|col|public.track_vocals_table.words_model",
+        "e|col|public.track_vocals_table.words_model"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "words"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.words",
+        "n|col|public.track_vocals_table.words",
+        "e|col|public.track_vocals_table.words"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "word_times"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.word_times",
+        "n|col|public.track_vocals_table.word_times",
+        "e|col|public.track_vocals_table.word_times"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "word_probabilities"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.word_probabilities",
+        "n|col|public.track_vocals_table.word_probabilities",
+        "e|col|public.track_vocals_table.word_probabilities"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "speech_model"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.speech_model",
+        "n|col|public.track_vocals_table.speech_model",
+        "e|col|public.track_vocals_table.speech_model"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "speech_hop_ms"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.speech_hop_ms",
+        "n|col|public.track_vocals_table.speech_hop_ms",
+        "e|col|public.track_vocals_table.speech_hop_ms"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "speech"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.speech",
+        "n|col|public.track_vocals_table.speech",
+        "e|col|public.track_vocals_table.speech"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "beat_grid_model"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.beat_grid_model",
+        "n|col|public.track_vocals_table.beat_grid_model",
+        "e|col|public.track_vocals_table.beat_grid_model"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "grid_beats"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.grid_beats",
+        "n|col|public.track_vocals_table.grid_beats",
+        "e|col|public.track_vocals_table.grid_beats"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "downbeats"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.downbeats",
+        "n|col|public.track_vocals_table.downbeats",
+        "e|col|public.track_vocals_table.downbeats"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "words_model",
+        "type": "varchar(128)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "words",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "word_times",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "word_probabilities",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "speech_model",
+        "type": "varchar(128)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "speech_hop_ms",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "speech",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "beat_grid_model",
+        "type": "varchar(128)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "grid_beats",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "downbeats",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

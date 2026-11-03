@@ -1,0 +1,489 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "181a7870-fd99-4cd4-ba91-f7fc4a8fe058",
+  "prevIds": [
+    "8594c8c0-4823-4409-8933-28d5eb43a7cf"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "version"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.version",
+        "n|col|public.track_sample_data_table.version",
+        "e|col|public.track_sample_data_table.version"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "tempo_confidence"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.tempo_confidence",
+        "n|col|public.track_sample_data_table.tempo_confidence",
+        "e|col|public.track_sample_data_table.tempo_confidence"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "rms_energy"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.rms_energy",
+        "n|col|public.track_sample_data_table.rms_energy",
+        "e|col|public.track_sample_data_table.rms_energy"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "spectral_rolloff"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.spectral_rolloff",
+        "n|col|public.track_sample_data_table.spectral_rolloff",
+        "e|col|public.track_sample_data_table.spectral_rolloff"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "zero_crossing_rate"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.zero_crossing_rate",
+        "n|col|public.track_sample_data_table.zero_crossing_rate",
+        "e|col|public.track_sample_data_table.zero_crossing_rate"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "mfccs"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.mfccs",
+        "n|col|public.track_sample_data_table.mfccs",
+        "e|col|public.track_sample_data_table.mfccs"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "chroma"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.chroma",
+        "n|col|public.track_sample_data_table.chroma",
+        "e|col|public.track_sample_data_table.chroma"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "mood_scores"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.mood_scores",
+        "n|col|public.track_sample_data_table.mood_scores",
+        "e|col|public.track_sample_data_table.mood_scores"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_sample_data_table",
+        "source_duration_ms"
+      ],
+      "writes": [
+        "s|col|public.track_sample_data_table.source_duration_ms",
+        "n|col|public.track_sample_data_table.source_duration_ms",
+        "e|col|public.track_sample_data_table.source_duration_ms"
+      ],
+      "reads": [
+        "n|tbl|public.track_sample_data_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "rhythm_model"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.rhythm_model",
+        "n|col|public.track_vocals_table.rhythm_model",
+        "e|col|public.track_vocals_table.rhythm_model"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "rhythm_bpm"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.rhythm_bpm",
+        "n|col|public.track_vocals_table.rhythm_bpm",
+        "e|col|public.track_vocals_table.rhythm_bpm"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "rhythm_confidence"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.rhythm_confidence",
+        "n|col|public.track_vocals_table.rhythm_confidence",
+        "e|col|public.track_vocals_table.rhythm_confidence"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "beats"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.beats",
+        "n|col|public.track_vocals_table.beats",
+        "e|col|public.track_vocals_table.beats"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "track_vocals_table",
+        "bpm_estimates"
+      ],
+      "writes": [
+        "s|col|public.track_vocals_table.bpm_estimates",
+        "n|col|public.track_vocals_table.bpm_estimates",
+        "e|col|public.track_vocals_table.bpm_estimates"
+      ],
+      "reads": [
+        "n|tbl|public.track_vocals_table",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "version",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "1",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "tempo_confidence",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "rms_energy",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "spectral_rolloff",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "zero_crossing_rate",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "mfccs",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "chroma",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "mood_scores",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_sample_data_table",
+        "name": "source_duration_ms",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "rhythm_model",
+        "type": "varchar(128)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "rhythm_bpm",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "rhythm_confidence",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "beats",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_vocals_table",
+        "name": "bpm_estimates",
+        "type": "real",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

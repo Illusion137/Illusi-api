@@ -533,6 +533,22 @@ export const track_sample_data_table = pgTable('track_sample_data_table', {
 	arousal: real().notNull(),
 	valence: real().notNull(),
 	speechiness: real().notNull(),
+	/** What the analyzer returned when this row was written (`SAMPLE_VERSION`); older rows are analyzed again. */
+	version: integer().notNull().default(1),
+	// The rest of Mood-Detector's features, on its 30 s excerpt; null on rows from before they were kept
+	tempo_confidence: real(),
+	rms_energy: real(),
+	/** Hz */
+	spectral_rolloff: real(),
+	zero_crossing_rate: real(),
+	/** 13 mean MFCCs */
+	mfccs: real().array(),
+	/** 12 mean chroma bins, C to B */
+	chroma: real().array(),
+	/** Similarity (0-1) to Mood-Detector's reference styles */
+	mood_scores: jsonb().$type<Record<string, number>>(),
+	/** Length of the analyzed file (an iTunes preview is ~30 s) */
+	source_duration_ms: integer(),
 	...timestamps
 }, table => [index('track_sample_data_modified_at_idx').on(table.modified_at)]);
 
@@ -567,6 +583,27 @@ export const track_vocals_table = pgTable('track_vocals_table', {
 	voice: real().array(),
 	/** Voiced spans, flat: `[start_ms, end_ms, start_ms, end_ms, ...]`. */
 	segments: integer().array(),
+	/** Beat tracking over the same file; null on rows from before it ran, empty when no beat was found. */
+	rhythm_model: varchar({ length: 128 }),
+	rhythm_bpm: real(),
+	/** Essentia's multifeature confidence, 0 to ~5.32 */
+	rhythm_confidence: real(),
+	beats: integer().array(),
+	bpm_estimates: real().array(),
+	/** Whisper's words over the same file, for lining up lyrics; null on rows from before it ran, empty when none was heard. */
+	words_model: varchar({ length: 128 }),
+	words: text().array(),
+	/** Flat `[start_ms, end_ms, start_ms, end_ms, ...]`, one pair per word. */
+	word_times: integer().array(),
+	word_probabilities: real().array(),
+	/** Silero's voice probability (0-1) of frame i, `[i * speech_hop_ms, (i + 1) * speech_hop_ms)`. */
+	speech_model: varchar({ length: 128 }),
+	speech_hop_ms: integer(),
+	speech: real().array(),
+	/** Beat This! beats and downbeats, which follow tempo changes (unlike `beats`). */
+	beat_grid_model: varchar({ length: 128 }),
+	grid_beats: integer().array(),
+	downbeats: integer().array(),
 	...timestamps
 });
 
