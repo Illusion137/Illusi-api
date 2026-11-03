@@ -61,7 +61,29 @@ def _unit(name: str, value: Any) -> float:
     return min(1.0, max(0.0, _finite(name, value)))
 
 
-def build_response(mood: str, tempo: Any, brightness_hz: Any, key: str, vibenet: Mapping[str, Any]) -> dict:
+MFCC_COUNT = 13
+CHROMA_COUNT = 12
+
+
+def feature_fields(features: Mapping[str, Any]) -> dict:
+    """The rest of what Mood-Detector's `extract_features` measures (on its 30 s excerpt, like `tempo`)."""
+    mfccs = list(features.get("mfccs") or [])
+    chroma = list(features.get("chroma") or [])
+    if len(mfccs) != MFCC_COUNT or len(chroma) != CHROMA_COUNT:
+        raise ModelError(f"expected {MFCC_COUNT} MFCCs and {CHROMA_COUNT} chroma bins")
+    return {
+        "tempo_confidence": max(0.0, _finite("tempo_confidence", features.get("tempo_confidence"))),
+        "rms_energy": _unit("energy", features.get("energy")),
+        "spectral_rolloff": max(0.0, _finite("spectral_rolloff", features.get("spectral_rolloff"))),
+        "zero_crossing_rate": _unit("zero_crossing_rate", features.get("zero_crossing_rate")),
+        "mfccs": [_finite("mfcc", v) for v in mfccs],
+        "chroma": [_unit("chroma", v) for v in chroma],
+        "duration_ms": round(max(0.0, _finite("duration", features.get("duration"))) * 1000),
+    }
+
+
+def build_response(mood: str, tempo: Any, brightness_hz: Any, key: str, vibenet: Mapping[str, Any],
+                   features: Optional[Mapping[str, Any]] = None, mood_scores: Optional[Mapping[str, Any]] = None) -> dict:
     """Combines Mood-Detector and VibeNet output into the response body."""
     if not isinstance(mood, str) or not mood.strip():
         raise ModelError("empty mood")
@@ -75,6 +97,10 @@ def build_response(mood: str, tempo: Any, brightness_hz: Any, key: str, vibenet:
         if src not in vibenet:
             raise ModelError(f"VibeNet result missing {src}")
         out[dst] = _unit(src, vibenet[src])
+    if features is not None:
+        out.update(feature_fields(features))
+    if mood_scores is not None:
+        out["mood_scores"] = {str(name): _finite("mood score", score) for name, score in mood_scores.items()}
     return out
 
 

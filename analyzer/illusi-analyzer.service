@@ -1,7 +1,7 @@
 # systemd unit (sample). Install to /etc/systemd/system/illusi-analyzer.service, adjust paths/user, then:
 #   systemctl daemon-reload && systemctl enable --now illusi-analyzer
 [Unit]
-Description=Illusi music analyzer (Mood-Detector, VibeNet, vocal detection)
+Description=Illusi music analyzer (Mood-Detector, VibeNet, vocal detection, lyrics alignment features)
 After=network.target
 
 [Service]
@@ -14,7 +14,8 @@ Environment=ANALYZER_PATH_ROOTS=/opt/illusi-api/data/analyzer_tmp:/opt/illusi-ap
 ExecStart=/opt/illusi-api/analyzer/.venv/bin/python server.py
 Restart=on-failure
 RestartSec=5
-# The analyzer only reads audio; it never writes or deletes input files.
+# The analyzer only reads audio; it never writes or deletes input files. Nothing can be downloaded either, so the
+# Whisper model and Beat This! checkpoint must already be in analyzer/models (see the README).
 ProtectSystem=strict
 # ffmpeg decodes each input to a temporary WAV under /tmp.
 PrivateTmp=true

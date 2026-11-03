@@ -21,10 +21,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from audio import decode_to_wav  # noqa: E402
 from contract import BadRequest, DecodeError, ModelError, build_response, to_short_key, validate_path  # noqa: E402
+from beat_grid import build_beat_grid_response  # noqa: E402
+from rhythm import build_rhythm_response  # noqa: E402
+from speech import build_speech_response  # noqa: E402
+from words import build_words_response  # noqa: E402
 from server import serve  # noqa: E402
 
 VIBE = {"acousticness": 0.34, "danceability": 0.62, "energy": 0.70, "instrumentalness": 0.71,
         "liveness": 0.16, "speechiness": 0.04, "valence": 0.88}
+FEATURES = {"tempo": 124.5, "tempo_confidence": 1.7, "energy": 0.41, "spectral_centroid": 2810.0, "spectral_rolloff": 5400.0,
+            "zero_crossing_rate": 0.08, "mfccs": [-120.0] + [3.5] * 12, "chroma": [0.4] * 12, "sample_rate": 22050, "duration": 214.3}
+SCORES = {"House": 0.81, "Techno": 0.64}
 
 
 class FakeAnalyzer:
@@ -35,12 +42,16 @@ class FakeAnalyzer:
             raise DecodeError("not audio")
         if head == b"BOOM":
             raise ModelError("model crashed")
-        return build_response("House/Dance", 124.5, 2810.0, "F# minor", VIBE)
+        return build_response("House/Dance", 124.5, 2810.0, "F# minor", VIBE, FEATURES, SCORES)
 
     def vocals(self, path: str) -> dict:
         if open(path, "rb").read(4) == b"BAD!":
             raise DecodeError("not audio")
-        return {"model": "fake", "hop_ms": 256, "window_ms": 2048, "duration_ms": 1000, "voice": [0.9], "segments": []}
+        return {"model": "fake", "hop_ms": 256, "window_ms": 2048, "duration_ms": 1000, "voice": [0.9], "segments": [],
+                "rhythm": build_rhythm_response(120, [0.5, 1.0], 3.1, [120]),
+                "speech": build_speech_response([0.2, 0.8]),
+                "words": build_words_response("fake", [(" hello", 0.5, 0.9, 0.8)]),
+                "beat_grid": build_beat_grid_response([0.5, 1.0], [0.5])}
 
 
 def check(cond: bool, msg: str) -> None:
@@ -129,6 +140,26 @@ def main() -> None:
     check(r["arousal"] == 0.70 and "energy" not in r, "energy is sent as arousal")
     check(set(r) == {"mood", "tempo", "brightness", "key", "arousal", "valence", "acousticness",
                      "instrumentalness", "liveness", "danceability", "speechiness"}, "response has exactly the contract fields")
+    r = build_response("Techno/Dark", 130, 1500, "G major", VIBE, FEATURES, SCORES)
+    check(r["rms_energy"] == 0.41 and len(r["mfccs"]) == 13 and len(r["chroma"]) == 12 and r["duration_ms"] == 214300
+          and r["mood_scores"] == SCORES, "Mood-Detector's other features are returned")
+    try:
+        build_response("Techno/Dark", 130, 1500, "G major", VIBE, {**FEATURES, "mfccs": [1.0]})
+        check(False, "a short MFCC list is a model failure")
+    except ModelError:
+        check(True, "a short MFCC list is a model failure")
+    rhythm = build_rhythm_response(120.0004, [1.0, 0.5, 0.5, -1, float("nan")], 3.2, [120.1, 119.9, 120.1] * 200)
+    check(rhythm["beats_ms"] == [500, 1000] and rhythm["bpm"] == 120.0, "beats are sorted, deduplicated milliseconds")
+    check(rhythm["bpm_estimates"] == [119.9, 120.1], "one tempo estimate per window becomes the distinct tempos")
+    words = build_words_response("fake", [(" Hello", 1.0004, 1.2, 0.91234), ("", 2, 3, 1), (" late", 0.5, float("nan"), 1),
+                                          (" back", 0.4, 0.3, 1.5)])
+    check(words["words"] == [{"text": "back", "start_ms": 400, "end_ms": 400, "probability": 1.0},
+                             {"text": "Hello", "start_ms": 1000, "end_ms": 1200, "probability": 0.912}],
+          "words are trimmed, ordered, clamped, and broken ones dropped")
+    speech = build_speech_response([1.2, -0.1, 0.5004])
+    check(speech["voice"] == [1.0, 0.0, 0.5] and speech["hop_ms"] == 32, "speech curve is clamped at a 32 ms hop")
+    grid = build_beat_grid_response([1.0, 0.5, 0.5, float("nan")], [0.5, -1])
+    check(grid["beats_ms"] == [500, 1000] and grid["downbeats_ms"] == [500], "beat grid is sorted, deduplicated milliseconds")
     try:
         validate_path({"path": "relative/x"})
         check(False, "relative path rejected")
@@ -167,6 +198,9 @@ def main() -> None:
             check(request(base, "POST", "/analyze", {"path": boom})[0] == 500, "model failure -> 500")
             status, body = request(base, "POST", "/vocals", {"path": good})
             check(status == 200 and body["voice"] == [0.9], "vocals returns probabilities")
+            check(body["rhythm"]["beats_ms"] == [500, 1000], "vocals returns beat positions")
+            check(body["words"]["words"][0]["text"] == "hello" and body["speech"]["voice"] == [0.2, 0.8]
+                  and body["beat_grid"]["downbeats_ms"] == [500], "vocals returns words, speech and the beat grid")
             check(request(base, "POST", "/vocals", {"path": bad})[0] == 422, "vocals: undecodable -> 422")
             check(request(base, "POST", "/other", {"path": good})[0] == 404, "unknown route -> 404")
             check(all(os.path.exists(p) for p in (good, bad, boom)), "no input file deleted on errors")

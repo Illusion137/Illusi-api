@@ -3,7 +3,8 @@
 GET  /health   -> 200 {"status":"ok"} once every model is loaded, 503 while loading / if loading failed.
 POST /analyze  {"path": "/abs/file"} -> 200 combined JSON | 400 bad path | 422 undecodable | 500 model failure
                | 503 models not loaded yet.
-POST /vocals   {"path": "/abs/file"} -> 200 voice probabilities + segments, same errors as /analyze.
+POST /vocals   {"path": "/abs/file"} -> 200 voice probabilities + segments, beats, and the words, speech curve and
+               beat grid the lyrics aligner uses; same errors as /analyze.
 
 Env: ANALYZER_URL (host/port to bind, default http://127.0.0.1:8765), or ANALYZER_HOST / ANALYZER_PORT;
 ANALYZER_PATH_ROOTS (optional, os.pathsep-separated dirs requests may point into);

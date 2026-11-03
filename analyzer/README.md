@@ -32,7 +32,10 @@ each request.
   "tempo": 124.5, "brightness": 2810.2, "key": "F#m",
   "arousal": 0.70, "valence": 0.88,
   "acousticness": 0.34, "instrumentalness": 0.71, "liveness": 0.16,
-  "danceability": 0.62, "speechiness": 0.04
+  "danceability": 0.62, "speechiness": 0.04,
+  "tempo_confidence": 1.7, "rms_energy": 0.41, "spectral_rolloff": 5400.0, "zero_crossing_rate": 0.08,
+  "mfccs": [-120.4, 98.1, ...], "chroma": [0.41, 0.37, ...], "duration_ms": 214300,
+  "mood_scores": {"House": 0.81, "Techno": 0.64, "Disco": 0.55, "Ambient": 0.12, "DnB": 0.31, "Downtempo": 0.42}
 }
 ```
 
@@ -41,11 +44,17 @@ each request.
 - `brightness`: the mean spectral centroid, in Hz.
 - `key`: Mood-Detector's `"F# minor"` / `"F# major"`, converted to `F#m` / `F#` (sharps only, at most 5 characters).
 - VibeNet values are all 0–1. Its `energy` is returned as `arousal`.
+- The rest of what Mood-Detector measures, on the same 30 s excerpt as `tempo`: `tempo_confidence` (the variance of
+  the onset strength; under 0.2 means no clear beat), `rms_energy` (mean RMS × 2.5, clipped to 0–1),
+  `spectral_rolloff` (Hz), `zero_crossing_rate`, 13 mean `mfccs`, 12 mean `chroma` bins (C to B, 0–1),
+  `duration_ms` of the whole file, and `mood_scores`, its similarity (0–1) to six reference styles.
 
 ### `POST /vocals`
 
 `{"path": "/abs/file"}`, with the same error statuses as `/analyze`. The API only sends full media files here, never
-iTunes previews.
+iTunes previews, and only for tracks whose lyrics are all unsynced, since its results exist to sync them. `/analyze`
+runs for every track. Both share one queue that takes the tracks Illusi users play most first, then the ones streaming
+services report the most plays for.
 
 ```json
 {
@@ -62,12 +71,37 @@ iTunes previews.
 - `segments`: voiced spans, from `voice` with hysteresis (a window at 0.6 or more starts a span, one below 0.4 ends
   it), gaps up to 1 s bridged and spans under 1 s dropped. Boundaries are accurate to about half a second; use
   `voice` for anything finer.
+- `rhythm`: `{"model", "bpm", "confidence", "beats_ms": [...], "bpm_estimates": [...]}`, Essentia's
+  `RhythmExtractor2013` (multifeature) over the whole file ([`rhythm.py`](./rhythm.py)). `beats_ms` is every beat,
+  increasing. `confidence` is Essentia's multifeature score, 0 to about 5.32 (above 3.5 is very reliable, under 1.5
+  unreliable). Unlike `tempo` from `/analyze`, it covers the whole track and keeps the beat positions.
+  `bpm_estimates` is the distinct tempos Essentia considered, increasing.
+- `words`: `{"model", "words": [{"text", "start_ms", "end_ms", "probability"}, ...]}`, what Whisper (`small.en`
+  through faster-whisper, int8, greedy decoding) heard in the full mix, in order ([`words.py`](./words.py)). Empty
+  when it heard nothing. Mishearings are common; the lyrics aligner only needs a few confident words per line.
+- `speech`: `{"model", "hop_ms": 32, "voice": [...]}`, Silero VAD's voice probability of each 32 ms frame
+  ([`speech.py`](./speech.py)). Silero is a speech detector, so it is often silent through sung pop; it is sharper
+  than `voice` on rap.
+- `beat_grid`: `{"model", "beats_ms": [...], "downbeats_ms": [...]}`, Beat This! ([`beat_grid.py`](./beat_grid.py)),
+  which follows tempo changes and finds downbeats, unlike `rhythm`.
+
+The last three exist to line up plain lyrics (lib-origin's `LyricsAlign.heard_line_sync`). On 2 threads a 4-minute
+track takes about 30 s more than before, almost all of it Whisper, and the process needs about 2 GB of memory with
+every model loaded.
 
 How it works ([`vocals.py`](./vocals.py)): the file is decoded to 16 kHz mono, turned into the same log-mel
 spectrogram Essentia's `TensorflowInputMusiCNN` produces (ported to numpy; it matches Essentia to float precision),
 cut into 128-frame (2.048 s) patches every `ANALYZER_VOCALS_HOP_FRAMES` frames, and run through Discogs-EffNet
 for embeddings and the voice/instrumental head for probabilities, both with onnxruntime. Essentia itself isn't
 installed. A 4-minute track takes a few seconds of CPU.
+
+Whisper's weights and faster-whisper are MIT, as are Silero VAD and Beat This!. The image downloads the Whisper model
+(pinned to a commit and by checksum) and the Beat This! checkpoint into `ANALYZER_MODELS_DIR`; run locally, both are
+downloaded on first start (into the Hugging Face and torch hub caches). Beat This! needs PyTorch: on Linux the
+requirements pull the CPU-only build, since the default one bundles CUDA.
+
+Beat tracking uses the Essentia library itself (`essentia` on PyPI, AGPL-3.0), pinned to the last release with
+Python 3.12 wheels; those exist for Linux x86_64 and macOS only, so the image is built for amd64.
 
 The model files are CC BY-NC-SA 4.0 (non-commercial; Essentia sells proprietary licenses). The
 [`Dockerfile`](./Dockerfile) downloads them, pinned by checksum. To run locally, fetch them into `analyzer/models/`
@@ -80,6 +114,16 @@ curl -fLO https://essentia.upf.edu/models/classification-heads/voice_instrumenta
 shasum -a 256 *.onnx
 # a280825b334797cf677939db8cd5762c0392aedd0ca6415dbc1cd083f045e43c  discogs-effnet-bsdynamic-1.onnx
 # 20155e4c439714b0c45c08644b73c8e12d9dccb173bd4ab9934bf1e5aee837ca  voice_instrumental-discogs-effnet-1.onnx
+```
+
+Under systemd (`ProtectSystem=strict`) nothing can be downloaded at start, so fetch the Whisper model and the Beat This!
+checkpoint there too, with the requirements installed:
+
+```sh
+python -c "from faster_whisper import download_model; download_model('small.en', output_dir='faster-whisper-small.en')"
+curl -fL -o beat_this-final0.ckpt https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt
+shasum -a 256 beat_this-final0.ckpt
+# 8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331  beat_this-final0.ckpt
 ```
 
 ## Run locally
@@ -112,9 +156,10 @@ python3 analyzer/selfcheck.py
 | `ANALYZER_ALLOW_REMOTE` | unset | Set it to `1` to allow binding a non-loopback address. Not recommended. |
 | `ANALYZER_FFMPEG` | `ffmpeg` on `PATH` | Path to the ffmpeg binary |
 | `ANALYZER_DECODE_TIMEOUT_S` | `300` | Maximum time for ffmpeg to decode one file. A timeout returns `422`. |
-| `ANALYZER_MODELS_DIR` | `analyzer/models` (`/app/models` in the image) | Directory holding the two vocal ONNX files |
+| `ANALYZER_MODELS_DIR` | `analyzer/models` (`/app/models` in the image) | Directory holding the two vocal ONNX files, and optionally `faster-whisper-<size>/` and `beat_this-final0.ckpt` |
 | `ANALYZER_VOCALS_HOP_FRAMES` | `16` | Step between vocal windows, in 16 ms frames (16 = 256 ms). Smaller is finer and slower. |
-| `ANALYZER_VOCALS_THREADS` | `2` | onnxruntime threads for the vocal models |
+| `ANALYZER_VOCALS_THREADS` | `2` | Threads for the vocal models, Whisper and Beat This! |
+| `ANALYZER_WHISPER_MODEL` | `small.en` | faster-whisper model size. Smaller ones are faster and hear fewer words. |
 
 The API sends **absolute paths**, so the analyzer must see `ANALYZER_TMP_DIR` and `MEDIA_DIR` at the same
 absolute paths the API uses. Read-only access is enough.
@@ -140,7 +185,8 @@ background thread, and inference is serialized with a lock.
   `mood_detector.mood_classifier.classify_mood(features)`.
 - VibeNet: `vibenet.load_model()` returns an ONNX EfficientNet model, and `model.predict(path)[0].to_dict()` returns its result.
 
-- Vocals: `vocals.VocalDetector`, loaded with the others and sharing their lock.
+- Vocals: `vocals.VocalDetector`, loaded with the others and sharing their lock. So are `words.WordRecognizer`,
+  `speech.SpeechDetector` and `beat_grid.BeatTracker`.
 
 If either library changes, update `RealAnalyzer.__init__` and `RealAnalyzer.analyze`. [`contract.py`](./contract.py)
 holds the pure mapping (key format, field renames, validation).

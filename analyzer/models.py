@@ -12,6 +12,10 @@ If either library's API changes, this is the only file to adjust:
   liveness, speechiness, valence)], all 0-1.
 
 - Vocals (vocals.py): Essentia's Discogs-EffNet + voice/instrumental head as ONNX files in ANALYZER_MODELS_DIR.
+- Rhythm (rhythm.py): Essentia's RhythmExtractor2013, beat positions over the whole track; returned with `/vocals`
+  since both describe the full media file over time.
+- For lining up lyrics, also with `/vocals`: Whisper word timestamps (words.py, faster-whisper), Silero's voice
+  activity (speech.py) and Beat This! beats and downbeats (beat_grid.py).
 
 All read a temporary WAV that ffmpeg decodes from the input (audio.py), so any container ffmpeg understands works
 (.m4a, .webm, .ogg, .mp3, .flac, ...), with or without an extension. Nothing writes or deletes the input file.
@@ -31,6 +35,8 @@ MODELS_DIR = os.environ.get("ANALYZER_MODELS_DIR") or os.path.join(os.path.dirna
 # Patch hop in 16 ms frames: 16 = one voice probability every 256 ms.
 VOCALS_HOP_FRAMES = int(os.environ.get("ANALYZER_VOCALS_HOP_FRAMES", "16"))
 VOCALS_THREADS = int(os.environ.get("ANALYZER_VOCALS_THREADS", "2"))
+# faster-whisper model size; the English-only small model is ~0.5 GB in memory and about 0.15x real time on 2 threads.
+WHISPER_MODEL = os.environ.get("ANALYZER_WHISPER_MODEL", "small.en")
 
 
 class Analyzer(Protocol):
@@ -55,6 +61,19 @@ class RealAnalyzer:
         from vocals import VocalDetector
 
         self._vocals = VocalDetector(MODELS_DIR, VOCALS_HOP_FRAMES, VOCALS_THREADS)
+        from rhythm import RhythmExtractor
+
+        self._rhythm = RhythmExtractor()
+        import torch
+
+        torch.set_num_threads(VOCALS_THREADS)
+        from beat_grid import BeatTracker
+        from speech import SpeechDetector
+        from words import WordRecognizer
+
+        self._words = WordRecognizer(MODELS_DIR, WHISPER_MODEL, VOCALS_THREADS)
+        self._speech = SpeechDetector()
+        self._beat_grid = BeatTracker(MODELS_DIR)
         # ----------------------------------------------------------------------------------------------
         self._ffmpeg = ffmpeg_binary()  # fail the load (health = 503) rather than every request
         self._lock = threading.Lock()
@@ -74,18 +93,32 @@ class RealAnalyzer:
                 brightness_hz=features["spectral_centroid"],  # mean spectral centroid, Hz
                 key=mood.key,  # "C# major" / "A minor"
                 vibenet=vibe.to_dict(),
+                features=features,
+                mood_scores=mood.similarity_scores,
             )
 
 
     def vocals(self, path: str) -> dict:
         import soundfile
+        from beat_grid import SAMPLE_RATE as BEAT_GRID_SAMPLE_RATE
+        from rhythm import SAMPLE_RATE as RHYTHM_SAMPLE_RATE
         from vocals import SAMPLE_RATE
 
         with self._lock, tempfile.TemporaryDirectory(prefix="illusi-analyzer-") as tmp:
             wav = decode_to_wav(path, tmp, self._ffmpeg, SAMPLE_RATE)  # DecodeError -> 422
+            rhythm_wav = decode_to_wav(path, tmp, self._ffmpeg, RHYTHM_SAMPLE_RATE)
+            beat_grid_wav = decode_to_wav(path, tmp, self._ffmpeg, BEAT_GRID_SAMPLE_RATE)
             try:
+                # Whisper, Silero and EffNet all read the 16 kHz decode
                 audio, _ = soundfile.read(wav, dtype="float32")
-                return self._vocals.detect(audio)
+                result = self._vocals.detect(audio)
+                result["speech"] = self._speech.detect(audio)
+                result["words"] = self._words.detect(audio)
+                rhythm_audio, _ = soundfile.read(rhythm_wav, dtype="float32")
+                result["rhythm"] = self._rhythm.detect(rhythm_audio)
+                beat_grid_audio, _ = soundfile.read(beat_grid_wav, dtype="float32")
+                result["beat_grid"] = self._beat_grid.detect(beat_grid_audio)
+                return result
             except Exception as e:
                 raise ModelError(f"{type(e).__name__}: {e}") from e
 

@@ -7,3 +7,13 @@ numpy>=1.24.0
 soundfile>=0.12
 soxr>=0.3
 onnxruntime>=1.22.1,<2.0.0
+# Lyrics alignment features (words.py, speech.py, beat_grid.py), all MIT. torch comes from the CPU-only index on Linux
+# (the default wheel bundles CUDA, several GB); the +cpu build sorts above the PyPI one there.
+--extra-index-url https://download.pytorch.org/whl/cpu
+faster-whisper==1.2.1
+silero-vad==6.2.3
+beat-this==1.1.0
+torch==2.15.0
+torchaudio==2.11.1
+# Beat tracking (rhythm.py). AGPL-3.0; the last release with Python 3.12 wheels (linux x86_64, macOS).
+essentia==2.1b6.dev1389
