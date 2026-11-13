@@ -2,9 +2,9 @@ import { desc, eq, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
-import { itunes_tracks_table, media_table, service_ids_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table } from '../../db/schema';
+import { itunes_tracks_table, media_table, service_ids_table, track_alignment_table, track_play_counts_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table } from '../../db/schema';
 import { write_vector } from '../vectors';
-import type { SampleInsert, VocalsResult } from './contract';
+import type { AlignmentResult, SampleInsert, VocalsResult } from './contract';
 import { SAMPLE_VERSION } from './contract';
 import type { LookupState, SampleLookupStatus, SampleSource, SourceCandidate } from './decisions';
 import { choose_source, next_attempts, source_eligible } from './decisions';
@@ -204,6 +204,73 @@ export async function record_vocals(track_id: string, target: VocalsTarget, stat
 	};
 	await db.insert(track_vocals_table).values({ track_id, ...values })
 		.onConflictDoUpdate({ target: track_vocals_table.track_id, set: { ...values, modified_at: now } });
+}
+
+/**
+ * Track ids users have played whose newest media file has no alignment result and no failure blocking it
+ * (`source_eligible` rules), among tracks whose lyrics are all unsynced.
+ */
+export async function eligible_alignment_track_ids(): Promise<string[]> {
+	const rows = await db.execute<{ track_id: string }>(sql`
+		select lm.track_id from (
+			select distinct on (m.track_id) m.track_id, m.resource_id from media_table m order by m.track_id, m.id desc
+		) lm
+		join track_play_counts_table pc on pc.track_id = lm.track_id and pc.plays > 0
+		left join track_alignment_table a on a.track_id = lm.track_id
+		where (a.track_id is null
+			or a.resource_id <> lm.resource_id
+			or (a.status = 'ERROR' and (a.retry_after is null or a.retry_after <= now())))
+		and ${has_only_unsynced_lyrics(sql`lm.track_id`)}`, 'objects');
+	return rows.map(r => r.track_id);
+}
+
+/**
+ * The media file an alignment job should analyze right now, or null (no media / lyrics synced or missing / nobody
+ * plays it / already done / blocked). `requested`: a user is playing it right now, before the play is synced.
+ */
+export async function resolve_alignment_target(track_id: string, requested = false): Promise<VocalsTarget | null> {
+	if (!(await has_only_unsynced_lyrics_now(track_id))) return null;
+	if (!requested) {
+		const [count] = await db.select({ plays: track_play_counts_table.plays }).from(track_play_counts_table).where(eq(track_play_counts_table.track_id, track_id));
+		if (!count || count.plays <= 0) return null;
+	}
+	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
+		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
+	if (!media) return null;
+	const [row] = await db.select({ status: track_alignment_table.status, retry_after: track_alignment_table.retry_after, resource_id: track_alignment_table.resource_id, attempts: track_alignment_table.attempts })
+		.from(track_alignment_table).where(eq(track_alignment_table.track_id, track_id));
+	const prior: LookupRow | null = row ? { status: row.status, retry_after: row.retry_after, source_ref: row.resource_id, attempts: row.attempts } : null;
+	return source_eligible(prior, media.resource_id) ? { resource_id: media.resource_id, prior } : null;
+}
+
+/** Stores an alignment result (DONE) or failure for the target's file. A failure clears results from an older file. */
+export async function record_alignment(track_id: string, target: VocalsTarget, status: SampleLookupStatus, retry_after: Date | null, result: AlignmentResult | null): Promise<void> {
+	const now = new Date();
+	const values = {
+		resource_id: target.resource_id,
+		status,
+		attempts: next_attempts(target.prior, target.resource_id),
+		attempted_at: now,
+		retry_after,
+		model: result?.model ?? null,
+		duration_ms: result?.duration_ms ?? null,
+		frame_ms: result?.frame_ms ?? null,
+		alphabet: result?.alphabet ?? null,
+		letter_scale: result?.letter_scale ?? null,
+		letters: result?.letters ?? null,
+		loudness: result?.loudness ?? null,
+		words_model: result?.words_model ?? null,
+		words: result?.words ?? null,
+		word_times: result?.word_times ?? null,
+		word_probabilities: result?.word_probabilities ?? null,
+		beat_grid_model: result?.beat_grid_model ?? null,
+		grid_beats: result?.grid_beats ?? null,
+		downbeats: result?.downbeats ?? null,
+		repeats: result?.repeats ?? null,
+		repeat_strengths: result?.repeat_strengths ?? null
+	};
+	await db.insert(track_alignment_table).values({ track_id, ...values })
+		.onConflictDoUpdate({ target: track_alignment_table.track_id, set: { ...values, modified_at: now } });
 }
 
 /**

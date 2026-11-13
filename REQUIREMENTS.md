@@ -279,6 +279,7 @@ The database is the source of truth, so no separate queue table is needed. On st
 | `ANALYZER_TMP_DIR` | Directory for temporary downloads (cleared on startup) |
 | `ANALYZER_CONCURRENCY` | Number of jobs running at once (default 1) |
 | `ANALYZER_JOB_TIMEOUT_MS` | Per-job timeout |
+| `ANALYZER_ALIGNMENT_TIMEOUT_MS` | Timeout of one alignment job (default 20 minutes; it takes minutes of CPU) |
 | `MEDIA_DIR` | Directory holding uploaded media (`<resource_id>` files). Never written to or deleted from by the analyzer. |
 
 ### 2.8 Lookup records

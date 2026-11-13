@@ -83,7 +83,7 @@ describe('plan_ref_merge', () => {
 	it('covers every referencing table from the spec', () => {
 		const tables = new Set(Object.values(REF_TABLES).flat().map(s => s.table));
 		for (const t of ['user_tracks_table', 'playlist_tracks_table', 'track_plays_table', 'track_lyrics_table', 'track_lyrics_lookups_table', 'track_sample_data_table',
-			'track_sample_lookups_table', 'track_vectors_table', 'track_vocals_table', 'media_table', 'album_tracks_table', 'artist_albums_table', 'tracks_artists_table',
+			'track_sample_lookups_table', 'track_vectors_table', 'track_vocals_table', 'track_alignment_table', 'media_table', 'album_tracks_table', 'artist_albums_table', 'tracks_artists_table',
 			'tracks_producers_table', 'similar_artists_table', 'itunes_lookups_table', 'thumbnails_table', 'tracks_table', 'albums_table']) {
 			expect(tables.has(t), t).toBe(true);
 		}

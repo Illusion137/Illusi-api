@@ -20,5 +20,12 @@ ADD --chmod=644 --checksum=sha256:ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533
 # Beat This! checkpoint (MIT).
 ADD --chmod=644 --checksum=sha256:8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331 \
     https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt models/beat_this-final0.ckpt
-COPY contract.py audio.py models.py vocals.py rhythm.py words.py speech.py beat_grid.py server.py selfcheck.py ./
+# Alignment analysis (alignment.py): Demucs htdemucs (MIT) separates the stems, loaded from a local repo that names
+# its one checkpoint; torchaudio's MMS_FA (CC BY-NC 4.0) gives the letter probabilities.
+ADD --chmod=644 --checksum=sha256:8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4 \
+    https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th models/demucs/
+RUN printf "models: ['955717e8']\n" > models/demucs/htdemucs.yaml
+ADD --chmod=644 --checksum=sha256:20ef12963ab4924bef49ac4fc7f58ad5da2ee43b2c11bc8c853c9b90ecdbc680 \
+    https://dl.fbaipublicfiles.com/mms/torchaudio/ctc_alignment_mling_uroman/model.pt models/mms_fa/
+COPY contract.py audio.py models.py vocals.py rhythm.py words.py speech.py beat_grid.py alignment.py server.py selfcheck.py ./
 CMD ["python", "server.py"]

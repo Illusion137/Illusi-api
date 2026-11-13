@@ -134,6 +134,81 @@ export function map_vocals(body: unknown): VocalsResult | null {
 	};
 }
 
+const base64 = z.string().max(16_000_000).regex(/^[A-Za-z0-9+/]*={0,2}$/);
+
+/**
+ * `POST /alignment` response: the separated vocals' letter probabilities (`letters`, one byte per `alphabet` entry per
+ * frame) and loudness (one byte per frame), both base64, with Whisper's words on the vocals stem, Beat This! on the
+ * drums stem and the vocal passages sung again.
+ */
+export const alignment_response_schema = z.object({
+	model: z.string().trim().min(1).max(128),
+	duration_ms: ms,
+	frame_ms: z.number().positive().max(1000),
+	alphabet: z.string().min(2).max(64),
+	letter_scale: z.number().positive().max(255),
+	letters: base64,
+	loudness: base64,
+	words: z.object({
+		model: z.string().trim().min(1).max(128),
+		words: z.array(z.object({ text: z.string().max(64), start_ms: ms, end_ms: ms, probability: unit })).max(20_000)
+	}),
+	beat_grid: z.object({
+		model: z.string().trim().min(1).max(128),
+		beats_ms: z.array(ms).max(50_000),
+		downbeats_ms: z.array(ms).max(50_000)
+	}),
+	repeats: z.array(z.object({ start_ms: ms, end_ms: ms, lag_ms: ms, strength: z.number() })).max(20_000)
+});
+
+export interface AlignmentResult {
+	model: string;
+	duration_ms: number;
+	frame_ms: number;
+	alphabet: string;
+	letter_scale: number;
+	letters: Buffer;
+	loudness: Buffer;
+	words_model: string;
+	words: string[];
+	/** Flat `[start_ms, end_ms, ...]`, as stored. */
+	word_times: number[];
+	word_probabilities: number[];
+	beat_grid_model: string;
+	grid_beats: number[];
+	downbeats: number[];
+	/** Flat `[start_ms, end_ms, lag_ms, ...]`, as stored. */
+	repeats: number[];
+	repeat_strengths: number[];
+}
+
+/** Validates an `/alignment` response; null when it breaks the contract (treated like a model failure). */
+export function map_alignment(body: unknown): AlignmentResult | null {
+	const parsed = alignment_response_schema.safeParse(body);
+	if (!parsed.success) return null;
+	const { letters, loudness, words, beat_grid, repeats, ...rest } = parsed.data;
+	const letter_bytes = Buffer.from(letters, 'base64');
+	const loudness_bytes = Buffer.from(loudness, 'base64');
+	// One loudness byte and one letter byte per alphabet entry for every frame
+	if (letter_bytes.length !== loudness_bytes.length * rest.alphabet.length) return null;
+	const heard = [...words.words].sort((a, b) => a.start_ms - b.start_ms);
+	const sung_again = repeats.filter(r => r.end_ms > r.start_ms && r.lag_ms > 0);
+	return {
+		...rest,
+		letters: letter_bytes,
+		loudness: loudness_bytes,
+		words_model: words.model,
+		words: heard.map(w => w.text),
+		word_times: heard.flatMap(w => [w.start_ms, Math.max(w.start_ms, w.end_ms)]),
+		word_probabilities: heard.map(w => w.probability),
+		beat_grid_model: beat_grid.model,
+		grid_beats: sorted_unique(beat_grid.beats_ms),
+		downbeats: sorted_unique(beat_grid.downbeats_ms),
+		repeats: sung_again.flatMap(r => [r.start_ms, r.end_ms, r.lag_ms]),
+		repeat_strengths: sung_again.map(r => r.strength)
+	};
+}
+
 /** Stored flat segments back to `{ start_ms, end_ms }` pairs. */
 export function unflatten_segments(flat: readonly number[]): { start_ms: number; end_ms: number }[] {
 	const out: { start_ms: number; end_ms: number }[] = [];

@@ -5,6 +5,8 @@ POST /analyze  {"path": "/abs/file"} -> 200 combined JSON | 400 bad path | 422 u
                | 503 models not loaded yet.
 POST /vocals   {"path": "/abs/file"} -> 200 voice probabilities + segments, beats, and the words, speech curve and
                beat grid the lyrics aligner uses; same errors as /analyze.
+POST /alignment {"path": "/abs/file"} -> 200 letter probabilities, loudness, words, beat grid and repeats of the
+               separated vocals, for aligning plain lyrics on the device; same errors as /analyze.
 
 Env: ANALYZER_URL (host/port to bind, default http://127.0.0.1:8765), or ANALYZER_HOST / ANALYZER_PORT;
 ANALYZER_PATH_ROOTS (optional, os.pathsep-separated dirs requests may point into);
@@ -60,7 +62,7 @@ def make_handler(state: State):
             return self._send(503, {"status": "error" if state.error else "loading", "error": state.error})
 
         def do_POST(self) -> None:
-            if self.path not in ("/analyze", "/vocals"):
+            if self.path not in ("/analyze", "/vocals", "/alignment"):
                 return self._send(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("content-length") or 0)
@@ -77,7 +79,7 @@ def make_handler(state: State):
             started = time.monotonic()
             try:
                 path = validate_path(body, state.roots)
-                result = state.analyzer.analyze(path) if self.path == "/analyze" else state.analyzer.vocals(path)
+                result = getattr(state.analyzer, self.path[1:])(path)
             except BadRequest as e:
                 return self._send(400, {"error": str(e)})
             except DecodeError as e:

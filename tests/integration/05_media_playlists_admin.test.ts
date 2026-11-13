@@ -112,6 +112,32 @@ describe('media uploads (§13)', () => {
 		});
 	});
 
+	it('serves the alignment analysis once the analyzer has stored it', async () => {
+		const user = await create_user('alignment');
+		const created = await contribute(user, mock_album({ artist: unique('Alignment Artist'), album: unique('Alignment Album'), n: 1 }));
+		const t0: string = created.body.refs.t0;
+		expect((await api('GET', `/tracks/${t0}/alignment`, { token: user.access_token })).status).toBe(404);
+		await query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, 'failed.m4a', 'BAD_FILE')`, [t0]);
+		expect((await api('GET', `/tracks/${t0}/alignment`, { token: user.access_token })).status).toBe(404);
+		await query(
+			`update track_alignment_table set resource_id = 'x.m4a', status = 'DONE', model = 'm', duration_ms = 30000, frame_ms = 20, alphabet = '-ab', letter_scale = 4,
+				letters = '\\x000102030405', loudness = '\\x0709', words_model = 'w', words = '{hi,there}', word_times = '{100,200,300,450}', word_probabilities = '{0.5,1}',
+				beat_grid_model = 'g', grid_beats = '{500,1000}', downbeats = '{500}', repeats = '{2000,4000,1000}', repeat_strengths = '{0.5}' where track_id = $1`,
+			[t0]
+		);
+		const aligned = await api('GET', `/tracks/${t0}/alignment`, { token: user.access_token });
+		expect(aligned.status).toBe(200);
+		expect(aligned.body).toMatchObject({
+			track_id: t0, resource_id: 'x.m4a', model: 'm', duration_ms: 30_000, frame_ms: 20, alphabet: '-ab', letter_scale: 4,
+			letters: Buffer.from([0, 1, 2, 3, 4, 5]).toString('base64'), loudness: Buffer.from([7, 9]).toString('base64'),
+			words: { model: 'w', words: [{ text: 'hi', start_ms: 100, end_ms: 200, probability: 0.5 }, { text: 'there', start_ms: 300, end_ms: 450, probability: 1 }] },
+			beat_grid: { model: 'g', beats_ms: [500, 1000], downbeats_ms: [500] },
+			repeats: [{ start_ms: 2000, end_ms: 4000, lag_ms: 1000, strength: 0.5 }]
+		});
+		expect(typeof aligned.body.analyzed_at).toBe('string');
+		expect((await api('GET', `/tracks/${uuid()}/alignment`, { token: user.access_token })).status).toBe(404);
+	});
+
 	it('rejects non-audio files and tracks outside the user\'s library', async () => {
 		const user = await create_user('media-bad');
 		const created = await contribute(user, mock_album({ artist: unique('Bad Media'), album: unique('Bad Media Album'), n: 1 }));

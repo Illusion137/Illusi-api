@@ -29,18 +29,19 @@ def ffmpeg_binary() -> str:
     return binary
 
 
-def decode_to_wav(src: str, out_dir: str, ffmpeg: Optional[str] = None, sample_rate: int = SAMPLE_RATE) -> str:
-    """Decodes the first audio stream of `src` into `<out_dir>/decoded-<rate>.wav` (mono, 16-bit, `sample_rate`).
+def decode_to_wav(src: str, out_dir: str, ffmpeg: Optional[str] = None, sample_rate: int = SAMPLE_RATE, channels: int = 1) -> str:
+    """Decodes the first audio stream of `src` into `<out_dir>/decoded-<rate>[-<channels>ch].wav` (16-bit, `sample_rate`,
+    mono unless `channels` says otherwise).
 
     Never touches `src`. Raises DecodeError if ffmpeg can't read it or it has no audio.
     """
-    out = os.path.join(out_dir, f"decoded-{sample_rate}.wav")
+    out = os.path.join(out_dir, f"decoded-{sample_rate}.wav" if channels == 1 else f"decoded-{sample_rate}-{channels}ch.wav")
     cmd = [
         ffmpeg or ffmpeg_binary(),
         "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
         "-i", src,
         "-map", "0:a:0", "-vn", "-sn", "-dn",
-        "-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", "-f", "wav",
+        "-ac", str(channels), "-ar", str(sample_rate), "-c:a", "pcm_s16le", "-f", "wav",
         out,
     ]
     try:

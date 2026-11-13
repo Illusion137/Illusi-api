@@ -53,6 +53,8 @@ const schema = z.object({
 	ANALYZER_TMP_DIR: z.string().default(path.resolve('data/analyzer_tmp')),
 	ANALYZER_CONCURRENCY: num(1),
 	ANALYZER_JOB_TIMEOUT_MS: num(5 * 60_000),
+	/** `/alignment` separates the stems first: minutes of CPU per track. */
+	ANALYZER_ALIGNMENT_TIMEOUT_MS: num(20 * 60_000),
 	MEDIA_DIR: z.string().default(path.resolve('data/media')),
 	MEDIA_MAX_BYTES: num(200 * 1024 * 1024),
 	/** Behind nginx: `GET /media/:id` answers with `X-Accel-Redirect: <prefix><resource_id>` and nginx serves the file. Empty streams it from Node. */

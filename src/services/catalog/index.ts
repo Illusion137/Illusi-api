@@ -6,9 +6,10 @@ import { z } from 'zod';
 import { all_queries, db } from '../../db';
 import {
 	album_tracks_table, albums_table, artist_albums_table, linked_playlists_table, playlists_table, read_versions_table, similar_artists_table, track_play_counts_table, track_plays_table,
-	track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, sort_type, album_type
+	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, sort_type, album_type
 } from '../../db/schema';
 import { unflatten_segments } from '../analyzer/contract';
+import { emit } from '../../core/events';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
 import { rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect, resolve_redirects } from '../../core/redirects';
@@ -280,6 +281,50 @@ catalog_router.get('/tracks/:id/vocals', read_limit, async (req, res) => {
 		beat_grid: row.grid_beats === null
 			? null
 			: { model: row.beat_grid_model, beats_ms: row.grid_beats, downbeats_ms: row.downbeats ?? [] },
+		analyzed_at: row.modified_at
+	}, redirected_from));
+});
+
+/**
+ * What the app aligns the track's plain lyrics against, from the separated vocals of its media file. Never a synced
+ * version: the app builds that itself. Until the analyzer has stored it, asking queues the analysis (the app only
+ * asks while a user plays a track whose lyrics are all unsynced; the job checks that again).
+ */
+catalog_router.get('/tracks/:id/alignment', read_limit, async (req, res) => {
+	const { id, redirected_from } = await follow(req.params.id, 'track');
+	const [row] = await db.select().from(track_alignment_table)
+		.where(and(eq(track_alignment_table.track_id, id), eq(track_alignment_table.status, 'DONE')));
+	if (!row) {
+		emit('alignment_requested', { track_id: id });
+		throw new HttpError(404, 'no alignment analysis for this track yet');
+	}
+	const repeats = row.repeats ?? [];
+	res.json(with_redirect({
+		track_id: id,
+		resource_id: row.resource_id,
+		model: row.model,
+		duration_ms: row.duration_ms,
+		frame_ms: row.frame_ms,
+		alphabet: row.alphabet,
+		letter_scale: row.letter_scale,
+		letters: row.letters?.toString('base64') ?? '',
+		loudness: row.loudness?.toString('base64') ?? '',
+		words: {
+			model: row.words_model,
+			words: (row.words ?? []).map((text, i) => ({
+				text,
+				start_ms: row.word_times?.[2 * i] ?? 0,
+				end_ms: row.word_times?.[2 * i + 1] ?? 0,
+				probability: row.word_probabilities?.[i] ?? 0
+			}))
+		},
+		beat_grid: { model: row.beat_grid_model, beats_ms: row.grid_beats ?? [], downbeats_ms: row.downbeats ?? [] },
+		repeats: Array.from({ length: Math.floor(repeats.length / 3) }, (_, i) => ({
+			start_ms: repeats[3 * i],
+			end_ms: repeats[3 * i + 1],
+			lag_ms: repeats[3 * i + 2],
+			strength: row.repeat_strengths?.[i] ?? 0
+		})),
 		analyzed_at: row.modified_at
 	}, redirected_from));
 });

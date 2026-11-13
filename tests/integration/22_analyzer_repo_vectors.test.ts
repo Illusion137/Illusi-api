@@ -5,7 +5,8 @@ import { db } from '../../src/db';
 import { track_vectors_table } from '../../src/db/schema';
 import type { SampleInsert } from '../../src/services/analyzer/contract';
 import {
-	eligible_track_ids, eligible_vocals_track_ids, outdated_sample_track_ids, record_lookup, record_vocals, resolve_source, resolve_vocals_target, save_sample, track_priorities
+	eligible_alignment_track_ids, eligible_track_ids, eligible_vocals_track_ids, outdated_sample_track_ids, record_alignment, record_lookup, record_vocals, resolve_alignment_target,
+	resolve_source, resolve_vocals_target, save_sample, track_priorities
 } from '../../src/services/analyzer/repo';
 import {
 	CURRENT_VECTOR_VERSION, mean_vector, rebuild_stale_vectors, recent_play_track_ids, search_by_vector, similar_tracks, taste_search,
@@ -52,6 +53,7 @@ afterAll(async () => {
 	await pool.query('delete from track_plays_table where track_id = any($1)', [tracks]);
 	await pool.query('delete from track_vectors_table where track_id = any($1)', [tracks]);
 	await pool.query('delete from track_vocals_table where track_id = any($1)', [tracks]);
+	await pool.query('delete from track_alignment_table where track_id = any($1)', [tracks]);
 	await pool.query('delete from track_lyrics_table where track_id = any($1)', [tracks]);
 	await pool.query('delete from track_play_counts_table where track_id = any($1)', [tracks]);
 	await pool.query('delete from service_tracks_table where illusi_id = any($1)', [tracks]);
@@ -269,6 +271,73 @@ describe('analyzer repo: vocals', () => {
 		await record_vocals(id, { resource_id: ref, prior: { status: 'DONE', retry_after: null, source_ref: ref, attempts: 1 } }, 'ERROR', new Date(Date.now() + 1000), null);
 		row = (await pool.query('select * from track_vocals_table where track_id = $1', [id])).rows[0];
 		expect(row).toMatchObject({ status: 'ERROR', attempts: 2, model: null, voice: null, segments: null, beats: null, rhythm_bpm: null, words: null, speech: null, grid_beats: null });
+	});
+});
+
+describe('analyzer repo: alignment', () => {
+	const result = {
+		model: 'a', duration_ms: 30_000, frame_ms: 20, alphabet: '-ab', letter_scale: 4, letters: Buffer.from([0, 1, 2, 3, 4, 5]), loudness: Buffer.from([7, 9]),
+		words_model: 'w', words: ['hello'], word_times: [100, 300], word_probabilities: [0.9], beat_grid_model: 'g', grid_beats: [500, 1000], downbeats: [500],
+		repeats: [1000, 2000, 500], repeat_strengths: [0.75]
+	};
+	const played = async (opts: Parameters<typeof seed_track>[0], plays = 3) => {
+		const id = await seed_track(opts);
+		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, $2)', [id, plays]);
+		return id;
+	};
+
+	it('lists played tracks whose newest media file has no usable alignment result', async () => {
+		const ref = unique('al');
+		const fresh = await played({ media: [ref] });
+		const unplayed = await seed_track({ media: [ref + 'q'] });
+		const zero = await played({ media: [ref + 'z'] }, 0);
+		const done = await played({ media: [ref + 'd'] });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, $2, 'DONE')`, [done, ref + 'd']);
+		const stale = await played({ media: [ref + 's'] });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, 'older-file', 'DONE')`, [stale]);
+		const error_due = await played({ media: [ref + 'e'] });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status, retry_after) values ($1, $2, 'ERROR', now() - interval '1 hour')`, [error_due, ref + 'e']);
+		const error_wait = await played({ media: [ref + 'w'] });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status, retry_after) values ($1, $2, 'ERROR', now() + interval '1 hour')`, [error_wait, ref + 'w']);
+		const bad = await played({ media: [ref + 'b'] });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, $2, 'BAD_FILE')`, [bad, ref + 'b']);
+		const synced = await played({ media: [ref + 'l'], lyrics: ['NONE', 'LINE'] });
+		const no_lyrics = await played({ media: [ref + 'n'], lyrics: [] });
+		const listed = new Set(await eligible_alignment_track_ids());
+		expect([fresh, stale, error_due].every(id => listed.has(id))).toBe(true);
+		expect([unplayed, zero, done, error_wait, bad, synced, no_lyrics].some(id => listed.has(id))).toBe(false);
+	});
+
+	it('resolves the target only for played tracks with only unsynced lyrics, or when a user asks', async () => {
+		const ref = unique('at');
+		const unplayed = await seed_track({ media: ['older-' + ref, ref] });
+		expect(await resolve_alignment_target(unplayed)).toBeNull();
+		expect(await resolve_alignment_target(unplayed, true)).toEqual({ resource_id: ref, prior: null });
+		const id = await played({ media: [ref + 'p'] });
+		expect(await resolve_alignment_target(id)).toEqual({ resource_id: ref + 'p', prior: null });
+		await pool.query(`insert into track_alignment_table (track_id, resource_id, status, attempts) values ($1, $2, 'DONE', 1)`, [id, ref + 'p']);
+		expect(await resolve_alignment_target(id, true)).toBeNull();
+		await pool.query(`update track_alignment_table set resource_id = 'previous-file' where track_id = $1`, [id]);
+		expect(await resolve_alignment_target(id)).toMatchObject({ resource_id: ref + 'p', prior: { status: 'DONE', source_ref: 'previous-file', attempts: 1 } });
+		const synced = await played({ media: [ref + 'l'], lyrics: ['WORD'] });
+		expect(await resolve_alignment_target(synced, true)).toBeNull();
+		expect(await resolve_alignment_target(await played({}), true)).toBeNull();
+	});
+
+	it('records results and later failures, clearing the old results', async () => {
+		const ref = unique('ar');
+		const id = await played({ media: [ref] });
+		const target = (await resolve_alignment_target(id))!;
+		await record_alignment(id, target, 'DONE', null, result);
+		let row = (await pool.query('select * from track_alignment_table where track_id = $1', [id])).rows[0];
+		expect(row).toMatchObject({ status: 'DONE', attempts: 1, resource_id: ref, model: 'a', duration_ms: 30_000, frame_ms: 20, alphabet: '-ab', letter_scale: 4 });
+		expect(row).toMatchObject({ words: ['hello'], word_times: [100, 300], grid_beats: [500, 1000], downbeats: [500], repeats: [1000, 2000, 500] });
+		expect([...row.letters]).toEqual([0, 1, 2, 3, 4, 5]);
+		expect([...row.loudness]).toEqual([7, 9]);
+		expect(row.repeat_strengths[0]).toBeCloseTo(0.75);
+		await record_alignment(id, { resource_id: ref, prior: { status: 'DONE', retry_after: null, source_ref: ref, attempts: 1 } }, 'ERROR', new Date(Date.now() + 1000), null);
+		row = (await pool.query('select * from track_alignment_table where track_id = $1', [id])).rows[0];
+		expect(row).toMatchObject({ status: 'ERROR', attempts: 2, model: null, letters: null, loudness: null, words: null, repeats: null });
 	});
 });
 

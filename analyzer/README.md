@@ -3,7 +3,8 @@
 A small localhost HTTP API around [Mood-Detector](https://github.com/usr-wwelsh/Mood-Detector),
 [VibeNet](https://github.com/jaeheonshim/vibenet) and [Essentia's](https://essentia.upf.edu/models.html) voice/instrumental
 model. It runs as its **own process**.
-Express never spawns it. Express only polls `GET /health` and sends file paths to `POST /analyze` and `POST /vocals`.
+Express never spawns it. Express only polls `GET /health` and sends file paths to `POST /analyze`, `POST /vocals` and
+`POST /alignment`.
 The analyzer has no database access and never deletes or modifies its input files.
 
 ## Input formats
@@ -126,6 +127,53 @@ shasum -a 256 beat_this-final0.ckpt
 # 8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331  beat_this-final0.ckpt
 ```
 
+### `POST /alignment`
+
+`{"path": "/abs/file"}`, with the same error statuses as `/analyze`. This is the expensive analysis behind the
+client-side line sync of plain lyrics (lib-origin's `LetterSync`). The API only asks for it for tracks that Illusi users
+play and whose lyrics are all unsynced: a play synced to the server, or a client asking `GET /tracks/:id/alignment`
+while it plays the track. The server never stores timed lyrics from it; each device places the lines itself and
+throws away a result it isn't confident in.
+
+```json
+{
+  "model": "htdemucs+mms-fa", "duration_ms": 214000, "frame_ms": 20.0,
+  "alphabet": "-aienoutsrmkldghybpwcvjzf'qx", "letter_scale": 4,
+  "letters": "<base64>", "loudness": "<base64>",
+  "words": {"model": "...", "words": [{"text": " hello", "start_ms": 400, "end_ms": 700, "probability": 0.9}, ...]},
+  "beat_grid": {"model": "...", "beats_ms": [...], "downbeats_ms": [...]},
+  "repeats": [{"start_ms": 61000, "end_ms": 75000, "lag_ms": 40000, "strength": 0.8}, ...]
+}
+```
+
+- Demucs (`htdemucs`) first separates the vocals and drums stems. Everything below is computed on a stem, not the mix.
+- `letters`: for every `frame_ms` frame of the vocals stem, one byte per `alphabet` entry. Each byte is
+  `round(-log p * letter_scale)`, capped at 255, where `p` is MMS_FA's probability for that letter (`-` is the CTC
+  blank). The client adds the star token back itself.
+- `loudness`: one byte per frame, `round(127.5 * sqrt(min(4, rms / p90)))`, where `p90` is the 90th percentile of the
+  vocals stem's frame RMS.
+- `words`: Whisper on the vocals stem, in the same shape as `/vocals`. `beat_grid`: Beat This! on the drums stem.
+- `repeats`: vocal passages sung again `lag_ms` later, from the beat-synchronous self-similarity of the vocals stem.
+  `strength` is the similarity, from 0 to 1.
+
+Cost, measured with 4 threads on a 3.5-minute track: about 250 s of CPU and 2 minutes of wall time. Separation takes
+about 60% of it, Whisper about 25%. The response is about 370 KB of JSON before gzip. Demucs, MMS_FA, Whisper and Beat
+This! together peak at about 3.3 GB resident on that track, so give the process at least 4 GB. The API gives each job `ANALYZER_ALIGNMENT_TIMEOUT_MS`, 20 minutes by default.
+
+Demucs's code and weights are MIT. **The MMS_FA weights are CC BY-NC 4.0 (non-commercial).** The image downloads both,
+pinned by checksum. Run locally, they download on first start into the torch hub cache. Under systemd, fetch them
+into `ANALYZER_MODELS_DIR`:
+
+```sh
+mkdir -p demucs mms_fa
+curl -fL -o demucs/955717e8-8726e21a.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th
+printf "models: ['955717e8']\n" > demucs/htdemucs.yaml
+curl -fL -o mms_fa/model.pt https://dl.fbaipublicfiles.com/mms/torchaudio/ctc_alignment_mling_uroman/model.pt
+shasum -a 256 demucs/*.th mms_fa/model.pt
+# 8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4  demucs/955717e8-8726e21a.th
+# 20ef12963ab4924bef49ac4fc7f58ad5da2ee43b2c11bc8c853c9b90ecdbc680  mms_fa/model.pt
+```
+
 ## Run locally
 
 Requires Python 3.12 or later (VibeNet needs it) and `ffmpeg` on `PATH`. The models won't load without it, so `/health` stays `503`.
@@ -156,9 +204,9 @@ python3 analyzer/selfcheck.py
 | `ANALYZER_ALLOW_REMOTE` | unset | Set it to `1` to allow binding a non-loopback address. Not recommended. |
 | `ANALYZER_FFMPEG` | `ffmpeg` on `PATH` | Path to the ffmpeg binary |
 | `ANALYZER_DECODE_TIMEOUT_S` | `300` | Maximum time for ffmpeg to decode one file. A timeout returns `422`. |
-| `ANALYZER_MODELS_DIR` | `analyzer/models` (`/app/models` in the image) | Directory holding the two vocal ONNX files, and optionally `faster-whisper-<size>/` and `beat_this-final0.ckpt` |
+| `ANALYZER_MODELS_DIR` | `analyzer/models` (`/app/models` in the image) | Directory holding the two vocal ONNX files, and optionally `faster-whisper-<size>/`, `beat_this-final0.ckpt`, `demucs/` and `mms_fa/` |
 | `ANALYZER_VOCALS_HOP_FRAMES` | `16` | Step between vocal windows, in 16 ms frames (16 = 256 ms). Smaller is finer and slower. |
-| `ANALYZER_VOCALS_THREADS` | `2` | Threads for the vocal models, Whisper and Beat This! |
+| `ANALYZER_VOCALS_THREADS` | `2` | Threads for the vocal models, Whisper, Beat This!, Demucs and MMS_FA |
 | `ANALYZER_WHISPER_MODEL` | `small.en` | faster-whisper model size. Smaller ones are faster and hear fewer words. |
 
 The API sends **absolute paths**, so the analyzer must see `ANALYZER_TMP_DIR` and `MEDIA_DIR` at the same
@@ -186,7 +234,7 @@ background thread, and inference is serialized with a lock.
 - VibeNet: `vibenet.load_model()` returns an ONNX EfficientNet model, and `model.predict(path)[0].to_dict()` returns its result.
 
 - Vocals: `vocals.VocalDetector`, loaded with the others and sharing their lock. So are `words.WordRecognizer`,
-  `speech.SpeechDetector` and `beat_grid.BeatTracker`.
+  `speech.SpeechDetector`, `beat_grid.BeatTracker` and `alignment.AlignmentAnalyzer`.
 
 If either library changes, update `RealAnalyzer.__init__` and `RealAnalyzer.analyze`. [`contract.py`](./contract.py)
 holds the pure mapping (key format, field renames, validation).

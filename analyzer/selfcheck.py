@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from audio import decode_to_wav  # noqa: E402
 from contract import BadRequest, DecodeError, ModelError, build_response, to_short_key, validate_path  # noqa: E402
+from alignment import ALPHABET, build_alignment_response  # noqa: E402
 from beat_grid import build_beat_grid_response  # noqa: E402
 from rhythm import build_rhythm_response  # noqa: E402
 from speech import build_speech_response  # noqa: E402
@@ -52,6 +53,12 @@ class FakeAnalyzer:
                 "speech": build_speech_response([0.2, 0.8]),
                 "words": build_words_response("fake", [(" hello", 0.5, 0.9, 0.8)]),
                 "beat_grid": build_beat_grid_response([0.5, 1.0], [0.5])}
+
+    def alignment(self, path: str) -> dict:
+        if open(path, "rb").read(4) == b"BAD!":
+            raise DecodeError("not audio")
+        return build_alignment_response(1000, [], [], build_words_response("fake", [(" hello", 0.5, 0.9, 0.8)]),
+                                        build_beat_grid_response([0.5, 1.0], [0.5]), [(0.5, 1.0, 2.0, 0.9)])
 
 
 def check(cond: bool, msg: str) -> None:
@@ -130,9 +137,36 @@ def check_vocals_helpers() -> None:
     check(r["voice"] == [1.0, 0.0, 0.5] and r["hop_ms"] == 256 and r["window_ms"] == 2048, "vocals response clamps and reports timing")
 
 
+def check_alignment_helpers() -> None:
+    """The encoders of alignment.py (need numpy, not the models)."""
+    try:
+        import base64
+
+        import numpy as np
+        from alignment import LETTER_SCALE, encode_letters, encode_loudness, frame_rms
+    except ImportError:
+        print("skip alignment checks (numpy not installed)")
+        return
+    log_probs = np.full((3, len(ALPHABET)), -100.0)
+    log_probs[0, 0], log_probs[1, 1], log_probs[2, 2] = 0.0, -0.5, -1.13
+    q = np.frombuffer(base64.b64decode(encode_letters(log_probs)), dtype=np.uint8).reshape(3, len(ALPHABET))
+    check(q[0, 0] == 0 and q[1, 1] == 0.5 * LETTER_SCALE and q[2, 2] == round(1.13 * LETTER_SCALE) and q[0, 1] == 255,
+          "letters are -log p in 1/scale steps, capped at 255")
+    loud = np.frombuffer(base64.b64decode(encode_loudness([0.0, 0.25] + [1.0] * 8 + [100.0])), dtype=np.uint8)
+    check(list(loud) == [0, 64] + [128] * 8 + [255], "loudness is sqrt(rms / p90) in bytes, capped at 4x p90")
+    rms = frame_rms(np.concatenate([np.zeros(100), np.ones(100)]), 2)
+    check(abs(rms[0]) < 1e-9 and abs(rms[1] - 1) < 1e-9, "frame RMS splits the audio evenly")
+    r = build_alignment_response(1000, log_probs, [0.1, 0.2, 0.3], {"model": "w", "words": []}, {"model": "b", "beats_ms": [], "downbeats_ms": []},
+                                 [(0.5, 1.0, 2.0, 0.91234), (1.0, 0.5, 2.0, 1.0), (0.5, 1.0, float("nan"), 1.0)])
+    check(abs(r["frame_ms"] - 1000 / 3) < 1e-9 and r["alphabet"] == ALPHABET and len(base64.b64decode(r["letters"])) == 3 * len(ALPHABET),
+          "alignment response reports the frame length and the letters")
+    check(r["repeats"] == [{"start_ms": 500, "end_ms": 1000, "lag_ms": 2000, "strength": 0.912}], "broken repeats are dropped")
+
+
 def main() -> None:
     check_ffmpeg_decode()
     check_vocals_helpers()
+    check_alignment_helpers()
     check(to_short_key("C# major") == "C#", "key: C# major -> C#")
     check(to_short_key("A minor") == "Am", "key: A minor -> Am")
     check(to_short_key("Bb minor") == "A#m", "key: Bb minor -> A#m")
@@ -202,6 +236,10 @@ def main() -> None:
             check(body["words"]["words"][0]["text"] == "hello" and body["speech"]["voice"] == [0.2, 0.8]
                   and body["beat_grid"]["downbeats_ms"] == [500], "vocals returns words, speech and the beat grid")
             check(request(base, "POST", "/vocals", {"path": bad})[0] == 422, "vocals: undecodable -> 422")
+            status, body = request(base, "POST", "/alignment", {"path": good})
+            check(status == 200 and body["alphabet"] == ALPHABET and body["repeats"][0]["lag_ms"] == 2000
+                  and body["words"]["words"][0]["text"] == "hello", "alignment returns letters, words and repeats")
+            check(request(base, "POST", "/alignment", {"path": bad})[0] == 422, "alignment: undecodable -> 422")
             check(request(base, "POST", "/other", {"path": good})[0] == 404, "unknown route -> 404")
             check(all(os.path.exists(p) for p in (good, bad, boom)), "no input file deleted on errors")
     finally:

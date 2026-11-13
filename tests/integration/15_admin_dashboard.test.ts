@@ -152,7 +152,7 @@ describe('admin dashboard', () => {
 		expect(await is_backpacked(to)).toBe(false);
 	});
 
-	it('removes a media file, its row and its vocal analysis', async () => {
+	it('removes a media file, its row and its vocal and alignment analyses', async () => {
 		const owner = await create_user('dash-media');
 		const created = await contribute(owner, mock_album({ artist: unique('Media Dash'), album: unique('Media Dash Album'), n: 1, imported: true }));
 		const track_id: string = created.body.refs.t0;
@@ -163,6 +163,7 @@ describe('admin dashboard', () => {
 		expect(stored.status).toBe(201);
 		const { id, resource_id } = stored.body.media;
 		await query(`insert into track_vocals_table (track_id, resource_id, status) values ($1, $2, 'DONE')`, [track_id, resource_id]);
+		await query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, $2, 'DONE')`, [track_id, resource_id]);
 
 		const detail = await get(`/admin/tracks/${track_id}`);
 		expect(detail.body.media).toEqual([expect.objectContaining({ id, resource_id, uploaded_by: owner.id })]);
@@ -171,6 +172,7 @@ describe('admin dashboard', () => {
 		expect(removed.body).toEqual({ id, track_id, resource_id });
 		expect(await query('select id from media_table where id = $1', [id])).toEqual([]);
 		expect(await query('select track_id from track_vocals_table where track_id = $1', [track_id])).toEqual([]);
+		expect(await query('select track_id from track_alignment_table where track_id = $1', [track_id])).toEqual([]);
 		if (process.env.MEDIA_DIR) expect(existsSync(path.join(process.env.MEDIA_DIR, resource_id))).toBe(false);
 		expect((await api('DELETE', `/admin/media/${id}`, { token: admin.access_token })).status).toBe(404);
 		expect((await api('DELETE', '/admin/media/abc', { token: admin.access_token })).status).toBe(400);

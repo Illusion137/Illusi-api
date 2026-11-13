@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { map_analysis, map_vocals, normalize_key, SAMPLE_VERSION, unflatten_segments } from './contract';
+import { map_alignment, map_analysis, map_vocals, normalize_key, SAMPLE_VERSION, unflatten_segments } from './contract';
 import type { LookupState } from './decisions';
 import {
 	assert_tmp_dir_safe, choose_source, classify_analyzer_status, classify_download_status, decide_failure, error_retry_delay_ms,
@@ -120,6 +120,44 @@ describe('vocals response mapping', () => {
 		expect(map_vocals({ ...vocals, segments: [{ start_ms: 5, end_ms: 4 }] })).toBeNull();
 		expect(map_vocals({ ...vocals, model: undefined })).toBeNull();
 		expect(map_vocals(null)).toBeNull();
+	});
+});
+
+describe('alignment response mapping', () => {
+	const alphabet = '-aienoutsrmkldghybpwcvjzf\'qx';
+	const frames = 3;
+	const alignment = {
+		model: 'htdemucs+mms-fa', duration_ms: 60, frame_ms: 20, alphabet, letter_scale: 4,
+		letters: Buffer.alloc(frames * alphabet.length, 7).toString('base64'),
+		loudness: Buffer.from([0, 128, 255]).toString('base64'),
+		words: { model: 'faster-whisper-small.en-int8', words: [{ text: 'world', start_ms: 40, end_ms: 50, probability: 0.7 }, { text: 'Hello', start_ms: 0, end_ms: 30, probability: 0.92 }] },
+		beat_grid: { model: 'beat-this-final0', beats_ms: [40, 20, 20], downbeats_ms: [20] },
+		repeats: [{ start_ms: 0, end_ms: 20, lag_ms: 30, strength: 0.8 }, { start_ms: 20, end_ms: 20, lag_ms: 30, strength: 0.9 }]
+	};
+
+	it('decodes the letters and loudness to bytes and flattens the rest for storage', () => {
+		const mapped = map_alignment(alignment);
+		expect(mapped).toMatchObject({
+			model: 'htdemucs+mms-fa', duration_ms: 60, frame_ms: 20, alphabet, letter_scale: 4,
+			words_model: alignment.words.model, words: ['Hello', 'world'], word_times: [0, 30, 40, 50], word_probabilities: [0.92, 0.7],
+			beat_grid_model: 'beat-this-final0', grid_beats: [20, 40], downbeats: [20],
+			repeats: [0, 20, 30], repeat_strengths: [0.8]
+		});
+		expect(mapped!.letters).toEqual(Buffer.alloc(frames * alphabet.length, 7));
+		expect([...mapped!.loudness]).toEqual([0, 128, 255]);
+	});
+
+	it('rejects letters that don\'t cover every frame', () => {
+		expect(map_alignment({ ...alignment, letters: Buffer.alloc(frames * alphabet.length - 1).toString('base64') })).toBeNull();
+		expect(map_alignment({ ...alignment, loudness: Buffer.from([1, 2]).toString('base64') })).toBeNull();
+	});
+
+	it('rejects responses that break the contract', () => {
+		expect(map_alignment({ ...alignment, letters: 'not base64!' })).toBeNull();
+		expect(map_alignment({ ...alignment, frame_ms: 0 })).toBeNull();
+		expect(map_alignment({ ...alignment, words: undefined })).toBeNull();
+		expect(map_alignment({ ...alignment, repeats: [{ start_ms: -1, end_ms: 2, lag_ms: 3, strength: 1 }] })).toBeNull();
+		expect(map_alignment(null)).toBeNull();
 	});
 });
 

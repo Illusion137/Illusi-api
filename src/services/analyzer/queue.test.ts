@@ -83,6 +83,21 @@ describe('JobQueue priorities', () => {
 		expect((await q.next())!.id).toBe('a');
 	});
 
+	it('updates and reorders a queued job, but not a running or unknown one', async () => {
+		const q = by_rank();
+		for (const [id, rank] of [['a', 1], ['b', 2], ['c', 3], ['d', 4]] as const) q.push({ id, rank });
+		const a = (await q.next())!;
+		expect(q.update('a', (j) => { j.rank = 9; })).toBe(false);
+		expect(a.rank).toBe(1);
+		expect(q.update('x', () => undefined)).toBe(false);
+		expect(q.update('d', (j) => { j.rank = 0; })).toBe(true);
+		q.push_front(a);
+		expect(q.update('a', (j) => { j.rank = 7; })).toBe(true);
+		const order: string[] = [];
+		while (q.size > 0) order.push((await q.next())!.id);
+		expect(order).toEqual(['a', 'd', 'b', 'c']);
+	});
+
 	it('keeps order over many jobs', async () => {
 		const q = by_rank();
 		const ranks = Array.from({ length: 200 }, (_, i) => (i * 37) % 101);

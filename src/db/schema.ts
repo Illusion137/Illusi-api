@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { bigint, boolean, check, date, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, varchar, vector } from 'drizzle-orm/pg-core';
+import { bigint, boolean, bytea, check, date, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid, varchar, vector } from 'drizzle-orm/pg-core';
 
 const ITUNES_EXPLICITNESS = ['explicit', 'cleaned', 'notExplicit'] as const;
 export const itunes_explicitness = pgEnum('itunes_explicitness', ITUNES_EXPLICITNESS);
@@ -604,6 +604,45 @@ export const track_vocals_table = pgTable('track_vocals_table', {
 	beat_grid_model: varchar({ length: 128 }),
 	grid_beats: integer().array(),
 	downbeats: integer().array(),
+	...timestamps
+});
+
+/**
+ * What the app aligns a track's plain lyrics against (`POST /alignment` on its media file): the separated vocals'
+ * letter probabilities, loudness, words, beat grid and repeats. Never a synced version; the app builds that and keeps
+ * it to itself. Only analyzed for tracks users play whose lyrics are all unsynced.
+ */
+export const track_alignment_table = pgTable('track_alignment_table', {
+	track_id: uuid().primaryKey().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	/** The media file that was analyzed (or failed). */
+	resource_id: varchar({ length: 256 }).notNull(),
+	status: sample_lookup_status().notNull(),
+	attempts: integer().notNull().default(0),
+	attempted_at: timestamptz().notNull().defaultNow(),
+	retry_after: timestamptz(),
+	model: varchar({ length: 128 }),
+	duration_ms: integer(),
+	frame_ms: doublePrecision(),
+	/** CTC labels, blank first; each frame of `letters` has one byte per label. */
+	alphabet: varchar({ length: 64 }),
+	letter_scale: real(),
+	/** Frame-major bytes, `round(-log p * letter_scale)` capped at 255. */
+	letters: bytea(),
+	/** One byte per frame: `round(127.5 * sqrt(min(4, rms / p90)))` of the vocals stem. */
+	loudness: bytea(),
+	/** Whisper's words on the vocals stem. */
+	words_model: varchar({ length: 128 }),
+	words: text().array(),
+	/** Flat `[start_ms, end_ms, start_ms, end_ms, ...]`, one pair per word. */
+	word_times: integer().array(),
+	word_probabilities: real().array(),
+	/** Beat This! on the drums stem. */
+	beat_grid_model: varchar({ length: 128 }),
+	grid_beats: integer().array(),
+	downbeats: integer().array(),
+	/** Vocal passages sung again, flat `[start_ms, end_ms, lag_ms, ...]`. */
+	repeats: integer().array(),
+	repeat_strengths: real().array(),
 	...timestamps
 });
 

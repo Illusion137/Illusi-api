@@ -41,6 +41,21 @@ export class JobQueue<T> {
 		else this.retries.unshift(item);
 	}
 
+	/** Applies `change` to the queued (not running) job with this key and reorders it. Returns false if none is queued. */
+	update(key: string, change: (item: T) => void): boolean {
+		const retry = this.retries.find(item => this.key_of(item) === key);
+		if (retry !== undefined) {
+			change(retry);
+			return true;
+		}
+		const i = this.heap.findIndex(({ item }) => this.key_of(item) === key);
+		if (i < 0) return false;
+		change(this.heap[i].item);
+		const entries = this.heap.splice(0);
+		for (const { item, seq } of entries) this.heap_insert(item, seq);
+		return true;
+	}
+
 	release(key: string): void {
 		this.held.delete(key);
 	}
@@ -77,7 +92,11 @@ export class JobQueue<T> {
 	}
 
 	private heap_push(item: T) {
-		this.heap.push({ item, seq: this.seq++ });
+		this.heap_insert(item, this.seq++);
+	}
+
+	private heap_insert(item: T, seq: number) {
+		this.heap.push({ item, seq });
 		for (let i = this.heap.length - 1; i > 0;) {
 			const parent = (i - 1) >> 1;
 			if (!this.before(i, parent)) break;

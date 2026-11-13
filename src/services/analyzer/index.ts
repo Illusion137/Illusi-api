@@ -8,26 +8,28 @@ import { on } from '../../core/events';
 import { logger } from '../../core/log';
 import { rebuild_stale_vectors } from '../vectors';
 import { call_analyze, check_health, download_to, is_abort, JobError, sleep } from './client';
-import { map_analysis, map_vocals } from './contract';
+import { map_alignment, map_analysis, map_vocals } from './contract';
 import type { JobFailure, SampleLookupStatus, SampleSource } from './decisions';
 import { assert_tmp_dir_safe, decide_failure, health_backoff_ms, is_strictly_inside, may_delete, next_attempts, preview_extension, safe_media_path } from './decisions';
 import { JobQueue } from './queue';
 import type { ResolvedSource, TrackPriority } from './repo';
-import { eligible_track_ids, eligible_vocals_track_ids, outdated_sample_track_ids, record_lookup, record_vocals, resolve_source, resolve_vocals_target, save_sample, track_priorities } from './repo';
+import { eligible_alignment_track_ids, eligible_track_ids, eligible_vocals_track_ids, outdated_sample_track_ids, record_alignment, record_lookup, record_vocals, resolve_alignment_target, resolve_source, resolve_vocals_target, save_sample, track_priorities } from './repo';
 
 const log = logger('analyzer');
 
 interface Job {
 	/**
 	 * `sample`: `/analyze` on media or an iTunes preview, for every track. `vocals`: `/vocals`, on full media files of
-	 * tracks whose lyrics are all unsynced.
+	 * tracks whose lyrics are all unsynced. `alignment`: `/alignment`, minutes of CPU, only on those that users play.
 	 */
-	kind: 'sample' | 'vocals';
+	kind: 'sample' | 'vocals' | 'alignment';
 	track_id: string;
 	/** Source named by the live trigger, tried first. */
 	prefer?: SampleSource;
 	/** `sample`: analyze again because the stored sample is from an older analyzer. */
 	upgrade?: boolean;
+	/** `alignment`: a user is playing the track right now (their play may not be synced yet). */
+	requested?: boolean;
 	/** Analyzer 5xx responses seen by this job. */
 	analyzer_5xx: number;
 	priority: TrackPriority;
@@ -39,9 +41,13 @@ type NewJob = Omit<Job, 'analyzer_5xx' | 'priority'>;
 const ANALYZER_FAILURES = new Set<JobFailure['kind']>(['bad_file', 'analyzer_unavailable', 'timeout', 'internal']);
 
 const job_key = (job: Pick<Job, 'kind' | 'track_id'>) => `${job.kind}:${job.track_id}`;
-/** Most played by Illusi users first, then most played on streaming services; refreshing old samples comes last. */
+/**
+ * Tracks a user is playing right now first, then the most played by Illusi users, then the most played on streaming
+ * services; refreshing old samples comes last.
+ */
 function job_order(a: Job, b: Job): number {
-	return Number(a.upgrade ?? false) - Number(b.upgrade ?? false) || b.priority.plays - a.priority.plays || b.priority.views - a.priority.views;
+	return Number(a.upgrade ?? false) - Number(b.upgrade ?? false) || Number(b.requested ?? false) - Number(a.requested ?? false)
+		|| b.priority.plays - a.priority.plays || b.priority.views - a.priority.views;
 }
 const queue = new JobQueue<Job>(job_key, job_order);
 let tmp_dir = path.resolve(config.ANALYZER_TMP_DIR);
@@ -77,11 +83,16 @@ function register_listeners() {
 		if (preview_url) await enqueue([{ kind: 'sample', track_id, prefer: 'itunes_preview' }]);
 	});
 	on('media_inserted', async ({ track_id }) => {
-		await enqueue([{ kind: 'sample', track_id, prefer: 'media' }, { kind: 'vocals', track_id }]);
+		await enqueue([{ kind: 'sample', track_id, prefer: 'media' }, { kind: 'vocals', track_id }, { kind: 'alignment', track_id }]);
 	});
-	// The vocals job itself checks that the lyrics are all unsynced
+	// The vocals and alignment jobs themselves check that the lyrics are all unsynced (and alignment, that users play it)
 	on('lyrics_stored', async ({ track_id }) => {
-		await enqueue([{ kind: 'vocals', track_id }]);
+		await enqueue([{ kind: 'vocals', track_id }, { kind: 'alignment', track_id }]);
+	});
+	// A job already queued from the backlog or an event is moved ahead and no longer needs a synced play
+	on('alignment_requested', async ({ track_id }) => {
+		if (queue.update(job_key({ kind: 'alignment', track_id }), (job) => { job.requested = true; })) return;
+		await enqueue([{ kind: 'alignment', track_id, requested: true }]);
 	});
 }
 
@@ -169,7 +180,7 @@ async function handle_failure(job: Job, err: unknown, signal: AbortSignal, where
 		queue.push_front(job);
 		return true;
 	}
-	const what = job.kind === 'vocals' ? 'vocal detection' : 'analysis';
+	const what = job.kind === 'vocals' ? 'vocal detection' : job.kind === 'alignment' ? 'alignment analysis' : 'analysis';
 	if (ANALYZER_FAILURES.has(failure.kind)) log.error(`${what} failed (${failure.kind})`, { ...report, status: decision.status });
 	else log.warn(`${job.kind} job ${job.track_id} (${where.source}) → ${decision.status}`, failure.detail ?? failure.kind);
 	await record(decision.status, decision.retry_after);
@@ -178,7 +189,27 @@ async function handle_failure(job: Job, err: unknown, signal: AbortSignal, where
 
 /** Runs one job. Returns true if the job was put back for a retry after the analyzer recovers. */
 function run_job(job: Job): Promise<boolean> {
+	if (job.kind === 'alignment') return run_alignment_job(job);
 	return job.kind === 'vocals' ? run_vocals_job(job) : run_sample_job(job);
+}
+
+async function run_alignment_job(job: Job): Promise<boolean> {
+	const target = await resolve_alignment_target(job.track_id, job.requested);
+	if (!target) return false;
+
+	const signal = AbortSignal.timeout(config.ANALYZER_ALIGNMENT_TIMEOUT_MS);
+	let file_path: string | null = null;
+	try {
+		file_path = await media_file(target.resource_id);
+		const result = map_alignment(await call_analyze(config.ANALYZER_URL, file_path, signal, '/alignment'));
+		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
+		await record_alignment(job.track_id, target, 'DONE', null, result);
+		log.info(`aligned ${job.track_id}: ${result.loudness.length} frame(s), ${result.words.length} word(s), ${result.repeat_strengths.length} repeat(s)`);
+		return false;
+	} catch (err) {
+		return handle_failure(job, err, signal, { source: 'media', path: file_path ?? target.resource_id }, next_attempts(target.prior, target.resource_id),
+			(status, retry_after) => record_alignment(job.track_id, target, status, retry_after, null));
+	}
 }
 
 async function run_vocals_job(job: Job): Promise<boolean> {
@@ -299,13 +330,15 @@ async function start_inner() {
 
 	const backlog = await eligible_track_ids();
 	const vocals_backlog = await eligible_vocals_track_ids();
+	const alignment_backlog = await eligible_alignment_track_ids();
 	const outdated = await outdated_sample_track_ids();
 	await enqueue([
 		...backlog.map((track_id): NewJob => ({ kind: 'sample', track_id })),
 		...vocals_backlog.map((track_id): NewJob => ({ kind: 'vocals', track_id })),
+		...alignment_backlog.map((track_id): NewJob => ({ kind: 'alignment', track_id })),
 		...outdated.map((track_id): NewJob => ({ kind: 'sample', track_id, upgrade: true }))
 	]);
-	log.info(`queued ${backlog.length} sample, ${vocals_backlog.length} vocals and ${outdated.length} sample refresh job(s) from the backlog`);
+	log.info(`queued ${backlog.length} sample, ${vocals_backlog.length} vocals, ${alignment_backlog.length} alignment and ${outdated.length} sample refresh job(s) from the backlog`);
 }
 
 /** Graceful shutdown: stop pulling jobs, let running jobs finish or time out, then clear temp files. */

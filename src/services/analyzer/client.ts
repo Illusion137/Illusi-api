@@ -41,7 +41,7 @@ export async function check_health(base_url: string, signal?: AbortSignal): Prom
 }
 
 /** `POST /analyze` or `/vocals`. Returns the parsed JSON body; throws `JobError` on failure, rethrows aborts. */
-export async function call_analyze(base_url: string, file_path: string, signal: AbortSignal, endpoint: '/analyze' | '/vocals' = '/analyze'): Promise<unknown> {
+export async function call_analyze(base_url: string, file_path: string, signal: AbortSignal, endpoint: '/analyze' | '/vocals' | '/alignment' = '/analyze'): Promise<unknown> {
 	let res: Response;
 	try {
 		res = await fetch(new URL(endpoint, base_url), {

@@ -14,6 +14,7 @@ vi.mock('../../src/services/analyzer/repo', async (original) => {
 		...real,
 		eligible_track_ids: vi.fn(async (only?: readonly string[]) => real.eligible_track_ids(only ?? flags.only)),
 		eligible_vocals_track_ids: vi.fn(async () => (await real.eligible_vocals_track_ids()).filter(id => flags.only.includes(id))),
+		eligible_alignment_track_ids: vi.fn(async () => (await real.eligible_alignment_track_ids()).filter(id => flags.only.includes(id))),
 		outdated_sample_track_ids: vi.fn(async () => (await real.outdated_sample_track_ids()).filter(id => flags.only.includes(id))),
 		resolve_source: vi.fn(async (...args: Parameters<typeof real.resolve_source>) => {
 			if (flags.fail_resolve > 0) {
@@ -51,6 +52,11 @@ const speech = { model: 'test-speech', hop_ms: 32, voice: [0.2, 0.8] };
 const beat_grid = { model: 'test-grid', beats_ms: [500, 1000], downbeats_ms: [500] };
 const vocals = { model: 'test-model', hop_ms: 256, window_ms: 2048, duration_ms: 30_000, voice: [0.1, 0.9], segments: [{ start_ms: 100, end_ms: 900 }], rhythm, words, speech, beat_grid };
 
+const alignment = {
+	model: 'test-align', duration_ms: 30_000, frame_ms: 20, alphabet: '-ab', letter_scale: 4, letters: Buffer.from([0, 1, 2, 3, 4, 5]).toString('base64'),
+	loudness: Buffer.from([7, 9]).toString('base64'), words, beat_grid, repeats: [{ start_ms: 2000, end_ms: 4000, lag_ms: 1000, strength: 0.5 }]
+};
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 interface Call { url: string; path?: string }
@@ -58,6 +64,7 @@ const calls: Call[] = [];
 let health: () => Response | Promise<Response>;
 let analyze: (body: { path: string }, init: RequestInit) => Response | Promise<Response>;
 let vocals_handler: (body: { path: string }, init: RequestInit) => Response | Promise<Response>;
+let alignment_handler: (body: { path: string }, init: RequestInit) => Response | Promise<Response>;
 let download: (url: string) => Response | Promise<Response>;
 
 function hang_until_aborted(init: RequestInit): Promise<Response> {
@@ -96,6 +103,7 @@ async function add_lyrics(track_id: string, sync_type: string) {
 const sample_of = async (id: string) => (await pool.query('select * from track_sample_data_table where id = $1', [id])).rows[0];
 const lookups_of = async (id: string) => (await pool.query('select source, status, attempts, retry_after, source_ref from track_sample_lookups_table where track_id = $1 order by source', [id])).rows;
 const vocals_of = async (id: string) => (await pool.query('select * from track_vocals_table where track_id = $1', [id])).rows[0];
+const alignment_of = async (id: string) => (await pool.query('select * from track_alignment_table where track_id = $1', [id])).rows[0];
 const vector_of = async (id: string) => (await pool.query('select version from track_vectors_table where track_id = $1', [id])).rows[0];
 const wait = <T>(fn: () => Promise<T>) => vi.waitFor(fn, { timeout: 8000, interval: 25 });
 
@@ -112,6 +120,7 @@ beforeEach(() => {
 	health = () => new Response('ok');
 	analyze = () => json(analysis);
 	vocals_handler = () => json(vocals);
+	alignment_handler = () => json(alignment);
 	download = () => new Response('preview bytes');
 	vi.stubGlobal('fetch', async (input: URL | string, init: RequestInit = {}) => {
 		const url = String(input);
@@ -120,6 +129,7 @@ beforeEach(() => {
 		if (url.endsWith('/health')) return health();
 		if (url.endsWith('/analyze')) return analyze(body!, init);
 		if (url.endsWith('/vocals')) return vocals_handler(body!, init);
+		if (url.endsWith('/alignment')) return alignment_handler(body!, init);
 		return download(url);
 	});
 });
@@ -130,6 +140,7 @@ afterAll(async () => {
 	if (seeded.length > 0) {
 		await pool.query('delete from track_vectors_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from track_vocals_table where track_id = any($1)', [seeded]);
+		await pool.query('delete from track_alignment_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from track_lyrics_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from track_play_counts_table where track_id = any($1)', [seeded]);
 		await pool.query('delete from service_tracks_table where illusi_id = any($1)', [seeded]);
@@ -360,6 +371,93 @@ describe('which tracks get vocals and in what order', () => {
 		await wait(async () => { for (const t of all) expect(await sample_of(t.id)).toBeDefined(); });
 		const order = calls.filter(c => c.url.endsWith('/analyze')).map(c => [blocker, ...all].find(t => c.path?.endsWith(t.resource_id!))!.id);
 		expect(order).toEqual([blocker.id, played_viewed.id, played.id, viewed.id, quiet.id]);
+		await stop();
+	});
+});
+
+describe('alignment jobs', () => {
+	const played = async (opts: Parameters<typeof seed_track>[0] = {}) => {
+		const t = await seed_track({ media: uuid(), ...opts });
+		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, 2)', [t.id]);
+		return t;
+	};
+	const alignment_calls = () => calls.filter(c => c.url.endsWith('/alignment'));
+
+	it('aligns a played track with only unsynced lyrics and stores the analysis', async () => {
+		const t = await played();
+		const unplayed = await seed_track({ media: uuid() });
+		await start();
+		emit('media_inserted', { track_id: unplayed.id, resource_id: unplayed.resource_id! });
+		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+		await wait(async () => expect(await alignment_of(t.id)).toMatchObject({ status: 'DONE', resource_id: t.resource_id, model: 'test-align', frame_ms: 20, alphabet: '-ab' }));
+		const row = await alignment_of(t.id);
+		expect([...row.letters]).toEqual([0, 1, 2, 3, 4, 5]);
+		expect(row).toMatchObject({ words: ['hello'], word_times: [400, 700], grid_beats: [500, 1000], downbeats: [500], repeats: [2000, 4000, 1000] });
+		await wait(async () => expect(await vocals_of(unplayed.id)).toMatchObject({ status: 'DONE' }));
+		expect(alignment_calls().map(c => c.path)).toEqual([path.join(media_dir, t.resource_id!)]);
+		expect(await alignment_of(unplayed.id)).toBeUndefined();
+		await stop();
+	});
+
+	it('aligns a track a user asks for before their play is synced, never one with synced lyrics', async () => {
+		const asked = await seed_track({ media: uuid() });
+		const synced = await seed_track({ media: uuid(), lyrics: ['LINE'] });
+		await start();
+		emit('alignment_requested', { track_id: synced.id });
+		emit('alignment_requested', { track_id: asked.id });
+		await wait(async () => expect(await alignment_of(asked.id)).toMatchObject({ status: 'DONE' }));
+		expect(alignment_calls()).toHaveLength(1);
+		expect(await alignment_of(synced.id)).toBeUndefined();
+		await stop();
+	});
+
+	it('moves a queued alignment job ahead when a user asks for it', async () => {
+		const blocker = await seed_track({ media: uuid() });
+		const t = await seed_track({ media: uuid() });
+		let unblock = () => {};
+		const blocked = new Promise<void>(resolve => { unblock = resolve; });
+		analyze = async (body) => {
+			if (body.path.endsWith(blocker.resource_id!)) await blocked;
+			return json(analysis);
+		};
+		await start();
+		emit('media_inserted', { track_id: blocker.id, resource_id: blocker.resource_id! });
+		await wait(async () => expect(calls.some(c => c.path?.endsWith(blocker.resource_id!))).toBe(true));
+		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+		await new Promise(resolve => setTimeout(resolve, 50));
+		emit('alignment_requested', { track_id: t.id });
+		await new Promise(resolve => setTimeout(resolve, 50));
+		unblock();
+		await wait(async () => expect(await alignment_of(t.id)).toMatchObject({ status: 'DONE' }));
+		const order = calls.filter(c => c.path?.endsWith(t.resource_id!)).map(c => c.url.split('/').pop());
+		expect(order[0]).toBe('alignment');
+		await stop();
+	});
+
+	it('records BAD_FILE and an ERROR with a retry time', async () => {
+		const bad = await played();
+		const broken = await played();
+		alignment_handler = (body) => (body.path.endsWith(bad.resource_id!) ? new Response('cannot decode', { status: 400 }) : json({ ...alignment, loudness: 'AA==' }));
+		await start();
+		emit('alignment_requested', { track_id: bad.id });
+		emit('alignment_requested', { track_id: broken.id });
+		await wait(async () => {
+			expect(await alignment_of(bad.id)).toMatchObject({ status: 'BAD_FILE', retry_after: null, letters: null });
+			expect(await alignment_of(broken.id)).toMatchObject({ status: 'ERROR', letters: null });
+		});
+		expect((await alignment_of(broken.id)).retry_after.getTime()).toBeGreaterThan(Date.now());
+		await stop();
+	});
+
+	it('queues played tracks from the backlog', async () => {
+		const t = await played({ lyrics: ['NONE'] });
+		const unplayed = await seed_track({ media: uuid() });
+		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness, version) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0, 2), ($4, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0, 2)', [t.id, 'Low Energy', 'C', unplayed.id]);
+		flags.only = [t.id, unplayed.id];
+		await start();
+		await wait(async () => expect(await alignment_of(t.id)).toMatchObject({ status: 'DONE' }));
+		await wait(async () => expect(await vocals_of(unplayed.id)).toMatchObject({ status: 'DONE' }));
+		expect(await alignment_of(unplayed.id)).toBeUndefined();
 		await stop();
 	});
 });

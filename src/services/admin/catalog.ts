@@ -6,7 +6,7 @@ import { config } from '../../config';
 import { db } from '../../db';
 import {
 	albums_table, artists_table, audit_log_table, media_table, service_ids_table, track_research_table, track_unavailable_reports_table,
-	track_vocals_table, tracks_artists_table, tracks_table, users_table, RESEARCH_SERVICES
+	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, users_table, RESEARCH_SERVICES
 } from '../../db/schema';
 import { write_audit } from '../../core/audit';
 import { HttpError } from '../../core/http';
@@ -122,13 +122,14 @@ export async function backpack_overview(q: z.infer<typeof backpack_query_schema>
 
 /**
  * Removes a stored media file (wrong song, bad rip, takedown). The row goes in the transaction, the file after commit.
- * Vocal analysis of that file is dropped so the track is analyzed again from its next media.
+ * Vocal and alignment analysis of that file is dropped so the track is analyzed again from its next media.
  */
 export async function remove_media(media_id: number, admin_id: string) {
 	const removed = await db.transaction(async (tx) => {
 		const [row] = await tx.delete(media_table).where(eq(media_table.id, media_id)).returning();
 		if (!row) throw new HttpError(404, 'media not found');
 		await tx.delete(track_vocals_table).where(and(eq(track_vocals_table.track_id, row.track_id), eq(track_vocals_table.resource_id, row.resource_id)));
+		await tx.delete(track_alignment_table).where(and(eq(track_alignment_table.track_id, row.track_id), eq(track_alignment_table.resource_id, row.resource_id)));
 		await tx.update(tracks_table).set({ modified_at: new Date() }).where(eq(tracks_table.id, row.track_id));
 		await write_audit(tx, {
 			action: 'admin_delete',
