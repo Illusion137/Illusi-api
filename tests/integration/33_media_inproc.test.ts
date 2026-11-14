@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { start_inproc_app } from './inproc_app';
 
 const app = await start_inproc_app();
@@ -174,5 +174,29 @@ describe('upload requests', () => {
 		expect(mixed.map(a => a.track_id)[0]).toBe(last);
 		expect(mixed).toHaveLength(2);
 		expect(await pending_upload_actions(u, 1)).toHaveLength(1);
+	});
+});
+
+describe('alignment requests', () => {
+	it('queues each track once an hour, up to the per-user cap', async () => {
+		const { on } = await import('../../src/core/events');
+		const asked: string[] = [];
+		on('alignment_requested', ({ track_id }) => { asked.push(track_id); });
+		const user = await create_user('align-cap');
+		const other = await create_user('align-cap-other');
+		const tracks: string[] = [];
+		for (let a = 0; a < 4; a++) {
+			const created = await contribute(user, mock_album({ artist: unique('Align Cap'), album: unique('Align Cap Album'), n: 8 }));
+			for (let i = 0; i < 8; i++) tracks.push(created.body.refs[`t${i}`] as string);
+		}
+		expect(new Set(tracks).size).toBe(32);
+		const ask = (u: User, t: string) => api('GET', `/tracks/${t}/alignment`, { token: u.access_token });
+		for (const t of tracks.slice(0, 2)) expect((await ask(user, t)).status).toBe(404);
+		// The same track again doesn't use up the budget or queue it twice
+		for (let i = 0; i < 5; i++) await ask(user, tracks[0]);
+		for (const t of tracks.slice(2)) expect((await ask(user, t)).status).toBe(404);
+		expect((await ask(other, tracks[31])).status).toBe(404);
+		await vi.waitFor(() => expect(asked.filter(t => tracks.includes(t))).toHaveLength(31));
+		expect(asked.filter(t => tracks.includes(t))).toEqual([...tracks.slice(0, 30), tracks[31]]);
 	});
 });

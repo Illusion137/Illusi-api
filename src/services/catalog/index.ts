@@ -11,7 +11,7 @@ import {
 import { unflatten_segments } from '../analyzer/contract';
 import { emit } from '../../core/events';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
-import { rate_limit_user } from '../../core/rate_limit';
+import { RateLimiter, rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect, resolve_redirects } from '../../core/redirects';
 import { resolve_playlist_track_ids } from '../playlists';
 import { to_sort_type } from '../playlists/enums';
@@ -40,6 +40,13 @@ const search_limit = rate_limit_user('search', 120, 60_000);
 const suggestions_limit = rate_limit_user('search_suggestions', 300, 60_000);
 /** Suggestions are cheap to re-ask and go stale fast as the user types; clients may reuse one this long. */
 const SUGGESTIONS_MAX_AGE_S = 30;
+/**
+ * Each alignment analysis costs minutes of CPU, so a user queues at most this many distinct tracks an hour. Asking for
+ * the same track again within the hour doesn't count (or queue it again).
+ */
+const ALIGNMENT_REQUESTS_PER_HOUR = 30;
+const alignment_asked = new RateLimiter(1, 3_600_000);
+const alignment_budget = new RateLimiter(ALIGNMENT_REQUESTS_PER_HOUR, 3_600_000);
 
 type PlaylistRow = typeof playlists_table.$inferSelect;
 
@@ -287,15 +294,17 @@ catalog_router.get('/tracks/:id/vocals', read_limit, async (req, res) => {
 
 /**
  * What the app aligns the track's plain lyrics against, from the separated vocals of its media file. Never a synced
- * version: the app builds that itself. Until the analyzer has stored it, asking queues the analysis (the app only
- * asks while a user plays a track whose lyrics are all unsynced; the job checks that again).
+ * version: the app builds that itself. Until the analyzer has stored it, asking queues the analysis, up to
+ * `ALIGNMENT_REQUESTS_PER_HOUR` tracks per user (the app only asks while a user plays a track whose lyrics are all
+ * unsynced; the job checks that again).
  */
 catalog_router.get('/tracks/:id/alignment', read_limit, async (req, res) => {
 	const { id, redirected_from } = await follow(req.params.id, 'track');
 	const [row] = await db.select().from(track_alignment_table)
 		.where(and(eq(track_alignment_table.track_id, id), eq(track_alignment_table.status, 'DONE')));
 	if (!row) {
-		emit('alignment_requested', { track_id: id });
+		const user = require_user(req);
+		if (alignment_asked.hit(`${user.id}:${id}`) && alignment_budget.hit(user.id)) emit('alignment_requested', { track_id: id });
 		throw new HttpError(404, 'no alignment analysis for this track yet');
 	}
 	const repeats = row.repeats ?? [];
