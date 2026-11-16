@@ -105,8 +105,8 @@ export function assert_tmp_dir_safe(tmp_dir: string, media_dir: string): void {
  * Whether a job's file may be deleted. Deletion depends only on the job's source type; the
  * path check is an extra guard that refuses anything outside the temp dir.
  */
-export function may_delete(source: SampleSource, file_path: string, tmp_dir: string): boolean {
-	return source === 'itunes_preview' && is_strictly_inside(tmp_dir, file_path);
+export function may_delete(file_path: string, tmp_dir: string): boolean {
+	return is_strictly_inside(tmp_dir, file_path);
 }
 
 /** A media `resource_id` must be a plain file name inside MEDIA_DIR (it's a UUID). */

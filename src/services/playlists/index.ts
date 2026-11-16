@@ -16,6 +16,7 @@ import { rate_limit_user } from '../../core/rate_limit';
 import { matches_if_none_match } from '../catalog/validators';
 import { ARTWORK_SUBDIR, artwork_path, owned_playlist, receive_image, set_artwork, store_artwork_file } from './artwork';
 import { copy_playlist } from './copy';
+import { remote_media_url } from '../media/remote';
 
 export { assert_inheritance_allowed, creates_cycle } from './inheritance';
 export { invalidate_user_cache, resolve_playlist, resolve_playlist_track_ids } from './resolve';
@@ -103,17 +104,23 @@ playlists_router.get('/artwork/:artwork_id', async (req, res) => {
 		res.status(304).end();
 		return;
 	}
-	if (config.MEDIA_ACCEL_PREFIX) {
-		res.setHeader('X-Accel-Redirect', `${config.MEDIA_ACCEL_PREFIX}${ARTWORK_SUBDIR}/${artwork_id}`);
-		res.end();
-		return;
-	}
 	let size: number;
 	try {
 		size = (await stat(file)).size;
 	} catch {
+		// Moved to the media bucket by scripts/backup-media.sh: the bucket serves it publicly.
+		const remote = remote_media_url(`${ARTWORK_SUBDIR}/${artwork_id}`);
+		if (remote) {
+			res.redirect(302, remote);
+			return;
+		}
 		log.error('artwork file missing', { artwork_id });
 		throw new HttpError(404, 'artwork file not found');
+	}
+	if (config.MEDIA_ACCEL_PREFIX) {
+		res.setHeader('X-Accel-Redirect', `${config.MEDIA_ACCEL_PREFIX}${ARTWORK_SUBDIR}/${artwork_id}`);
+		res.end();
+		return;
 	}
 	res.setHeader('Content-Length', String(size));
 	if (req.method === 'HEAD') {

@@ -34,11 +34,21 @@ describe('playlist artwork downloads', () => {
 		const file = artwork_path(artwork_id)!;
 
 		expect((await raw_get(url, user.access_token)).status).toBe(404);
-		const accel = await with_accel('/protected/', () => raw_get(url, user.access_token));
-		expect([accel.status, accel.headers.get('x-accel-redirect')]).toEqual([200, `/protected/artwork/${artwork_id}`]);
+		expect((await with_accel('/protected/', () => raw_get(url, user.access_token))).status).toBe(404);
+		// Moved to the media bucket: redirected there.
+		const original = config.MEDIA_PUBLIC_URL;
+		config.MEDIA_PUBLIC_URL = 'https://bucket.example.com/media';
+		try {
+			const moved = await fetch(url, { headers: { authorization: `Bearer ${user.access_token}` }, redirect: 'manual' });
+			expect([moved.status, moved.headers.get('location')]).toEqual([302, `https://bucket.example.com/media/artwork/${artwork_id}`]);
+		} finally {
+			config.MEDIA_PUBLIC_URL = original;
+		}
 
 		await mkdir(path.dirname(file), { recursive: true });
 		await writeFile(file, Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0, 1, 2, 3]));
+		const accel = await with_accel('/protected/', () => raw_get(url, user.access_token));
+		expect([accel.status, accel.headers.get('x-accel-redirect')]).toEqual([200, `/protected/artwork/${artwork_id}`]);
 		const head = await raw_get(url, user.access_token, 'HEAD');
 		expect(head.status).toBe(200);
 		expect(head.headers.get('content-length')).toBe('8');

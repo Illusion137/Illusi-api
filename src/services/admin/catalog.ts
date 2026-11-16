@@ -13,6 +13,7 @@ import { HttpError } from '../../core/http';
 import { logger } from '../../core/log';
 import { resolve_redirect } from '../../core/redirects';
 import { is_valid_resource_id } from '../media';
+import { delete_remote_media } from '../media/remote';
 
 const log = logger('admin');
 
@@ -144,6 +145,7 @@ export async function remove_media(media_id: number, admin_id: string) {
 	if (is_valid_resource_id(removed.resource_id)) {
 		await rm(path.join(config.MEDIA_DIR, removed.resource_id), { force: true })
 			.catch((err: unknown) => log.error('could not remove media file', { resource_id: removed.resource_id, err }));
+		await delete_remote_media([removed.resource_id]);
 	}
 	log.info('media removed by admin', { media_id, track_id: removed.track_id, resource_id: removed.resource_id, admin_id });
 	return { id: removed.id, track_id: removed.track_id, resource_id: removed.resource_id };

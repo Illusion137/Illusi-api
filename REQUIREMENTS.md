@@ -1067,7 +1067,7 @@ requirement in this document refers to this section.
   - **Kept**: what the user added to the shared catalog (artists, albums, tracks, service ids, lyrics, media), with their id removed. `media_table.uploaded_by`, `contributions_log_table.user_id` (now nullable), `service_id_conflicts_table.source_user_id`, the lyrics `source_user_id`s, `audit_log_table.actor_user_id` and the release-check and research `checked_by` become null. The user is removed from review items' `source_user_ids`, including inside `proposed_values`.
   - **Play totals**: they drop by the user's plays.
 - After commit their playlist artwork and export files are deleted. Their access and refresh tokens stop working at once (§12.3).
-- Playlist artwork already copied to the off-site media backup stays there, because that bucket is append-only (`scripts/backup-media.sh`).
+- Their playlist artwork is deleted from the media bucket too, when one is configured (§13.3).
 
 ---
 
@@ -1099,6 +1099,7 @@ Rows in `media_table` are created **only by client uploads**.
 
 - Authenticated. Allowed only if the requesting user has the media's track in their library: a non-deleted `user_tracks_table` row, or the track is in one of their non-deleted playlists. Otherwise `403`.
 - Supports HTTP `Range` requests, so clients can stream and resume.
+- **Media bucket** (optional): `scripts/backup-media.sh` moves stored media and playlist artwork into a public S3 bucket every 15 minutes and deletes the local copy. Once a file is gone from `MEDIA_DIR`, this route (and `GET /artwork/:artwork_id`) answers `302` to `MEDIA_PUBLIC_URL/<path under MEDIA_DIR>` after the same access check; the bucket URL needs no auth (the UUID file name is the secret). Clients must not send their `Authorization` header to the bucket. The analyzer downloads a temporary copy when it needs the file. Media removed by an admin and replaced or deleted artwork are deleted from the bucket through its S3 API (`MEDIA_S3_*`).
 
 ### 13.4 Requesting media from clients
 

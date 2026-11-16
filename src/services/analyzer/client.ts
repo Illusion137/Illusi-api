@@ -73,7 +73,7 @@ export async function call_analyze(base_url: string, file_path: string, signal: 
  * Downloads `url` to `dest` with retries on network errors / 5xx. Throws `JobError`
  * (`download_not_found` / `download_failed`) or rethrows aborts. A partial file is left for the job's guarded cleanup.
  */
-export async function download_to(url: string, dest: string, signal: AbortSignal): Promise<void> {
+export async function download_to(url: string, dest: string, signal: AbortSignal, max_bytes = MAX_PREVIEW_BYTES): Promise<void> {
 	let last = '';
 	for (let attempt = 1; attempt <= DOWNLOAD_MAX_ATTEMPTS; attempt++) {
 		try {
@@ -88,15 +88,15 @@ export async function download_to(url: string, dest: string, signal: AbortSignal
 				last = `HTTP ${res.status}`;
 			} else {
 				const length = Number(res.headers.get('content-length'));
-				if (length > MAX_PREVIEW_BYTES) {
+				if (length > max_bytes) {
 					await res.body.cancel();
-					throw new JobError({ kind: 'bad_file', detail: `preview too large (${length} bytes)` });
+					throw new JobError({ kind: 'bad_file', detail: `download too large (${length} bytes)` });
 				}
 				let bytes = 0;
 				const body = Readable.fromWeb(res.body as WebReadableStream<Uint8Array>);
 				body.on('data', (chunk: Buffer) => {
 					bytes += chunk.length;
-					if (bytes > MAX_PREVIEW_BYTES) body.destroy(new JobError({ kind: 'bad_file', detail: 'preview too large' }));
+					if (bytes > max_bytes) body.destroy(new JobError({ kind: 'bad_file', detail: 'download too large' }));
 				});
 				await pipeline(body, createWriteStream(dest), { signal });
 				return;

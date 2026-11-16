@@ -15,6 +15,7 @@ import { PendingEvents } from '../../core/events';
 import { HttpError } from '../../core/http';
 import { logger } from '../../core/log';
 import { clamp_edited_at, lww_wins } from '../sync/lww';
+import { delete_remote_media } from '../media/remote';
 import { normalize_image } from '../media/transcode';
 
 const log = logger('artwork');
@@ -43,12 +44,16 @@ export function artwork_path(artwork_id: string): string | null {
 	return is_valid_artwork_id(artwork_id) ? path.join(config.MEDIA_DIR, ARTWORK_SUBDIR, artwork_id) : null;
 }
 
-/** Removes artwork files whose rows are gone; a missing file is fine. */
+/** Removes artwork files whose rows are gone, here and in the media bucket; a missing file is fine. */
 export async function remove_artwork_files(artwork_ids: readonly (string | null)[]) {
+	const removed: string[] = [];
 	for (const id of artwork_ids) {
 		const file = id ? artwork_path(id) : null;
-		if (file) await rm(file, { force: true }).catch((err: unknown) => log.warn('could not remove artwork file', { artwork_id: id, err }));
+		if (!file) continue;
+		await rm(file, { force: true }).catch((err: unknown) => log.warn('could not remove artwork file', { artwork_id: id, err }));
+		removed.push(`${ARTWORK_SUBDIR}/${id}`);
 	}
+	await delete_remote_media(removed);
 }
 
 /** Passes bytes through after checking the first ones are an image. */

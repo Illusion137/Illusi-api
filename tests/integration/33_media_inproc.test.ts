@@ -150,6 +150,23 @@ describe('media streaming', () => {
 		await rm(path.join(config.MEDIA_DIR, resource_id));
 		expect((await get(user, resource_id)).status).toBe(404);
 	});
+
+	it('redirects to the media bucket once the file has moved there, after checking access', async () => {
+		const user = await create_user('media-remote');
+		const { resource_id } = await stored(user);
+		const outsider = await create_user('media-remote-outsider');
+		await rm(path.join(config.MEDIA_DIR, resource_id));
+		const original = config.MEDIA_PUBLIC_URL;
+		config.MEDIA_PUBLIC_URL = 'https://bucket.example.com/abc:illusi-media';
+		try {
+			const res = await fetch(`${API_BASE}/media/${resource_id}`, { headers: { authorization: `Bearer ${user.access_token}` }, redirect: 'manual' });
+			expect(res.status).toBe(302);
+			expect(res.headers.get('location')).toBe(`https://bucket.example.com/abc:illusi-media/${resource_id}`);
+			expect((await get(outsider, resource_id)).status).toBe(403);
+		} finally {
+			config.MEDIA_PUBLIC_URL = original;
+		}
+	});
 });
 
 describe('upload requests', () => {

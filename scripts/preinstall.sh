@@ -9,7 +9,7 @@
 # Installs Docker + compose + docker-rollout, a firewall, fail2ban, unattended upgrades and swap;
 # creates the `illusi` deploy user (the CI SSH target) and /opt/illusi with .env, generating any secret it lacks
 # (run scripts/upload-env.sh from your machine first to use your own .env, database password included);
-# installs systemd timers for certificate renewal, nightly Postgres backups, media backups, a monthly restore test
+# installs systemd timers for certificate renewal, nightly Postgres backups, moving media to its bucket, a monthly restore test
 # and image cleanup (each reported to a Sentry Cron Monitor through scripts/cron.sh when SENTRY_DSN is set); then
 # runs the first deploy and issues the TLS certificate. Re-running only fills in what's missing.
 #
@@ -188,7 +188,7 @@ WantedBy=timers.target
 EOF
 cat > /etc/systemd/system/illusi-media-backup.service <<EOF
 [Unit]
-Description=Copy new Illusi media files to object storage
+Description=Move new Illusi media files to the media bucket
 After=docker.service
 [Service]
 Type=oneshot
@@ -198,7 +198,7 @@ ExecStart=$APP_DIR/scripts/cron.sh media-backup -- $APP_DIR/scripts/backup-media
 EOF
 cat > /etc/systemd/system/illusi-media-backup.timer <<'EOF'
 [Unit]
-Description=Copy new Illusi media files to object storage every 15 minutes
+Description=Move new Illusi media files to the media bucket every 15 minutes
 [Timer]
 OnBootSec=5min
 OnUnitActiveSec=15min

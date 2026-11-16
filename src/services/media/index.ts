@@ -16,6 +16,7 @@ import { HttpError, parse_body, require_user, uuid_schema } from '../../core/htt
 import { logger } from '../../core/log';
 import { resolve_redirect } from '../../core/redirects';
 import { parse_range } from './range';
+import { remote_media_url } from './remote';
 import { resource_ext, resource_path } from './resource_id';
 import { MIME_BY_EXT } from './sniff';
 import { backpacked_upload_track_ids, pending_upload_track_ids, store_upload, user_can_access_tracks } from './store';
@@ -125,6 +126,12 @@ media_router.get('/media/:resource_id', async (req, res) => {
 	try {
 		size = (await stat(file_path)).size;
 	} catch {
+		// Moved to the media bucket by scripts/backup-media.sh: the bucket serves it publicly.
+		const remote = remote_media_url(resource_id);
+		if (remote) {
+			res.redirect(302, remote);
+			return;
+		}
 		log.error('media file missing', { resource_id });
 		throw new HttpError(404, 'media file not found');
 	}

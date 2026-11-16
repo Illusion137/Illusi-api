@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './load_env';
 import path from 'node:path';
 import { z } from 'zod';
 
@@ -59,6 +59,17 @@ const schema = z.object({
 	MEDIA_MAX_BYTES: num(200 * 1024 * 1024),
 	/** Behind nginx: `GET /media/:id` answers with `X-Accel-Redirect: <prefix><resource_id>` and nginx serves the file. Empty streams it from Node. */
 	MEDIA_ACCEL_PREFIX: z.string().regex(/^(\/[a-z_]+\/)?$/u).default(''),
+	/**
+	 * Public base URL of the media bucket, which scripts/backup-media.sh moves files into. A media or artwork file no
+	 * longer under MEDIA_DIR is answered with a redirect to `<url>/<path under MEDIA_DIR>`. Empty: media stays on disk.
+	 */
+	MEDIA_PUBLIC_URL: z.string().regex(/^(https?:\/\/\S+)?$/u).default('').transform(url => url.replace(/\/+$/u, '')),
+	/** The media bucket's S3 API, used to delete removed files from it. Empty endpoint: removed files stay in the bucket. */
+	MEDIA_S3_ENDPOINT: z.string().default('').transform(url => url.replace(/\/+$/u, '')),
+	MEDIA_S3_BUCKET: z.string().default(''),
+	MEDIA_S3_ACCESS_KEY: z.string().default(''),
+	MEDIA_S3_SECRET_KEY: z.string().default(''),
+	MEDIA_S3_REGION: z.string().default('us-east-1'),
 	/** Uploads are stored as AAC `.m4a`; non-AAC input is encoded at this bitrate (ffmpeg `-b:a`). */
 	MEDIA_AAC_BITRATE: z.string().regex(/^\d+k$/u).default('256k'),
 	MEDIA_TRANSCODE_CONCURRENCY: num(2),

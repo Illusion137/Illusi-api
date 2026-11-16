@@ -39,9 +39,9 @@ mkdir -p "$work"
 
 # 1. the dump
 source_name=local
-if [[ "${1:-}" != --local ]] && [[ -n "$key" ]] && s3_configured; then
-	s3_init
-	remote="$(s3_remote "${BACKUP_S3_DB_PREFIX:-db}")"
+if [[ "${1:-}" != --local ]] && [[ -n "$key" ]] && s3_configured BACKUP; then
+	s3_init BACKUP
+	remote="$(s3_remote BACKUP "${BACKUP_S3_DB_PREFIX:-db}")"
 	newest="$(s3_rclone "$work" ro "$me" lsf "$remote" --include 'illusi-*.dump.gpg' | sort | tail -n 1)"
 	[[ -n "$newest" ]] || { echo "error: no dumps in the bucket" >&2; exit 1; }
 	s3_rclone "$work" rw "$me" copy "$remote/$newest" /local --stats 0

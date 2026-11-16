@@ -38,7 +38,7 @@ The script is safe to re-run. It installs:
 - Docker, compose and the docker-rollout plugin
 - ufw (22, 80 and 443 only), fail2ban, unattended upgrades, and swap on small machines
 - the `illusi` deploy user and `/opt/illusi`, with random secrets for anything `.env` lacks
-- systemd timers for certificate renewal, daily encrypted `pg_dump` (`data/backups` and the bucket; 7 daily + weekly to 21 days), media copies to the bucket every 15 minutes, a monthly restore test, and image cleanup. Each runs through `scripts/cron.sh`, which reports it to a Sentry Cron Monitor (see Monitoring)
+- systemd timers for certificate renewal, daily encrypted `pg_dump` (`data/backups` and the bucket; 7 daily + weekly to 21 days), media moved to the media bucket every 15 minutes, a monthly restore test, and image cleanup. Each runs through `scripts/cron.sh`, which reports it to a Sentry Cron Monitor (see Monitoring)
 
 It then deploys and issues the certificate.
 
@@ -46,19 +46,30 @@ It then deploys and issues the certificate.
 
 **Database.** `scripts/backup.sh` runs daily at 02:30. It writes a `pg_dump` to `data/backups`, encrypts it with
 `BACKUP_ENCRYPTION_KEY` (gpg, AES-256), checks that the result decrypts to a readable dump, and copies it to the
-bucket under `db/`. It keeps every dump from the last 7 days, plus the first dump of each week for 7 to 21 days,
+backup bucket under `db/`. It keeps every dump from the last 7 days, plus the first dump of each week for 7 to 21 days,
 so a dump between 14 and 20 days old always exists. The same rule prunes the bucket, based on the bucket's own
 listing, so a freshly rebuilt VPS never deletes older copies. Keep the key outside the VPS (a password manager):
 the dumps can't be restored without it. Without a key, dumps stay unencrypted and are never uploaded.
 
-**Media.** `scripts/backup-media.sh` copies new media files to the bucket under `media/` every 15 minutes. It only
-adds: nothing in the bucket is ever deleted or overwritten, so a file removed or corrupted on the VPS keeps its copy.
-Playlist artwork (`data/media/artwork/`) is included. Data exports (`data/media/.exports/`) are short-lived copies of
-a user's personal data and are never uploaded.
+**Media.** Media and playlist artwork live in their own public bucket. Every 15 minutes `scripts/backup-media.sh`
+moves files older than 5 minutes there (the bucket mirrors `data/media`: `<uuid>.m4a`, `artwork/<uuid>.jpg`) and
+deletes each local copy once its upload is verified. The API serves a file from disk while it's still there and
+otherwise redirects (`302`) to its public bucket URL after checking access; the analyzer downloads a temporary copy.
+Media removed by an admin and replaced or deleted artwork are deleted from the bucket by the API. Data exports
+(`data/media/.exports/`) are short-lived copies of a user's personal data and stay on disk. The bucket is the only
+copy of a moved file, so don't use the backup bucket for it.
 
-**Setup.** In the Contabo panel, create a bucket and S3 credentials, then set `BACKUP_S3_ENDPOINT` (your region's
-endpoint, e.g. `https://eu2.contabostorage.com`), `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY` and
-`BACKUP_S3_SECRET_KEY` in `.env`.
+**Setup.** In the Contabo panel, create two buckets (e.g. `illusi-backups` and `illusi-media`) and S3 credentials.
+Turn on public sharing for the media bucket only, and copy its public URL. Then in `.env`:
+
+- backups: `BACKUP_S3_ENDPOINT` (your region's endpoint, e.g. `https://eu2.contabostorage.com`),
+  `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
+- media: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY`, `MEDIA_S3_SECRET_KEY`, and
+  `MEDIA_PUBLIC_URL` (the public URL, e.g. `https://eu2.contabostorage.com/<id>:illusi-media`). Without
+  `MEDIA_PUBLIC_URL` the script refuses to move anything.
+
+To stop using the media bucket, run `scripts/backup-media.sh restore`, then clear `MEDIA_S3_ENDPOINT` and
+`MEDIA_PUBLIC_URL`.
 
 **Restoring after losing the VPS.** Run preinstall on the new VPS with the same `.env`, then:
 
@@ -66,7 +77,7 @@ endpoint, e.g. `https://eu2.contabostorage.com`), `BACKUP_S3_BUCKET`, `BACKUP_S3
 scripts/backup.sh fetch                     # encrypted dumps from the bucket into data/backups
 scripts/backup.sh decrypt data/backups/<newest>.dump.gpg |
   scripts/compose.sh exec -T db pg_restore --clean --if-exists -U illusi -d illusi
-scripts/backup-media.sh restore             # media files back into data/media
+                                            # media stays in its bucket; nothing to restore
 ```
 
 **Restore test.** On the 1st of every month at 04:00, `scripts/restore-test.sh` takes the newest dump from the
@@ -222,7 +233,7 @@ Set these secrets in the `production` environment:
 | `scripts/force-deploy.sh [ref]` | Build on the VPS and deploy, without CI. From your machine it SSHes in using `.secrets` |
 | `scripts/backup.sh [list\|fetch\|decrypt <file>]` | Back up the database now; `list` shows local and bucket dumps; see Backups for restoring |
 | `scripts/upload-env.sh` | From your machine: push the local `.env` to the VPS and apply it |
-| `scripts/backup-media.sh [check\|restore]` | Copy new media to object storage now; `check` lists files missing from the bucket; `restore` downloads them all into `data/media` |
+| `scripts/backup-media.sh [check\|restore]` | Move media to the media bucket now; `check` lists local files not moved yet; `restore` downloads them all back into `data/media` |
 | `scripts/ssl.sh renew` | Renew the certificate and reload nginx |
 | `scripts/restore-test.sh [--local]` | Restore the newest dump into a throwaway Postgres and compare row counts |
 | `scripts/cron.sh <monitor> -- <command>` | Run a command as one of the scheduled jobs, reporting to its Sentry Cron Monitor |

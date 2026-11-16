@@ -26,7 +26,9 @@ export default defineConfig({
 		env: {
 			DATABASE_URL: 'postgres://test:test@localhost:5432/test',
 			JWT_ACCESS_SECRET: 'test-access-secret-test-access-secret-0000',
-			ACTION_TOKEN_SECRET: 'test-action-secret-test-action-secret-0000'
+			ACTION_TOKEN_SECRET: 'test-action-secret-test-action-secret-0000',
+			// src/load_env.ts skips .env (possibly the production one) under test.
+			NODE_ENV: 'test'
 		}
 	}
 });

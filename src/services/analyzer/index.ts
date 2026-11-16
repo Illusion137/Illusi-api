@@ -6,6 +6,7 @@ import { config } from '../../config';
 import { db } from '../../db';
 import { on } from '../../core/events';
 import { logger } from '../../core/log';
+import { remote_media_url } from '../media/remote';
 import { rebuild_stale_vectors } from '../vectors';
 import { call_analyze, check_health, download_to, is_abort, JobError, sleep } from './client';
 import { map_alignment, map_analysis, map_vocals } from './contract';
@@ -118,17 +119,19 @@ async function wait_gate() {
 	while (gate_pending && !stopping) await gate;
 }
 
-/** Deletes a downloaded preview. Refuses anything that isn't a preview inside ANALYZER_TMP_DIR. */
-async function delete_temp_file(source: SampleSource, file_path: string) {
-	/* v8 ignore start: defence in depth; temp files are always created inside tmp_dir for previews */
-	if (!may_delete(source, file_path, tmp_dir)) {
-		log.error(`refusing to delete ${file_path} (source ${source})`);
-		return;
+/** Deletes a job's downloads (previews, media copies from the bucket). Refuses anything outside ANALYZER_TMP_DIR. */
+async function delete_temp_files(files: readonly string[]) {
+	for (const file_path of files) {
+		/* v8 ignore start: defence in depth; temp files are always created inside tmp_dir */
+		if (!may_delete(file_path, tmp_dir)) {
+			log.error(`refusing to delete ${file_path}`);
+			continue;
+		}
+		/* v8 ignore stop */
+		await unlink(file_path).catch((err: unknown) => {
+			if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log.warn(`failed to delete ${file_path}`, err);
+		});
 	}
-	/* v8 ignore stop */
-	await unlink(file_path).catch((err: unknown) => {
-		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log.warn(`failed to delete ${file_path}`, err);
-	});
 }
 
 /** Empties ANALYZER_TMP_DIR. */
@@ -142,21 +145,35 @@ async function empty_tmp_dir() {
 	if (entries.length > 0) log.info(`removed ${entries.length} temp file(s)`);
 }
 
-async function media_file(resource_id: string): Promise<string> {
+const temp_path = (job: Job, ext: string) => path.join(tmp_dir, `${job.track_id}.${randomUUID()}.${ext}`);
+
+/**
+ * The media file to analyze: the local one, or once scripts/backup-media.sh moved it to the media bucket, a download
+ * of it into ANALYZER_TMP_DIR (added to `temps`).
+ */
+async function media_file(job: Job, resource_id: string, signal: AbortSignal, temps: string[]): Promise<string> {
 	const file = safe_media_path(media_dir, resource_id);
 	if (!file) throw new JobError({ kind: 'bad_file', detail: `unsafe resource id ${resource_id}` });
 	try {
 		await access(file, constants.R_OK);
+		return file;
 	} catch {
-		throw new JobError({ kind: 'bad_file', detail: `media file missing: ${file}` });
+		const remote = remote_media_url(resource_id);
+		if (!remote) throw new JobError({ kind: 'bad_file', detail: `media file missing: ${file}` });
+		const temp = temp_path(job, path.extname(resource_id).slice(1));
+		temps.push(temp);
+		await download_to(remote, temp, signal, config.MEDIA_MAX_BYTES);
+		return temp;
 	}
-	return file;
 }
 
-async function local_path(job: Job, source: ResolvedSource): Promise<{ file: string; temp: boolean }> {
-	if (source.source === 'media') return { file: await media_file(source.ref), temp: false };
-	const file = path.join(tmp_dir, `${job.track_id}.${randomUUID()}.${preview_extension(source.ref)}`);
-	return { file, temp: true };
+/** The file to analyze for a sample: the media file, or the downloaded iTunes preview (added to `temps`). */
+async function local_path(job: Job, source: ResolvedSource, signal: AbortSignal, temps: string[]): Promise<string> {
+	if (source.source === 'media') return media_file(job, source.ref, signal, temps);
+	const file = temp_path(job, preview_extension(source.ref));
+	temps.push(file);
+	await download_to(source.ref, file, signal);
+	return file;
 }
 
 function to_failure(err: unknown, signal: AbortSignal): JobFailure {
@@ -198,9 +215,10 @@ async function run_alignment_job(job: Job): Promise<boolean> {
 	if (!target) return false;
 
 	const signal = AbortSignal.timeout(config.ANALYZER_ALIGNMENT_TIMEOUT_MS);
+	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		file_path = await media_file(target.resource_id);
+		file_path = await media_file(job, target.resource_id, signal, temps);
 		const result = map_alignment(await call_analyze(config.ANALYZER_URL, file_path, signal, '/alignment'));
 		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await record_alignment(job.track_id, target, 'DONE', null, result);
@@ -209,6 +227,8 @@ async function run_alignment_job(job: Job): Promise<boolean> {
 	} catch (err) {
 		return handle_failure(job, err, signal, { source: 'media', path: file_path ?? target.resource_id }, next_attempts(target.prior, target.resource_id),
 			(status, retry_after) => record_alignment(job.track_id, target, status, retry_after, null));
+	} finally {
+		await delete_temp_files(temps);
 	}
 }
 
@@ -217,9 +237,10 @@ async function run_vocals_job(job: Job): Promise<boolean> {
 	if (!target) return false;
 
 	const signal = AbortSignal.timeout(config.ANALYZER_JOB_TIMEOUT_MS);
+	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		file_path = await media_file(target.resource_id);
+		file_path = await media_file(job, target.resource_id, signal, temps);
 		const result = map_vocals(await call_analyze(config.ANALYZER_URL, file_path, signal, '/vocals'));
 		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await record_vocals(job.track_id, target, 'DONE', null, result);
@@ -228,6 +249,8 @@ async function run_vocals_job(job: Job): Promise<boolean> {
 	} catch (err) {
 		return handle_failure(job, err, signal, { source: 'media', path: file_path ?? target.resource_id }, next_attempts(target.prior, target.resource_id),
 			(status, retry_after) => record_vocals(job.track_id, target, status, retry_after, null));
+	} finally {
+		await delete_temp_files(temps);
 	}
 }
 
@@ -236,15 +259,11 @@ async function run_sample_job(job: Job): Promise<boolean> {
 	if (!source) return false;
 
 	const signal = AbortSignal.timeout(config.ANALYZER_JOB_TIMEOUT_MS);
-	let temp_file: string | null = null;
+	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		const { file, temp } = await local_path(job, source);
+		const file = await local_path(job, source, signal, temps);
 		file_path = file;
-		if (temp) {
-			temp_file = file;
-			await download_to(source.ref, file, signal);
-		}
 		const body = await call_analyze(config.ANALYZER_URL, file, signal);
 		const row = map_analysis(job.track_id, body);
 		if (!row) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
@@ -255,8 +274,8 @@ async function run_sample_job(job: Job): Promise<boolean> {
 		return await handle_failure(job, err, signal, { source: source.source, path: file_path ?? source.ref }, next_attempts(source.prior, source.ref),
 			(status, retry_after) => record_lookup(db, job.track_id, source, status, retry_after));
 	} finally {
-		// Deletion depends only on the job's source type; media files are never touched.
-		if (temp_file && source.source === 'itunes_preview') await delete_temp_file(source.source, temp_file);
+		// Only downloads inside ANALYZER_TMP_DIR; media files are never touched.
+		await delete_temp_files(temps);
 	}
 }
 

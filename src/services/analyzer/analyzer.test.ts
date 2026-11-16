@@ -254,14 +254,13 @@ describe('path safety', () => {
 		expect(() => assert_tmp_dir_safe('/data/media_tmp', '/data/media')).not.toThrow();
 	});
 
-	it('deletes only itunes previews strictly inside the temp dir', () => {
+	it('deletes only downloads strictly inside the temp dir', () => {
 		const tmp = '/data/analyzer_tmp';
-		expect(may_delete('itunes_preview', '/data/analyzer_tmp/t.u.m4a', tmp)).toBe(true);
-		expect(may_delete('media', '/data/analyzer_tmp/t.u.m4a', tmp)).toBe(false);
-		expect(may_delete('itunes_preview', '/data/media/abc', tmp)).toBe(false);
-		expect(may_delete('itunes_preview', '/data/analyzer_tmp/../media/abc', tmp)).toBe(false);
-		expect(may_delete('itunes_preview', '/data/analyzer_tmp', tmp)).toBe(false);
-		expect(may_delete('itunes_preview', '/data/analyzer_tmp_other/x', tmp)).toBe(false);
+		expect(may_delete('/data/analyzer_tmp/t.u.m4a', tmp)).toBe(true);
+		expect(may_delete('/data/media/abc', tmp)).toBe(false);
+		expect(may_delete('/data/analyzer_tmp/../media/abc', tmp)).toBe(false);
+		expect(may_delete('/data/analyzer_tmp', tmp)).toBe(false);
+		expect(may_delete('/data/analyzer_tmp_other/x', tmp)).toBe(false);
 	});
 
 	it('only accepts plain media resource ids', () => {

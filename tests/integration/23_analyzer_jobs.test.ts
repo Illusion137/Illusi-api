@@ -195,6 +195,32 @@ describe('analyzer jobs from media', () => {
 		await stop();
 	});
 
+	it('analyzes a download from the media bucket once the file has moved there, then deletes the download', async () => {
+		const t = await seed_track({ media: `${uuid()}.m4a`, write_file: false });
+		const original = config.MEDIA_PUBLIC_URL;
+		config.MEDIA_PUBLIC_URL = 'https://bucket.example.com/media';
+		const downloads: string[] = [];
+		download = (url) => {
+			downloads.push(url);
+			return new Response('bucket bytes');
+		};
+		try {
+			await start();
+			emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+			await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', resource_id: t.resource_id }));
+			await wait(async () => expect(await lookups_of(t.id)).toEqual([expect.objectContaining({ source: 'media', status: 'DONE' })]));
+			expect(downloads.length).toBeGreaterThanOrEqual(2);
+			expect(new Set(downloads)).toEqual(new Set([`https://bucket.example.com/media/${t.resource_id}`]));
+			const analyzed = calls.filter(c => c.url.endsWith('/analyze'))[0].path!;
+			expect(path.dirname(analyzed)).toBe(tmp_dir);
+			expect(analyzed.endsWith('.m4a')).toBe(true);
+			expect((await readdir(tmp_dir)).filter(f => f.startsWith(t.id))).toEqual([]);
+		} finally {
+			config.MEDIA_PUBLIC_URL = original;
+			await stop();
+		}
+	});
+
 	it('gives up on a response that breaks the contract after three tries and records ERROR with a retry time', async () => {
 		const t = await seed_track({ media: uuid() });
 		analyze = () => json({ mood: 'House/Dance' });

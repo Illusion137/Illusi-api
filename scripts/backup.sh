@@ -84,10 +84,10 @@ backup() {
 		echo "pruned $name"
 	done < <(find "$dir" -maxdepth 1 -name 'illusi-*.dump*' ! -name '*.partial' -printf '%f\n' | expired)
 
-	if [[ -z "$key" ]] || ! s3_configured; then return; fi
-	s3_init
+	if [[ -z "$key" ]] || ! s3_configured BACKUP; then return; fi
+	s3_init BACKUP
 	local remote
-	remote="$(s3_remote "${BACKUP_S3_DB_PREFIX:-db}")"
+	remote="$(s3_remote BACKUP "${BACKUP_S3_DB_PREFIX:-db}")"
 	s3_rclone "$dir" ro "$me" copy /local "$remote" --include 'illusi-*.dump.gpg' --ignore-existing --stats 0 -v
 	# Remote retention goes by the bucket's own listing, never by what is (or isn't) on this disk: a fresh VPS
 	# with one new dump must not wipe older copies.
@@ -105,16 +105,16 @@ case "${1:-backup}" in
 	list)
 		echo "local ($dir):"
 		find "$dir" -maxdepth 1 -name 'illusi-*.dump*' ! -name '*.partial' -printf '  %f  %s bytes\n' | sort
-		if s3_configured; then
-			s3_init
+		if s3_configured BACKUP; then
+			s3_init BACKUP
 			echo "bucket:"
-			s3_rclone "$dir" ro "$me" lsf "$(s3_remote "${BACKUP_S3_DB_PREFIX:-db}")" --format sp --separator '  ' | sed 's/^/  /' | sort
+			s3_rclone "$dir" ro "$me" lsf "$(s3_remote BACKUP "${BACKUP_S3_DB_PREFIX:-db}")" --format sp --separator '  ' | sed 's/^/  /' | sort
 		fi
 		;;
 	fetch)
-		s3_configured || { echo "BACKUP_S3_ENDPOINT is empty" >&2; exit 1; }
-		s3_init
-		s3_rclone "$dir" rw "$me" copy "$(s3_remote "${BACKUP_S3_DB_PREFIX:-db}")" /local --ignore-existing -v
+		s3_configured BACKUP || { echo "BACKUP_S3_ENDPOINT is empty" >&2; exit 1; }
+		s3_init BACKUP
+		s3_rclone "$dir" rw "$me" copy "$(s3_remote BACKUP "${BACKUP_S3_DB_PREFIX:-db}")" /local --ignore-existing -v
 		;;
 	decrypt)
 		file="${2:?usage: scripts/backup.sh decrypt <file.dump.gpg>}"
