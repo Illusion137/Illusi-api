@@ -15,6 +15,8 @@ s3_configured() { local endpoint="${1}_S3_ENDPOINT"; [[ -n "${!endpoint:-}" ]]; 
 # `s3_init BACKUP|MEDIA`: defines the rclone remote `backup:` or `media:`.
 s3_init() {
 	local p="$1" v
+	# A path in the endpoint (e.g. the bucket) makes rclone put every file one folder too deep.
+	[[ "$(printenv "${p}_S3_ENDPOINT")" =~ ^https?://[^/[:space:]]+/?$ ]] || { echo "${p}_S3_ENDPOINT must be the scheme and host only, e.g. https://eu2.contabostorage.com" >&2; exit 1; }
 	for v in BUCKET ACCESS_KEY SECRET_KEY; do
 		[[ -n "$(printenv "${p}_S3_$v")" ]] || { echo "set ${p}_S3_$v in .env" >&2; exit 1; }
 	done

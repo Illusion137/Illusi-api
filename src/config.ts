@@ -63,9 +63,9 @@ const schema = z.object({
 	 * Public base URL of the media bucket, which scripts/backup-media.sh moves files into. A media or artwork file no
 	 * longer under MEDIA_DIR is answered with a redirect to `<url>/<path under MEDIA_DIR>`. Empty: media stays on disk.
 	 */
-	MEDIA_PUBLIC_URL: z.string().regex(/^(https?:\/\/\S+)?$/u).default('').transform(url => url.replace(/\/+$/u, '')),
-	/** The media bucket's S3 API, used to delete removed files from it. Empty endpoint: removed files stay in the bucket. */
-	MEDIA_S3_ENDPOINT: z.string().default('').transform(url => url.replace(/\/+$/u, '')),
+	MEDIA_PUBLIC_URL: z.string().trim().regex(/^(https?:\/\/\S+)?$/u).default('').transform(url => url.replace(/\/+$/u, '')),
+	/** The media bucket's S3 API (scheme and host only, e.g. https://eu2.contabostorage.com), used to delete removed files from it. Empty: removed files stay in the bucket. */
+	MEDIA_S3_ENDPOINT: z.string().trim().regex(/^(https?:\/\/[^/\s]+\/?)?$/u, 'scheme and host only, without the bucket').default('').transform(url => url.replace(/\/+$/u, '')),
 	MEDIA_S3_BUCKET: z.string().default(''),
 	MEDIA_S3_ACCESS_KEY: z.string().default(''),
 	MEDIA_S3_SECRET_KEY: z.string().default(''),
