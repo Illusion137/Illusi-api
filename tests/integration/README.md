@@ -34,7 +34,7 @@ API and runs `npm run test:integration`. To run it locally with [act](https://gi
 act -j integration -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 
-That fetches lib-origin `main` like CI does. To test against your local `./lib-origin` instead (e.g. unpushed
+That fetches lib-origin `full-refactor` (or the `LIB_ORIGIN_REF` repo variable) like CI does. To test against your local `./lib-origin` instead (e.g. unpushed
 changes), skip the fetch and stop act from dropping git-ignored files:
 
 ```sh

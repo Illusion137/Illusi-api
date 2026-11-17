@@ -31,6 +31,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Tools
+        # GitHub's runner has these; act's image may not.
+        run: |
+          missing=()
+          for tool in rsync shellcheck; do command -v "$tool" > /dev/null || missing+=("$tool"); done
+          if [ ${#missing[@]} -gt 0 ]; then sudo apt-get update -qq && sudo apt-get install -y -qq "${missing[@]}" > /dev/null; fi
       - name: Fetch lib-origin
         run: scripts/fetch-lib-origin.sh
       - run: npm ci --no-audit --no-fund
@@ -109,7 +115,9 @@ jobs:
       - name: Start the API
         run: |
           mkdir -p "$MEDIA_DIR" "$ANALYZER_TMP_DIR"
-          NODE_V8_COVERAGE="$RUNNER_TEMP/v8" nohup node --import tsx src/index.ts > api.log 2>&1 &
+          # Uploads under test must not depend on how full the runner's disk is (507 below DISK_MIN_FREE_GB). Set here and on
+          # the integration run only: the unit tests check the disk guard with its real defaults.
+          DISK_MIN_FREE_GB=0 DISK_WARN_FREE_GB=0 NODE_V8_COVERAGE="$RUNNER_TEMP/v8" nohup node --import tsx src/index.ts > api.log 2>&1 &
           echo $! > api.pid
           for _ in $(seq 1 60); do
             if curl -sf "$API_URL/health" > /dev/null; then exit 0; fi
@@ -120,7 +128,7 @@ jobs:
       - name: Integration tests (with coverage of the API process and the in-process suites)
         run: |
           npx vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/unit > /dev/null
-          npm run test:integration -- --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/inproc
+          DISK_MIN_FREE_GB=0 DISK_WARN_FREE_GB=0 npm run test:integration -- --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage-merged/inproc
       - name: Coverage gate (unit + in-process + API process, every src/ file at least 80% of lines)
         run: |
           kill -TERM "$(cat api.pid)"; sleep 3

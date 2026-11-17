@@ -33,6 +33,8 @@ export DATABASE_URL="postgres://illusi_app:illusi_app@127.0.0.1:$port/illusi"
 export JWT_ACCESS_SECRET=integration-access-secret-0000000000000000
 export ACTION_TOKEN_SECRET=integration-action-secret-0000000000000000
 export BACKGROUND_SERVICES=false LYRICS_SERVERS_STUB=not_found
+# Uploads under test must not depend on how full this disk is (507 below DISK_MIN_FREE_GB).
+export DISK_MIN_FREE_GB=0 DISK_WARN_FREE_GB=0
 export PORT="${API_PORT:-3000}"
 export API_URL="http://127.0.0.1:$PORT"
 export MEDIA_DIR="$work/media" ANALYZER_TMP_DIR="$work/analyzer_tmp" LOG_DIR="$work/logs"

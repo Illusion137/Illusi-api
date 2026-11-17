@@ -28,7 +28,9 @@ export default defineConfig({
 			JWT_ACCESS_SECRET: 'test-access-secret-test-access-secret-0000',
 			ACTION_TOKEN_SECRET: 'test-action-secret-test-action-secret-0000',
 			// src/load_env.ts skips .env (possibly the production one) under test.
-			NODE_ENV: 'test'
+			NODE_ENV: 'test',
+			// The integration job sets LYRICS_SERVERS_STUB=not_found for every step; unit tests mock the servers themselves.
+			LYRICS_SERVERS_STUB: 'off'
 		}
 	}
 });
