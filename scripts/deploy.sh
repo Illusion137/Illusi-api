@@ -51,6 +51,9 @@ ANALYZER_IMAGE=$analyzer_image
 ANALYZER_TAG=$tag
 EOF
 mv .env.deploy.next .env.deploy
+# .env was exported above, and compose prefers the shell environment over --env-file: without this its API_IMAGE
+# would win over .env.deploy, and a --local deploy would try to pull its locally built tag from the registry.
+export API_IMAGE="$api_image" API_TAG="$tag" ANALYZER_IMAGE="$analyzer_image" ANALYZER_TAG="$tag"
 rollback_tags() {
 	echo "deploy failed; restoring previous image tags in .env.deploy" >&2
 	if [[ -n "$previous" ]]; then printf '%s\n' "$previous" > .env.deploy; fi
