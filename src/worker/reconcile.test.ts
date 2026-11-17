@@ -28,6 +28,7 @@ const original_argv = process.argv;
 
 beforeEach(() => {
 	vi.resetAllMocks();
+	process.env.SENTRY_CRONS = 'true';
 	mocks.run_pass.mockResolvedValue(report());
 	mocks.with_monitor.mockImplementation(async (_slug: string, fn: () => Promise<unknown>) => fn());
 	mocks.close.mockResolvedValue(true);
@@ -35,6 +36,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	delete process.env.SENTRY_CRONS;
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	process.argv = original_argv;
@@ -105,6 +107,15 @@ describe('reconcile worker scheduler', () => {
 		await start();
 		await vi.waitFor(() => expect(mocks.run_pass).toHaveBeenCalledWith(expect.objectContaining({ mode: 'incremental' })));
 		expect(mocks.with_monitor).toHaveBeenCalledWith('reconcile-incremental', expect.any(Function), expect.objectContaining({ schedule: expect.objectContaining({ type: 'interval' }) }));
+		expect(mocks.check_in).not.toHaveBeenCalled();
+		stop();
+	});
+
+	it('runs scheduled passes without check-ins while SENTRY_CRONS is off', async () => {
+		process.env.SENTRY_CRONS = 'false';
+		await start('--full');
+		await vi.waitFor(() => expect(mocks.run_pass).toHaveBeenCalledWith(expect.objectContaining({ mode: 'full' })));
+		expect(mocks.with_monitor).not.toHaveBeenCalled();
 		expect(mocks.check_in).not.toHaveBeenCalled();
 		stop();
 	});

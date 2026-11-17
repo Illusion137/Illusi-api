@@ -32,9 +32,9 @@ async function main() {
 		if (opts.dry_run && report.plans) console.log(JSON.stringify(report.plans, null, '\t'));
 		return report;
 	};
-	// Scheduled passes check in with Sentry Cron Monitors (created on first check-in), so a failed, hung or
-	// missed pass alerts. One-off and dry runs don't.
-	const monitored = !opts.once && !opts.dry_run;
+	// With SENTRY_CRONS, scheduled passes check in with Sentry Cron Monitors (created on first check-in), so a failed,
+	// hung or missed pass alerts. One-off and dry runs don't.
+	const monitored = config.SENTRY_CRONS && !opts.once && !opts.dry_run;
 	const pass = async (mode: 'full' | 'incremental') => {
 		if (!monitored) return run(mode);
 		const report = await Sentry.withMonitor(MONITORS[mode], () => run(mode), monitor_config(mode));

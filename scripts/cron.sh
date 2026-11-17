@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Runs a scheduled job and reports it to a Sentry Cron Monitor (systemd services from preinstall.sh run every job
-# through this). The first check-in creates the monitor with the schedule below, so a failed run (non-zero exit), a
-# run that hangs past max_runtime, or a run that never happens opens a Sentry issue. Without SENTRY_DSN in .env the
-# job just runs.
+# Runs a scheduled job and, with SENTRY_CRONS=true, reports it to a Sentry Cron Monitor (systemd services from
+# preinstall.sh run every job through this). The first check-in creates the monitor with the schedule below, so a
+# failed run (non-zero exit), a run that hangs past max_runtime, or a run that never happens opens a Sentry issue.
+# Without SENTRY_CRONS=true or SENTRY_DSN in .env the job just runs.
 #
 #   scripts/cron.sh <monitor> -- <command> [args...]
 #
@@ -28,7 +28,9 @@ esac
 
 # SENTRY_DSN = https://<public key>@<ingest host>/<project id>
 cron_url=""
-if [[ "${SENTRY_DSN:-}" =~ ^(https?)://([^@:]+)(:[^@]*)?@([^/]+)/(.*/)?([0-9]+)$ ]]; then
+if [[ "${SENTRY_CRONS:-false}" != true ]]; then
+	:
+elif [[ "${SENTRY_DSN:-}" =~ ^(https?)://([^@:]+)(:[^@]*)?@([^/]+)/(.*/)?([0-9]+)$ ]]; then
 	cron_url="${BASH_REMATCH[1]}://${BASH_REMATCH[4]}/api/${BASH_REMATCH[6]}/cron/$slug/${BASH_REMATCH[2]}/"
 elif [[ -n "${SENTRY_DSN:-}" ]]; then
 	echo "warning: SENTRY_DSN is not a DSN; running $slug without a cron monitor" >&2

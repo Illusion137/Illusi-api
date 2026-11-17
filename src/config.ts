@@ -24,6 +24,8 @@ const schema = z.object({
 	/** Defaults to NODE_ENV. */
 	SENTRY_ENVIRONMENT: z.string().optional(),
 	SENTRY_TRACES_SAMPLE_RATE: num(0.1),
+	/** Sentry Cron Monitor check-ins from the reconcile worker and scripts/cron.sh. Off: the jobs still run, unmonitored. */
+	SENTRY_CRONS: z.stringbool().default(false),
 
 	JWT_ACCESS_SECRET: z.string().min(32),
 	ACTION_TOKEN_SECRET: z.string().min(32),

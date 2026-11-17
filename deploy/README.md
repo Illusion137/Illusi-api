@@ -146,7 +146,9 @@ reports.
   such as 5xx responses, analyzer failures (with the file path), and disk-space alerts;
 - cron check-ins: `db-backup`, `media-backup`, `certs-renew`, `docker-prune` and `restore-test` from the systemd
   jobs (`scripts/cron.sh`, schedules kept next to the timers), and `reconcile-full` / `reconcile-incremental` from
-  the worker. The first check-in creates each monitor; a failed, hung or missed run opens an issue.
+  the worker. The first check-in creates each monitor; a failed, hung or missed run opens an issue. Off unless
+  `SENTRY_CRONS=true`; while it's off the jobs run unmonitored, so pause or delete existing monitors in Sentry
+  (Crons) or they report missed check-ins.
 
 Setup, once, in sentry.io:
 1. Create a Node.js project and put its DSN in `.env` as `SENTRY_DSN` (`scripts/upload-env.sh`).
