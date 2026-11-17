@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { db } from '../../db';
 import { logger } from '../../core/log';
 import { apply_step, order_steps, raise_review, set_conflict_statuses } from './apply';
@@ -72,7 +73,8 @@ export async function apply_group(plan: GroupPlan, report: RunReport, opts: { re
 }
 
 async function with_lock(report: RunReport, fn: () => Promise<void>) {
-	const client = await db.$client.connect();
+	// RoutingPool.connect() is typed `any` (it forwards pg's overloads); the promise form resolves to a PoolClient.
+	const client: PoolClient = await db.$client.connect();
 	try {
 		const res = await client.query<{ ok: boolean }>('select pg_try_advisory_lock($1) as ok', [RECONCILE_LOCK_KEY]);
 		if (!res.rows[0]?.ok) {

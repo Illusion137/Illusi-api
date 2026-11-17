@@ -97,7 +97,9 @@ async function fetch_bini(q: LyricsQuery): Promise<Fetched> {
 }
 
 async function fetch_golyrics(q: LyricsQuery): Promise<Fetched> {
-	const ttml = await GoLyrics.get_ttml({ song: q.title, artist: q.artist, ...(q.album ? { album: q.album } : {}), ...(q.duration_s == null ? {} : { duration: q.duration_s }) }, fetch_opts());
+	// GoLyrics only looks a song up by album and duration too.
+	if (!q.album || q.duration_s == null) return { status: 'NOT_FOUND', versions: [] };
+	const ttml = await GoLyrics.get_ttml({ song: q.title, artist: q.artist, album: q.album, duration: q.duration_s }, fetch_opts());
 	if (typeof ttml !== 'string') return ttml;
 	return { status: 'FOUND', versions: [ttml_version(ttml)] };
 }

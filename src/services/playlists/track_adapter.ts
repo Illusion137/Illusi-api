@@ -59,7 +59,7 @@ export function row_to_track(row: TrackRow): Track {
 		album: row.album ? { name: row.album.name, uuid: row.album.id } : undefined,
 		duration: (row.duration_ms ?? 0) / 1000,
 		explicit: explicit_mode(row.explicit),
-		prods: row.producers.length > 0 ? row.producers.join(', ') : undefined,
+		prods: row.producers.length > 0 ? row.producers.map(name => ({ name })) : undefined,
 		imported_id: row.imported ? row.track_id : undefined,
 		youtube_id: str(ids.youtube_id),
 		soundcloud_id: typeof ids.soundcloud_id === 'number' ? ids.soundcloud_id : undefined,
@@ -73,13 +73,17 @@ export function row_to_track(row: TrackRow): Track {
 		pandora_id: str(ids.pandora_id),
 		tidal_id: str(ids.tidal_id),
 		media_uri: row.downloaded_at ? 'downloaded' : undefined,
-		acousticness: sample?.acousticness,
-		danceability: sample?.danceability,
-		energy: sample?.energy,
-		instrumentalness: sample?.instrumentalness,
-		liveness: sample?.liveness,
-		speechiness: sample?.speechiness,
-		valence: sample?.valence,
+		analysis: sample
+			? {
+					acousticness: sample.acousticness,
+					danceability: sample.danceability,
+					energy: sample.energy,
+					instrumentalness: sample.instrumentalness,
+					liveness: sample.liveness,
+					speechiness: sample.speechiness,
+					valence: sample.valence
+				}
+			: undefined,
 		meta: {
 			plays: row.plays,
 			added_date: iso(row.added_at ?? EPOCH),

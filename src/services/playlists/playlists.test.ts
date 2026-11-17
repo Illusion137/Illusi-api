@@ -51,7 +51,7 @@ describe('row_to_track', () => {
 		expect(track.youtube_id).toBe('dQw4w9WgXcQ');
 		expect(track.soundcloud_id).toBe(42);
 		expect(track.spotify_id).toBeUndefined();
-		expect(track.prods).toBe('Metro, Wheezy');
+		expect(track.prods).toEqual([{ name: 'Metro' }, { name: 'Wheezy' }]);
 		expect(track.imported_id).toBe('t1');
 	});
 	it('applies the user-specific fields', () => {

@@ -6,7 +6,7 @@
 #   From your machine: scripts/force-deploy.sh [ref]           (SSHes in with the settings in .secrets)
 #
 # Where .secrets exists (your machine; it is never uploaded) this runs itself on the VPS over SSH.
-# LIB_ORIGIN_REF (default main) picks the lib-origin branch.
+# LIB_ORIGIN_REF (default full-refactor) picks the lib-origin branch.
 set -euo pipefail
 ref="${1:-origin/main}"
 
@@ -14,7 +14,7 @@ if [[ -f "$(dirname "$0")/../.secrets" ]]; then
 	cd "$(dirname "$0")/.."
 	# shellcheck source=scripts/lib/ssh.sh
 	. scripts/lib/ssh.sh
-	remote_app -t -- "LIB_ORIGIN_REF=$(printf %q "${LIB_ORIGIN_REF:-main}") scripts/force-deploy.sh $(printf %q "$ref")"
+	remote_app -t -- "LIB_ORIGIN_REF=$(printf %q "${LIB_ORIGIN_REF:-full-refactor}") scripts/force-deploy.sh $(printf %q "$ref")"
 	exit
 fi
 

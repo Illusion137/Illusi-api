@@ -5,7 +5,7 @@ name: CI / Deploy
 #   DEPLOY_USER           ssh user created by scripts/preinstall.sh (default illusi)
 #   DEPLOY_SSH_KEY        private key whose public half was given to preinstall (DEPLOY_SSH_PUBKEY)
 #   DEPLOY_KNOWN_HOSTS    output of `ssh-keyscan -t ed25519 <host>`
-# Variables (optional): LIB_ORIGIN_REF (default main), DEPLOY_DIR (default /opt/illusi)
+# Variables (optional): LIB_ORIGIN_REF (default full-refactor), DEPLOY_DIR (default /opt/illusi)
 
 on:
   push:
@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  LIB_ORIGIN_REF: ${{ vars.LIB_ORIGIN_REF || 'main' }}
+  LIB_ORIGIN_REF: ${{ vars.LIB_ORIGIN_REF || 'full-refactor' }}
   API_IMAGE: ghcr.io/illusion137/illusi-api
   ANALYZER_IMAGE: ghcr.io/illusion137/illusi-analyzer
 

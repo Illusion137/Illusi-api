@@ -64,8 +64,10 @@ describe('query_service GOLYRICS', () => {
 		expect(await query_service('GOLYRICS', q)).toMatchObject({ status: 'FOUND', versions: [{ format: 'TTML', sync_type: 'LINE' }] });
 		expect(mocks.golyrics_ttml).toHaveBeenCalledWith({ song: 'Song', artist: 'Artist', album: 'Album', duration: 180 }, expect.anything());
 		mocks.golyrics_ttml.mockResolvedValue({ error: 'GoLyrics: response contained no TTML' });
+		expect((await query_service('GOLYRICS', q)).status).toBe('NOT_FOUND');
+		// Without an album and duration GoLyrics can't look the song up, so it isn't asked.
 		expect((await query_service('GOLYRICS', bare)).status).toBe('NOT_FOUND');
-		expect(mocks.golyrics_ttml).toHaveBeenLastCalledWith({ song: 'Song', artist: 'Artist' }, expect.anything());
+		expect(mocks.golyrics_ttml).toHaveBeenCalledTimes(2);
 	});
 
 	it('turns thrown errors into ERROR', async () => {

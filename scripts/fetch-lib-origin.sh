@@ -3,11 +3,11 @@
 # lib-origin's bin/build_origin.ts), from a git ref instead of a local checkout. Used by CI and
 # force-deploy; locally keep using `origin`.
 #   LIB_ORIGIN_REPO (default https://github.com/Illusion137/lib-origin.git)
-#   LIB_ORIGIN_REF  (default main)
+#   LIB_ORIGIN_REF  (default full-refactor)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 repo="${LIB_ORIGIN_REPO:-https://github.com/Illusion137/lib-origin.git}"
-ref="${LIB_ORIGIN_REF:-main}"
+ref="${LIB_ORIGIN_REF:-full-refactor}"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
