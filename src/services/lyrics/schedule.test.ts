@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { default_ranker, rank_lyrics, set_lyrics_ranker } from './rank';
+import { default_ranker, lyrics_similarity, pick_consensus, rank_lyrics, set_lyrics_ranker } from './rank';
 import { client_services_to_ask, compute_retry_after, due_server_services, is_due, is_instrumental, next_attempts } from './schedule';
 import type { LookupLike, LookupStatus, LyricsService } from './types';
 
@@ -100,5 +100,29 @@ describe('rank_lyrics', () => {
 	it('is pluggable', () => {
 		set_lyrics_ranker(c => [...c].sort((a, b) => a.id - b.id));
 		expect(rank_lyrics([row(2, 'WORD', 1), row(1, 'NONE', 1)]).map(r => r.id)).toEqual([1, 2]);
+	});
+});
+
+describe('lyrics consensus', () => {
+	const lyrics = (text: string) => ({ sync_type: 'LINE' as const, lines: text.split('\n').map((t, i) => ({ text: t, start_ms: i * 1000, end_ms: i * 1000 + 900 })) });
+	const SONG = 'I said ooh I\'m blinded by the lights\nNo I can\'t sleep until I feel your touch';
+	const candidate = (id: number, text: string) => ({ id, parsed: lyrics(text) });
+
+	it('scores shared text in the same order, ignoring case, punctuation and timing', () => {
+		expect(lyrics_similarity(lyrics(SONG), lyrics(SONG.toUpperCase().replace(/'/gu, '’')))).toBeGreaterThan(0.6);
+		expect(lyrics_similarity(lyrics(SONG), lyrics(SONG.replace('\n', ', ')))).toBe(1);
+		expect(lyrics_similarity(lyrics(SONG), lyrics(SONG.split(' ').reverse().join(' ')))).toBeLessThan(0.2);
+		expect(lyrics_similarity(lyrics('晴天的雨'), lyrics('晴天的风'))).toBeCloseTo(2 / 3);
+		expect(lyrics_similarity(lyrics(''), lyrics(''))).toBe(1);
+	});
+
+	it('picks the version most others agree with, else keeps the rank order', () => {
+		const misheard = SONG.replace('blinded by the lights', 'blinding by the light');
+		const other_song = 'Never gonna give you up\nNever gonna let you down';
+		expect(pick_consensus([candidate(1, other_song), candidate(2, misheard), candidate(3, SONG), candidate(4, SONG)])?.id).toBe(3);
+		expect(pick_consensus([candidate(1, misheard), candidate(2, SONG), candidate(3, SONG.replace('touch', 'touch (touch)'))])?.id).toBe(2);
+		expect(pick_consensus([candidate(1, other_song), candidate(2, SONG)])?.id).toBe(1);
+		expect(pick_consensus([candidate(1, SONG), candidate(2, SONG), candidate(3, SONG)])?.id).toBe(1);
+		expect(pick_consensus([])).toBeUndefined();
 	});
 });

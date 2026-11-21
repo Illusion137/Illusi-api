@@ -7,7 +7,7 @@ import { albums_table, artists_table, genius_songs_table, service_ids_table, tra
 import { logger } from '../../core/log';
 import { add_review_item } from '../../core/review';
 import { PARSER_VERSION, try_parse_lyrics } from './parse';
-import { rank_lyrics } from './rank';
+import { pick_consensus, rank_lyrics } from './rank';
 import { compute_retry_after, next_attempts } from './schedule';
 import type { LookupLike, LookupStatus, LyricsService, LyricsVersion, ParsedLyrics, SyncType } from './types';
 
@@ -193,8 +193,9 @@ function record_parse_failure(row: { id: number; track_id: string; service: Lyri
 }
 
 /**
- * Best parsed row per track: rank on metadata, then walk each track's order and take the
- * first row that parses. Raw content is only loaded for the candidates actually tried.
+ * Best parsed row per track: rank on metadata, then walk each track's order a sync level at a time. Of the rows
+ * at the first level with any row that parses, the one whose text most agrees with the others wins
+ * (`pick_consensus`). Raw content is only loaded for the levels actually tried.
  */
 export async function resolve_best_rows(ex: Executor, track_ids: readonly string[]): Promise<Map<string, BestRow>> {
 	const queues = new Map<string, { id: number; service: LyricsService; sync_type: SyncType; created_at: Date }[]>();
@@ -213,13 +214,19 @@ export async function resolve_best_rows(ex: Executor, track_ids: readonly string
 
 	const best = new Map<string, BestRow>();
 	while (queues.size > 0) {
-		const next = new Map<number, string>();
+		// Row id → its track and place in the rank order, for every row at the head's sync level.
+		const next = new Map<number, { track_id: string; order: number }>();
 		for (const [track_id, queue] of queues) {
-			const candidate = queue.shift();
-			if (candidate) next.set(candidate.id, track_id);
-			else queues.delete(track_id);
+			if (queue.length === 0) {
+				queues.delete(track_id);
+				continue;
+			}
+			let n = 1;
+			while (n < queue.length && queue[n].sync_type === queue[0].sync_type) n++;
+			queue.splice(0, n).forEach((c, order) => next.set(c.id, { track_id, order }));
 		}
 		if (next.size === 0) break;
+		const parsed_rows = new Map<string, (BestRow & { order: number })[]>();
 		for (const part of chunks([...next.keys()])) {
 			const rows = await ex.select({
 				id: track_lyrics_table.id,
@@ -245,10 +252,15 @@ export async function resolve_best_rows(ex: Executor, track_ids: readonly string
 					}
 				}
 				if (parsed) {
-					best.set(row.track_id, { id: row.id, service: row.service, sync_type: row.sync_type, parsed });
-					queues.delete(row.track_id);
+					const tried = { id: row.id, service: row.service, sync_type: row.sync_type, parsed, order: next.get(row.id)!.order };
+					parsed_rows.set(row.track_id, [...(parsed_rows.get(row.track_id) ?? []), tried]);
 				}
 			}
+		}
+		for (const [track_id, rows] of parsed_rows) {
+			const { order: _, ...chosen } = pick_consensus(rows.sort((a, b) => a.order - b.order))!;
+			best.set(track_id, chosen);
+			queues.delete(track_id);
 		}
 	}
 	return best;

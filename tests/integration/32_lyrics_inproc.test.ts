@@ -154,6 +154,19 @@ describe('lyrics lookups', () => {
 		expect(await store.never_looked_up(db, [a.id, uuid()])).toEqual([]);
 	});
 
+	it('serves the version most services agree on within the richest sync level', async () => {
+		const user = await create_user('consensus');
+		const t = await lyrics_track(user);
+		const song = '[00:01.00]I said ooh I\'m blinded by the lights\n[00:04.00]No I can\'t sleep until I feel your touch';
+		await add_lyrics(t.id, 'LRCLIB', 'PLAIN', 'NONE', 'something else entirely');
+		await add_lyrics(t.id, 'KUGOU', 'LRC', 'LINE', song);
+		await add_lyrics(t.id, 'QQMUSIC', 'LRC', 'LINE', song.replace('touch', 'touch now'));
+		// Newest, so the plain order would serve it, but neither other line-synced version agrees with it.
+		await add_lyrics(t.id, 'UNISON', 'LRC', 'LINE', '[00:01.00]Never gonna give you up\n[00:04.00]Never gonna let you down');
+		// KuGou and QQ Music agree with each other equally; the tie goes to the newer one.
+		expect((await get_best_lyrics([t.id])).get(t.id)).toMatchObject({ service: 'QQMUSIC', sync_type: 'LINE' });
+	});
+
 	it('asks for client services only where every server service has a current NOT_FOUND', async () => {
 		const user = await create_user('actions');
 		const u = auth_user(user);
