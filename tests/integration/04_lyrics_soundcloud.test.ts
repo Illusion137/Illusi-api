@@ -118,6 +118,21 @@ describe('lyrics (§7) with client actions', () => {
 		expect(reviews.map(r => r.kind)).toContain('GENIUS_MATCH_REJECTED');
 	});
 
+	it('ingests a Genius page the client found without an action', async () => {
+		const user = await create_user('genius-unasked');
+		const artist = unique('Unasked Artist');
+		const track = await lyrics_track(user, unique('Unasked Song'), artist);
+		const ok = await api('POST', '/ingest/genius', { token: user.access_token, body: { track_id: track.id, preloaded_state: genius_state(track.graph.tracks[0].title, artist) } });
+		expect(ok.status).toBe(200);
+		expect(ok.body).toMatchObject({ service: 'GENIUS' });
+		const log = await query(`select source_token_jti from track_lyrics_table where track_id = $1`, [track.id]);
+		expect(log).toEqual([{ source_token_jti: null }]);
+
+		const wrong = await lyrics_track(user);
+		const mismatch = await api('POST', '/ingest/genius', { token: user.access_token, body: { track_id: wrong.id, preloaded_state: genius_state('Completely Different Song', 'Someone Else') } });
+		expect(mismatch.status).toBe(422);
+	});
+
 	it('a client NOT_FOUND from both services marks the track as checked, so it is not asked again', async () => {
 		const user = await create_user('nf');
 		const track = await lyrics_track(user);

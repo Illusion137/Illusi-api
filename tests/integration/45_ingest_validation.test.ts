@@ -51,7 +51,7 @@ describe('lyrics', () => {
 
 	it('validates the genius ingest body', async () => {
 		const token = upload_token;
-		for (const body of [{}, { token }, { token, track_id }, { token, track_id, preloaded_state: 'x' }, { token, track_id: 'nope', result: 'NOT_FOUND' }, { token: '', track_id, result: 'NOT_FOUND' }, { token, track_id, result: 'FOUND' }, { token: 'x'.repeat(4097), track_id, result: 'NOT_FOUND' }]) {
+		for (const body of [{}, { token }, { token, track_id }, { token, track_id, preloaded_state: 'x' }, { token, track_id: 'nope', result: 'NOT_FOUND' }, { token: '', track_id, result: 'NOT_FOUND' }, { token, track_id, result: 'FOUND' }, { token: 'x'.repeat(4097), track_id, result: 'NOT_FOUND' }, { track_id, result: 'NOT_FOUND' }, { track_id }]) {
 			expect_error(await api('POST', '/ingest/genius', { token: user.access_token, body }), 400, 'invalid body');
 		}
 	});

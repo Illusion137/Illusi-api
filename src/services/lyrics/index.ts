@@ -136,11 +136,12 @@ lyrics_router.get('/tracks/:id/lyrics', rate_limit_user('lyrics_get', 120, 60_00
 const token_schema = z.string().min(1).max(4096);
 
 const genius_schema = z.object({
-	token: token_schema,
+	token: token_schema.optional(),
 	track_id: uuid_schema,
 	result: z.literal('NOT_FOUND').optional(),
 	preloaded_state: z.unknown().optional()
-}).refine(b => b.result === 'NOT_FOUND' || (typeof b.preloaded_state === 'object' && b.preloaded_state !== null), { message: 'preloaded_state or result: "NOT_FOUND" is required' });
+}).refine(b => b.result === 'NOT_FOUND' || (typeof b.preloaded_state === 'object' && b.preloaded_state !== null), { message: 'preloaded_state or result: "NOT_FOUND" is required' })
+	.refine(b => b.result !== 'NOT_FOUND' || b.token !== undefined, { message: 'result: "NOT_FOUND" needs an action token' });
 
 lyrics_router.post('/ingest/genius', rate_limit_user('ingest_genius', 30, 60_000), json_body('2mb'), async (req, res) => {
 	const user = require_user(req);

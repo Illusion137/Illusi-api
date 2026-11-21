@@ -83,7 +83,7 @@ async function write_genius_entities(tx: Tx, ex: GeniusExtraction, prov: Provena
 }
 
 /** Ids and artwork onto the matched track and its artists. */
-async function enrich_track(tx: Tx, ctx: TrackContext, ex: GeniusExtraction, prov: ProvenanceLog, token_jti: string, user_id: string, events: PendingEvents) {
+async function enrich_track(tx: Tx, ctx: TrackContext, ex: GeniusExtraction, prov: ProvenanceLog, token_jti: string | null, user_id: string, events: PendingEvents) {
 	const ids: ServiceIds = {};
 	for (const c of ex.ids) {
 		const current = ids[c.column];
@@ -110,7 +110,8 @@ async function enrich_track(tx: Tx, ctx: TrackContext, ex: GeniusExtraction, pro
 }
 
 export interface GeniusIngestBody {
-	token: string;
+	/** Absent for a page the client found on its own, which is still matched against the track */
+	token?: string;
 	track_id: string;
 	result?: 'NOT_FOUND';
 	preloaded_state?: unknown;
@@ -118,11 +119,12 @@ export interface GeniusIngestBody {
 
 /** Runs inside the caller's transaction; the 422 is decided by the caller after commit. */
 export async function ingest_genius(tx: Tx, user: AuthUser, body: GeniusIngestBody, events: PendingEvents): Promise<GeniusIngestResult> {
-	const consumed = await consume_action_token(tx, user, body.token, 'CHECK_GENIUS', body.track_id);
+	if (body.token === undefined && body.result === 'NOT_FOUND') throw new HttpError(400, 'result: "NOT_FOUND" needs an action token');
+	const jti = body.token === undefined ? null : (await consume_action_token(tx, user, body.token, 'CHECK_GENIUS', body.track_id)).jti;
 	const track_id = await resolve_redirect(tx, body.track_id);
 	const ctx = await load_track_context(tx, track_id);
 	if (!ctx) throw new HttpError(404, 'track not found');
-	const prov = new ProvenanceLog('genius', user.id, consumed.jti);
+	const prov = new ProvenanceLog('genius', user.id, jti);
 	const previous = (await load_lookups(tx, [track_id])).get(track_id) ?? new Map();
 	const record = async (status: 'FOUND' | 'NOT_FOUND' | 'INSTRUMENTAL') => {
 		await write_lookups(tx, track_id, [{ service: 'GENIUS', status, source_user_id: user.id }], previous);
@@ -159,7 +161,7 @@ export async function ingest_genius(tx: Tx, user: AuthUser, body: GeniusIngestBo
 	}
 
 	if (ex.lyrics) {
-		const ids = await insert_versions(tx, track_id, 'GENIUS', [ex.lyrics], { user_id: user.id, token_jti: consumed.jti });
+		const ids = await insert_versions(tx, track_id, 'GENIUS', [ex.lyrics], { user_id: user.id, token_jti: jti });
 		for (const id of ids) prov.touch('track_lyrics_table', id, ['*']);
 		if (ids.length > 0) events.push('lyrics_stored', { track_id });
 	}
@@ -167,7 +169,7 @@ export async function ingest_genius(tx: Tx, user: AuthUser, body: GeniusIngestBo
 		await tx.insert(tracks_producers_table).values(ex.producer_ids.map(producer_id => ({ producer_id, track_id }))).onConflictDoNothing();
 		prov.touch('tracks_producers_table', track_id, ex.producer_ids.map(String));
 	}
-	await enrich_track(tx, ctx, ex, prov, consumed.jti, user.id, events);
+	await enrich_track(tx, ctx, ex, prov, jti, user.id, events);
 	await record(ex.instrumental ? 'INSTRUMENTAL' : ex.lyrics ? 'FOUND' : 'NOT_FOUND');
 	await prov.write(tx);
 	log.info(`stored Genius song ${ex.song_id} for track ${track_id}`, { match: match.method, user_id: user.id });
