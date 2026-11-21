@@ -5,7 +5,7 @@ export type SyncType = typeof lyrics_sync_type.enumValues[number];
 export type LyricsFormat = typeof LYRICS_FORMATS[number];
 export type LookupStatus = typeof LYRICS_LOOKUP_STATUSES[number];
 
-export const SERVER_SERVICES = ['BINILYRICS', 'GOLYRICS', 'MUSIXMATCH', 'LRCLIB'] as const satisfies readonly LyricsService[];
+export const SERVER_SERVICES = ['BINILYRICS', 'LRCRED', 'UNISON', 'QQMUSIC', 'KUGOU', 'LRCLIB'] as const satisfies readonly LyricsService[];
 export type ServerService = typeof SERVER_SERVICES[number];
 export const CLIENT_SERVICES = ['GENIUS', 'YOUTUBE_MUSIC'] as const satisfies readonly LyricsService[];
 export type ClientService = typeof CLIENT_SERVICES[number];

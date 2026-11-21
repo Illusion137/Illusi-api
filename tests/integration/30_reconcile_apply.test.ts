@@ -182,7 +182,7 @@ describe('apply_split', () => {
 		const producer = sc_id();
 		const t = await track({ genius_id: genius });
 		await query(`insert into genius_artists_table (id, name) values ($1, 'Producer')`, [producer]);
-		await query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'GENIUS', 'NONE', 'PLAIN', 'la', $2), ($1, 'MUSIXMATCH', 'NONE', 'PLAIN', 'la', $3)`, [t, unique('h'), unique('h')]);
+		await query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'GENIUS', 'NONE', 'PLAIN', 'la', $2), ($1, 'KUGOU', 'NONE', 'PLAIN', 'la', $3)`, [t, unique('h'), unique('h')]);
 		await query(`insert into track_lyrics_lookups_table (track_id, service, status) values ($1, 'GENIUS', 'FOUND')`, [t]);
 		await query(`insert into tracks_producers_table (producer_id, track_id) values ($1, $2)`, [producer, t]);
 		const url = `https://img.example.test/${unique('thumb')}.jpg`;
@@ -191,7 +191,7 @@ describe('apply_split', () => {
 		const res = await in_tx(tx => apply_split(tx, split_step(t, { genius_id: String(genius) }, { facet_source: 'genius', thumbnails: [url] }), reconcile));
 		const n = res.new_id!;
 		expect(await query(`select service from track_lyrics_table where track_id = $1`, [n])).toEqual([{ service: 'GENIUS' }]);
-		expect(await query(`select service from track_lyrics_table where track_id = $1`, [t])).toEqual([{ service: 'MUSIXMATCH' }]);
+		expect(await query(`select service from track_lyrics_table where track_id = $1`, [t])).toEqual([{ service: 'KUGOU' }]);
 		expect(await query(`select 1 from track_lyrics_lookups_table where track_id = $1 and service = 'GENIUS'`, [n])).toHaveLength(1);
 		expect(await query(`select 1 from track_lyrics_lookups_table where track_id = $1`, [t])).toHaveLength(0);
 		expect(await query(`select producer_id from tracks_producers_table where track_id = $1`, [n])).toEqual([{ producer_id: String(producer) }]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { detect_ttml_sync, genius_version, lrclib_versions, musixmatch_versions, ttml_version, ytm_version } from './formats';
+import { detect_ttml_sync, genius_version, kugou_version, lrclib_versions, qqmusic_version, ttml_version, unison_version, ytm_version } from './formats';
 
-describe('TTML (BiniLyrics / GoLyrics)', () => {
+describe('TTML (BiniLyrics / lrc.red)', () => {
 	it('prefers the service hint, then the timing attribute, then structure', () => {
 		expect(detect_ttml_sync('<tt itunes:timing="Word">', 'syllable')).toBe('SYLLABLE');
 		expect(detect_ttml_sync('<tt itunes:timing="Word">')).toBe('WORD');
@@ -18,15 +18,26 @@ describe('TTML (BiniLyrics / GoLyrics)', () => {
 	});
 });
 
-describe('Musixmatch', () => {
-	it('stores richsync, subtitle and plain as separate versions', () => {
-		const versions = musixmatch_versions({ richsync_body: '[{"ts":1}]', subtitle_body: '[00:01.00]a', lyrics_body: 'a' });
-		expect(versions.map(v => [v.format, v.sync_type])).toEqual([['MXM_RICHSYNC_JSON', 'WORD'], ['LRC', 'LINE'], ['PLAIN', 'NONE']]);
-		expect(versions[0].raw_content).toBe('[{"ts":1}]');
+describe('QQ Music and KuGou', () => {
+	it('stores QRC and KRC as word-synced, LRC by its stamps, and drops empty text', () => {
+		expect(qqmusic_version({ format: 'QRC', text: '<QrcInfos/>' })).toEqual({ format: 'QRC', sync_type: 'WORD', raw_content: '<QrcInfos/>' });
+		expect(qqmusic_version({ format: 'LRC', text: '[00:01.00]a' })).toMatchObject({ format: 'LRC', sync_type: 'LINE' });
+		expect(qqmusic_version({ format: 'LRC', text: 'untimed' })).toBeNull();
+		expect(kugou_version({ format: 'KRC', text: '[0,1]<0,1,0>a' })).toMatchObject({ format: 'KRC', sync_type: 'WORD' });
+		expect(kugou_version({ format: 'PLAIN', text: 'a' })).toMatchObject({ format: 'PLAIN', sync_type: 'NONE' });
+		expect(kugou_version({ format: 'KRC', text: ' ' })).toBeNull();
 	});
+});
 
-	it('skips missing or empty bodies', () => {
-		expect(musixmatch_versions({ lyrics_body: '  ' })).toEqual([]);
+describe('Unison', () => {
+	const data = { id: 1, videoId: 'v', lyrics: '<tt itunes:timing="Word"><p begin="1">x</p></tt>', format: 'ttml', syncType: 'richsync', submitter: { keyId: 'k' } };
+
+	it('keeps the attribution and takes the sync type from the lyrics', () => {
+		const version = unison_version(data)!;
+		expect(version).toMatchObject({ format: 'UNISON_JSON', sync_type: 'WORD' });
+		expect(JSON.parse(version.raw_content)).toMatchObject({ videoId: 'v', submitter: { keyId: 'k', displayName: null } });
+		expect(unison_version({ ...data, format: 'plain', lyrics: 'a' })?.sync_type).toBe('NONE');
+		expect(unison_version({ ...data, format: 'srt' })).toBeNull();
 	});
 });
 

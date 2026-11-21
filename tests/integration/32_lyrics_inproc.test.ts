@@ -72,7 +72,7 @@ describe('best lyrics', () => {
 		const [a, b, c, d] = await Promise.all([lyrics_track(user), lyrics_track(user), lyrics_track(user), lyrics_track(user)]);
 		await add_lyrics(a.id, 'YOUTUBE_MUSIC', 'LRC', 'LINE', '[00:01.00]Hello there\n[00:03.00]General');
 		await add_lyrics(b.id, 'LRCLIB', 'TTML', 'LINE', 'definitely <not valid');
-		await add_lyrics(b.id, 'MUSIXMATCH', 'PLAIN', 'NONE', 'plain fallback words');
+		await add_lyrics(b.id, 'KUGOU', 'PLAIN', 'NONE', 'plain fallback words');
 		await add_lookup(c.id, 'LRCLIB', 'INSTRUMENTAL', null);
 		const genius_id = 6_000_000 + Math.floor(Math.random() * 999_999);
 		await query(`insert into genius_songs_table (id, title, instrumental) values ($1, 'Inst', true)`, [genius_id]);
@@ -80,7 +80,7 @@ describe('best lyrics', () => {
 
 		const best = await get_best_lyrics([a.id, b.id, c.id, d.id, a.id]);
 		expect(best.get(a.id)).toMatchObject({ service: 'YOUTUBE_MUSIC', sync_type: 'LINE' });
-		expect(best.get(b.id)).toMatchObject({ service: 'MUSIXMATCH', sync_type: 'NONE' });
+		expect(best.get(b.id)).toMatchObject({ service: 'KUGOU', sync_type: 'NONE' });
 		expect(best.get(c.id)).toEqual({ instrumental: true });
 		expect(best.get(d.id)).toEqual({ instrumental: true });
 
@@ -134,7 +134,7 @@ describe('lyrics lookups', () => {
 		// Every service answered NOT_FOUND, so no lyrics were stored
 		expect(stored).not.toHaveBeenCalledWith({ track_id: t.id });
 		const lookups = await query(`select service::text, status::text from track_lyrics_lookups_table where track_id = $1 order by service::text`, [t.id]);
-		expect(lookups).toHaveLength(4);
+		expect(lookups).toHaveLength(6);
 		// Nothing is due now, so a second lookup does nothing.
 		await lookup_track(t.id);
 		await lookup_track(uuid());
@@ -158,8 +158,8 @@ describe('lyrics lookups', () => {
 		const user = await create_user('actions');
 		const u = auth_user(user);
 		const [asked, instrumental, has_rows, partial, tried] = await Promise.all([lyrics_track(user), lyrics_track(user), lyrics_track(user), lyrics_track(user), lyrics_track(user)]);
-		const servers = ['BINILYRICS', 'GOLYRICS', 'LRCLIB', 'MUSIXMATCH'];
-		for (const t of [asked, instrumental, has_rows, partial, tried]) for (const s of servers.slice(0, t === partial ? 2 : 4)) await add_lookup(t.id, s, 'NOT_FOUND');
+		const servers = ['BINILYRICS', 'LRCLIB', 'LRCRED', 'UNISON', 'QQMUSIC', 'KUGOU'];
+		for (const t of [asked, instrumental, has_rows, partial, tried]) for (const s of servers.slice(0, t === partial ? 2 : servers.length)) await add_lookup(t.id, s, 'NOT_FOUND');
 		await query(`update track_lyrics_lookups_table set status = 'INSTRUMENTAL', retry_after = null where track_id = $1 and service = 'LRCLIB'`, [instrumental.id]);
 		await add_lyrics(has_rows.id, 'LRCLIB', 'PLAIN', 'NONE', 'words');
 		await add_lookup(tried.id, 'GENIUS', 'NOT_FOUND');

@@ -43,7 +43,7 @@ describe('lyrics (§7) with client actions', () => {
 		expect(res.body.actions.map((a: { type: string }) => a.type).sort()).toEqual(['CHECK_GENIUS', 'CHECK_YOUTUBE_MUSIC']);
 		expect(res.body.actions[0]).toMatchObject({ track_id: track.id, token: expect.any(String), query: expect.stringContaining(track.graph.tracks[0].title) });
 		const lookups = await query(`select service::text, status::text from track_lyrics_lookups_table where track_id = $1 order by service::text`, [track.id]);
-		expect(lookups).toEqual(['BINILYRICS', 'GOLYRICS', 'LRCLIB', 'MUSIXMATCH'].map(service => ({ service, status: 'NOT_FOUND' })));
+		expect(lookups).toEqual(['BINILYRICS', 'KUGOU', 'LRCLIB', 'LRCRED', 'QQMUSIC', 'UNISON'].map(service => ({ service, status: 'NOT_FOUND' })));
 		expect((await api('GET', `/tracks/00000000-0000-4000-8000-000000000000/lyrics`, { token: user.access_token })).status).toBe(404);
 	});
 

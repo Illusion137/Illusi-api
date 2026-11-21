@@ -141,37 +141,91 @@ export function parse_lrc(raw: string, sync_type: SyncType): ParsedLyrics {
 	return { sync_type, lines: close_line_ends(lines) };
 }
 
-interface RichsyncLine { ts: number; te: number; x?: string; l: { c: string; o: number }[] }
-
-function is_richsync(value: unknown): value is RichsyncLine[] {
-	return Array.isArray(value) && value.every(l => typeof l === 'object' && l !== null
-		&& typeof (l as RichsyncLine).ts === 'number' && typeof (l as RichsyncLine).te === 'number' && Array.isArray((l as RichsyncLine).l));
+function unescape_xml(text: string): string {
+	return text.replace(/&#(\d+);/gu, (_, code: string) => String.fromCodePoint(Number(code)))
+		.replace(/&#x([0-9a-f]+);/giu, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+		.replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&quot;/gu, '"').replace(/&apos;/gu, '\'').replace(/&amp;/gu, '&');
 }
 
-/** Musixmatch richsync body: `[{ ts, te, x, l: [{ c, o }] }]`, seconds; `o` is relative to `ts`. */
-export function parse_richsync(raw: string): ParsedLyrics {
-	const data = JSON.parse(raw) as unknown;
-	if (!is_richsync(data) || data.length === 0) fail('not a richsync body');
-	const lines = data.map((line): LyricsLine => {
+/** Whitespace-only segments (QRC times its spaces) belong to the previous word. */
+function push_segment(segments: LyricsSegment[], segment: LyricsSegment) {
+	if (segment.text.trim() === '' && segments.length > 0) segments[segments.length - 1].text += segment.text;
+	else if (segment.text.length > 0) segments.push(segment);
+}
+
+/** Within this many lines of either end, QQ Music and KuGou put credits (`作词：…`, `Lyrics by：…`). */
+const CREDIT_ZONE = 30;
+const CREDIT_RE = /^[^：]{1,40}：/u;
+
+/**
+ * Drops the credit lines QQ Music and KuGou add around the lyrics, and their opening `Title - Artist` line.
+ * Credits always use the full-width colon, which lyrics rarely do.
+ */
+function strip_credits(lines: LyricsLine[]): LyricsLine[] {
+	const kept = lines.filter((line, i) => !((i < CREDIT_ZONE || i >= lines.length - CREDIT_ZONE) && CREDIT_RE.test(line.text)));
+	if (kept.length > 1 && kept[0].start_ms !== null && kept[0].start_ms < 1000 && kept[0].text.includes(' - ')) kept.shift();
+	return kept;
+}
+
+function word_lyrics(lines: LyricsLine[], what: string): ParsedLyrics {
+	const kept = strip_credits(lines.filter(line => line.text.length > 0));
+	if (kept.length === 0) fail(`${what} has no timed lines`);
+	return { sync_type: kept.some(line => line.segments?.length) ? 'WORD' : 'LINE', lines: kept };
+}
+
+/**
+ * QQ Music QRC, as decrypted: `<QrcInfos>` XML whose `LyricContent` holds lines like
+ * `[lineStartMs,durationMs]word(startMs,durationMs)word(startMs,durationMs)`; word times are absolute.
+ */
+export function parse_qrc(raw: string): ParsedLyrics {
+	const content = /LyricContent="([^"]*)"/u.exec(raw)?.[1];
+	if (content === undefined) fail('QRC has no LyricContent');
+	const lines: LyricsLine[] = [];
+	for (const source of unescape_xml(content).replace(/\r\n?/gu, '\n').split('\n')) {
+		const m = /^\s*\[(\d+),(\d+)\](.*)$/u.exec(source);
+		if (!m) continue;
+		const start_ms = Number(m[1]);
 		const segments: LyricsSegment[] = [];
-		for (const part of line.l) {
-			if (typeof part.c !== 'string' || typeof part.o !== 'number') continue;
-			// Whitespace entries belong to the previous word.
-			if (part.c.trim() === '' && segments.length > 0) {
-				segments[segments.length - 1].text += part.c;
-				continue;
-			}
-			segments.push({ text: part.c, start_ms: seconds_to_ms(line.ts + part.o), end_ms: null });
+		for (const w of m[3].matchAll(/(.*?)\((\d+),(\d+)\)/gu)) {
+			push_segment(segments, { text: w[1], start_ms: Number(w[2]), end_ms: Number(w[2]) + Number(w[3]) });
 		}
-		for (let i = 0; i < segments.length; i++) segments[i].end_ms = segments[i + 1]?.start_ms ?? seconds_to_ms(line.te);
-		return {
-			text: (line.x ?? segments.map(s => s.text).join('')).trim(),
-			start_ms: seconds_to_ms(line.ts),
-			end_ms: seconds_to_ms(line.te),
-			segments
-		};
-	});
-	return { sync_type: 'WORD', lines };
+		const text = (segments.length > 0 ? segments.map(seg => seg.text).join('') : m[3]).trim();
+		lines.push({ text, start_ms, end_ms: start_ms + Number(m[2]), ...(segments.length > 0 ? { segments } : {}) });
+	}
+	return word_lyrics(lines, 'QRC');
+}
+
+/**
+ * KuGou KRC, as decrypted: lines like `[lineStartMs,durationMs]<offsetMs,durationMs,0>word<…>word`; word offsets
+ * are relative to the line. Tag lines (`[ti:…]`, `[language:…]`) are skipped.
+ */
+export function parse_krc(raw: string): ParsedLyrics {
+	const lines: LyricsLine[] = [];
+	for (const source of raw.replace(/\r\n?/gu, '\n').split('\n')) {
+		const m = /^\s*\[(\d+),(\d+)\](.*)$/u.exec(source);
+		if (!m) continue;
+		const start_ms = Number(m[1]);
+		const segments: LyricsSegment[] = [];
+		for (const w of m[3].matchAll(/<(\d+),(\d+),\d+>([^<]*)/gu)) {
+			const word_start = start_ms + Number(w[1]);
+			push_segment(segments, { text: w[3], start_ms: word_start, end_ms: word_start + Number(w[2]) });
+		}
+		const text = (segments.length > 0 ? segments.map(seg => seg.text).join('') : m[3].replace(/<[^>]*>/gu, '')).trim();
+		lines.push({ text, start_ms, end_ms: start_ms + Number(m[2]), ...(segments.length > 0 ? { segments } : {}) });
+	}
+	return word_lyrics(lines, 'KRC');
+}
+
+/** Unison lyrics stored with their attribution (`unison_version`): the inner TTML, LRC or plain text. */
+export function parse_unison_json(raw: string, sync_type: SyncType): ParsedLyrics {
+	const data = JSON.parse(raw) as { format?: unknown; lyrics?: unknown };
+	if (typeof data.lyrics !== 'string') fail('Unison row has no lyrics');
+	switch (data.format) {
+		case 'ttml': return parse_ttml_lyrics(data.lyrics, sync_type);
+		case 'lrc': return parse_lrc(data.lyrics, sync_type);
+		case 'plain': return parse_plain(data.lyrics);
+		default: fail(`unknown Unison format ${String(data.format)}`);
+	}
 }
 
 export function parse_plain(raw: string): ParsedLyrics {
@@ -252,7 +306,9 @@ export function parse_lyrics(format: LyricsFormat, sync_type: SyncType, raw: str
 		case 'TTML': return parse_ttml_lyrics(raw, sync_type);
 		case 'LRC':
 		case 'ELRC': return parse_lrc(raw, sync_type);
-		case 'MXM_RICHSYNC_JSON': return parse_richsync(raw);
+		case 'QRC': return parse_qrc(raw);
+		case 'KRC': return parse_krc(raw);
+		case 'UNISON_JSON': return parse_unison_json(raw, sync_type);
 		case 'PLAIN': return parse_plain(raw);
 		case 'GENIUS_BODY_JSON': return parse_genius_body(raw);
 		case 'YTM_JSON': return parse_ytm_json(raw);

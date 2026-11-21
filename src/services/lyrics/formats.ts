@@ -52,19 +52,42 @@ export function lrclib_versions(result: LrclibResultLike): LyricsVersion[] {
 	return out;
 }
 
-export interface MusixmatchRawLike {
-	/** `richsync_body` exactly as returned (a JSON string). */
-	richsync_body?: string | null;
-	subtitle_body?: string | null;
-	lyrics_body?: string | null;
+/** QQ Music lyrics as lib-origin returns them: decrypted QRC (word-synced) or plain LRC. */
+export function qqmusic_version(lyrics: { format: 'QRC' | 'LRC'; text: string }): LyricsVersion | null {
+	if (!non_empty(lyrics.text)) return null;
+	if (lyrics.format === 'QRC') return { format: 'QRC', sync_type: 'WORD', raw_content: lyrics.text };
+	return is_lrc(lyrics.text) ? lrc_version(lyrics.text) : null;
 }
 
-export function musixmatch_versions(raw: MusixmatchRawLike): LyricsVersion[] {
-	const out: LyricsVersion[] = [];
-	if (non_empty(raw.richsync_body)) out.push({ format: 'MXM_RICHSYNC_JSON', sync_type: 'WORD', raw_content: raw.richsync_body });
-	if (non_empty(raw.subtitle_body)) out.push({ format: 'LRC', sync_type: 'LINE', raw_content: raw.subtitle_body });
-	if (non_empty(raw.lyrics_body)) out.push({ format: 'PLAIN', sync_type: 'NONE', raw_content: raw.lyrics_body });
-	return out;
+/** KuGou lyrics as lib-origin returns them: decrypted KRC (word-synced), LRC or plain text. */
+export function kugou_version(lyrics: { format: 'KRC' | 'LRC' | 'PLAIN'; text: string }): LyricsVersion | null {
+	if (!non_empty(lyrics.text)) return null;
+	if (lyrics.format === 'KRC') return { format: 'KRC', sync_type: 'WORD', raw_content: lyrics.text };
+	if (lyrics.format === 'LRC') return is_lrc(lyrics.text) ? lrc_version(lyrics.text) : null;
+	return { format: 'PLAIN', sync_type: 'NONE', raw_content: lyrics.text };
+}
+
+export interface UnisonLyricsLike {
+	id: number;
+	videoId: string;
+	lyrics: string;
+	format: string;
+	syncType: string;
+	submitter?: { keyId: string; displayName?: string } | null;
+}
+
+/**
+ * Unison lyrics, stored with what its terms require showing: the song page (`videoId`) and the submitter.
+ * Votes and scores are left out, so a recheck of the same lyrics stores nothing new.
+ */
+export function unison_version(data: UnisonLyricsLike): LyricsVersion | null {
+	if (!non_empty(data.lyrics) || !['ttml', 'lrc', 'plain'].includes(data.format)) return null;
+	let sync_type: SyncType = 'NONE';
+	if (data.format === 'ttml') sync_type = detect_ttml_sync(data.lyrics);
+	else if (data.format === 'lrc') sync_type = lrc_version(data.lyrics).sync_type;
+	const submitter = data.submitter ? { keyId: data.submitter.keyId, displayName: data.submitter.displayName ?? null } : null;
+	const raw = { id: data.id, videoId: data.videoId, format: data.format, syncType: data.syncType, submitter, lyrics: data.lyrics };
+	return { format: 'UNISON_JSON', sync_type, raw_content: JSON.stringify(raw) };
 }
 
 /** Genius `songPage.lyricsData.body`, stored as its JSON text. */

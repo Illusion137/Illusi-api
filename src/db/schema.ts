@@ -5,7 +5,7 @@ import { bigint, boolean, bytea, check, date, doublePrecision, index, integer, j
 const ITUNES_EXPLICITNESS = ['explicit', 'cleaned', 'notExplicit'] as const;
 export const itunes_explicitness = pgEnum('itunes_explicitness', ITUNES_EXPLICITNESS);
 
-const LYRICS_SERVICES = ['GOLYRICS', 'BINILYRICS', 'MUSIXMATCH', 'LRCLIB', 'YOUTUBE_MUSIC', 'GENIUS'] as const;
+const LYRICS_SERVICES = ['BINILYRICS', 'LRCLIB', 'YOUTUBE_MUSIC', 'GENIUS', 'UNISON', 'QQMUSIC', 'KUGOU', 'LRCRED'] as const;
 export const lyrics_services = pgEnum('lyrics_services', LYRICS_SERVICES);
 
 const ALBUM_TYPES = ['SINGLE', 'ALBUM', 'EP'] as const;
@@ -34,7 +34,7 @@ export const sort_type = pgEnum('sort_type', SORT_TYPES);
 const INHERITANCE_MODES = ['INCLUDE', 'EXCLUDE', 'MASK', 'INTERSECTION'] as const;
 export const inheritance_mode = pgEnum('inheritance_mode', INHERITANCE_MODES);
 
-export const LYRICS_FORMATS = ['TTML', 'MXM_RICHSYNC_JSON', 'LRC', 'ELRC', 'PLAIN', 'GENIUS_BODY_JSON', 'YTM_JSON'] as const;
+export const LYRICS_FORMATS = ['TTML', 'LRC', 'ELRC', 'PLAIN', 'GENIUS_BODY_JSON', 'YTM_JSON', 'QRC', 'KRC', 'UNISON_JSON'] as const;
 export const lyrics_format = pgEnum('lyrics_format', LYRICS_FORMATS);
 
 export const LYRICS_LOOKUP_STATUSES = ['FOUND', 'NOT_FOUND', 'INSTRUMENTAL', 'ERROR', 'SKIPPED'] as const;

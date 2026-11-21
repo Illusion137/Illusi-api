@@ -44,7 +44,10 @@ const lookup = (status: LookupStatus, retry_in_minutes: number | null): LookupLi
 	retry_after: retry_in_minutes == null ? null : new Date(now.getTime() + retry_in_minutes * 60_000)
 });
 const map = (entries: Partial<Record<LyricsService, LookupLike>>) => new Map(Object.entries(entries) as [LyricsService, LookupLike][]);
-const all_not_found = { BINILYRICS: lookup('NOT_FOUND', 100), GOLYRICS: lookup('NOT_FOUND', 100), MUSIXMATCH: lookup('NOT_FOUND', 100), LRCLIB: lookup('NOT_FOUND', 100) };
+const all_not_found = {
+	BINILYRICS: lookup('NOT_FOUND', 100), LRCRED: lookup('NOT_FOUND', 100), UNISON: lookup('NOT_FOUND', 100), QQMUSIC: lookup('NOT_FOUND', 100),
+	KUGOU: lookup('NOT_FOUND', 100), LRCLIB: lookup('NOT_FOUND', 100)
+};
 
 describe('due services', () => {
 	it('is due when never tried or the wait is over, never for INSTRUMENTAL', () => {
@@ -55,7 +58,7 @@ describe('due services', () => {
 	});
 
 	it('lists due server services', () => {
-		expect(due_server_services(map({ BINILYRICS: lookup('FOUND', 10), LRCLIB: lookup('ERROR', -5) }), now)).toEqual(['GOLYRICS', 'MUSIXMATCH', 'LRCLIB']);
+		expect(due_server_services(map({ BINILYRICS: lookup('NOT_FOUND', 10), LRCLIB: lookup('ERROR', -5) }), now)).toEqual(['LRCRED', 'UNISON', 'QQMUSIC', 'KUGOU', 'LRCLIB']);
 	});
 });
 
@@ -65,9 +68,9 @@ describe('client_services_to_ask', () => {
 	});
 
 	it('asks nothing if any server service is ERROR / SKIPPED / missing / expired', () => {
-		expect(client_services_to_ask(map({ ...all_not_found, MUSIXMATCH: lookup('SKIPPED', 10) }), now, false)).toEqual([]);
+		expect(client_services_to_ask(map({ ...all_not_found, QQMUSIC: lookup('SKIPPED', 10) }), now, false)).toEqual([]);
 		expect(client_services_to_ask(map({ ...all_not_found, LRCLIB: lookup('ERROR', 10) }), now, false)).toEqual([]);
-		const { GOLYRICS: _, ...without } = all_not_found;
+		const { KUGOU: _, ...without } = all_not_found;
 		expect(client_services_to_ask(map(without), now, false)).toEqual([]);
 		expect(client_services_to_ask(map({ ...all_not_found, BINILYRICS: lookup('NOT_FOUND', -1) }), now, false)).toEqual([]);
 	});

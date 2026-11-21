@@ -98,6 +98,9 @@ const schema = z.object({
 	LYRICS_ERROR_RETRY_MINUTES: num(10),
 	LYRICS_SERVICE_TIMEOUT_MS: num(8_000),
 	LYRICS_DEADLINE_MS: num(12_000),
+	/** LRCLib app credentials, sent as `Lrclib-App-Id` / `Lrclib-Api-Key`. Unset queries LRCLib anonymously. */
+	LRCLIB_APP_ID: z.string().optional(),
+	LRCLIB_API_KEY: z.string().optional(),
 	/** Test seam: `not_found` makes every server-side lyrics service answer NOT_FOUND without a network call. */
 	LYRICS_SERVERS_STUB: z.enum(['off', 'not_found']).default('off'),
 

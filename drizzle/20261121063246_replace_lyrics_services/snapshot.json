@@ -1,0 +1,97 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "4bf9b2ce-8238-48f1-8e7b-0c425222b8a6",
+  "prevIds": [
+    "8b7d14a4-9d4e-4317-bff8-940af9f73344"
+  ],
+  "footprints": [
+    {
+      "statementType": "recreate_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "lyrics_format"
+      ],
+      "writes": [
+        "s|enum|public.lyrics_format",
+        "n|enum|public.lyrics_format",
+        "e|enum|public.lyrics_format",
+        "n|type|public.lyrics_format",
+        "s|colprop|public.track_lyrics_table.format.type",
+        "s|colprop|public.track_lyrics_table.format.default"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|tbl|public.track_lyrics_table",
+        "n|sch|public",
+        "n|col|public.track_lyrics_table.format"
+      ],
+      "sqlHash": "ffce2c449855def7"
+    },
+    {
+      "statementType": "recreate_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "lyrics_services"
+      ],
+      "writes": [
+        "s|enum|public.lyrics_services",
+        "n|enum|public.lyrics_services",
+        "e|enum|public.lyrics_services",
+        "n|type|public.lyrics_services",
+        "s|colprop|public.track_lyrics_lookups_table.service.type",
+        "s|colprop|public.track_lyrics_lookups_table.service.default",
+        "s|colprop|public.track_lyrics_table.service.type",
+        "s|colprop|public.track_lyrics_table.service.default"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|tbl|public.track_lyrics_lookups_table",
+        "n|sch|public",
+        "n|col|public.track_lyrics_lookups_table.service",
+        "n|tbl|public.track_lyrics_table",
+        "n|sch|public",
+        "n|col|public.track_lyrics_table.service"
+      ],
+      "sqlHash": "66e3805877959b59"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "enums\u0000[\"public\",\"lyrics_format\"]",
+      "set": {
+        "values": [
+          "TTML",
+          "LRC",
+          "ELRC",
+          "PLAIN",
+          "GENIUS_BODY_JSON",
+          "YTM_JSON",
+          "QRC",
+          "KRC",
+          "UNISON_JSON"
+        ]
+      }
+    },
+    {
+      "op": "alter",
+      "key": "enums\u0000[\"public\",\"lyrics_services\"]",
+      "set": {
+        "values": [
+          "BINILYRICS",
+          "LRCLIB",
+          "YOUTUBE_MUSIC",
+          "GENIUS",
+          "UNISON",
+          "QQMUSIC",
+          "KUGOU",
+          "LRCRED"
+        ]
+      }
+    }
+  ]
+}

@@ -15,7 +15,9 @@ export function lyrics_query(ctx: TrackContext): LyricsQuery {
 		title: ctx.title,
 		artist: ctx.artists[0]?.name ?? '',
 		album: ctx.album,
-		duration_s: ctx.duration_ms == null ? null : Math.round(ctx.duration_ms / 1000)
+		duration_s: ctx.duration_ms == null ? null : Math.round(ctx.duration_ms / 1000),
+		isrc: ctx.service_ids?.isrc ?? null,
+		youtube_id: ctx.service_ids?.youtube_id ?? null
 	};
 }
 

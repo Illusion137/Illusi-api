@@ -663,13 +663,15 @@ Everything is written in one transaction, in this order:
 | Service | Who fetches | lib-origin client | Typical output → `sync_type` |
 | --- | --- | --- | --- |
 | `BINILYRICS` | Server | `BiniLyrics.get_lyrics` | TTML → `WORD`/`SYLLABLE` (or `LINE`) |
-| `GOLYRICS` | Server | `GoLyrics.get_lyrics` | TTML → `WORD`/`SYLLABLE` (or `LINE`) |
-| `MUSIXMATCH` | Server | `Musixmatch.find_lyrics` | Richsync → `WORD`, subtitle LRC → `LINE`, plain → `NONE` |
+| `LRCRED` | Server | `LRCRed.get_song` | TTML by ISRC → `WORD`/`LINE`. Model-synced files are skipped. Not asked without an ISRC. |
+| `UNISON` | Server | `Unison.get_lyrics` | Community TTML / LRC / plain. Looked up by YouTube id, then ISRC or title + artist + duration. |
+| `QQMUSIC` | Server | `QQMusic.search_songs` + `get_lyrics` | Decrypted QRC → `WORD`, LRC → `LINE` |
+| `KUGOU` | Server | `KuGou.search_songs` + `search_lyrics` + `download_lyrics` | Decrypted KRC → `WORD` |
 | `LRCLIB` | Server | `LRCLib.get` | Synced LRC → `LINE` (word sync when `hasWordSync`), plain → `NONE`. Also reports `instrumental`. |
 | `GENIUS` | Client (§6) | `Genius.get_lyrics` | Plain → `NONE` |
 | `YOUTUBE_MUSIC` | Client | YouTube Music lyrics | Plain or `LINE` |
 
-- **Store everything each service returns.** If a service returns more than one version (Musixmatch: plain, synced, and richsync), each is its own row. Exact duplicates are removed using `content_hash` (§6.5).
+- **Store everything each service returns.** If a service returns more than one version (LRCLib: synced and plain), each is its own row. Exact duplicates are removed using `content_hash` (§6.5).
 - Each lyrics service gets the same inputs from the track: title, primary artist, album, and `duration_ms`, converted to seconds where the service expects it.
 
 **Raw-first storage**
@@ -678,8 +680,11 @@ Everything is written in one transaction, in this order:
 
 | Service | What `raw_content` holds | `format` |
 | --- | --- | --- |
-| BiniLyrics / GoLyrics | The TTML document | `TTML` |
-| Musixmatch | `richsync_body` (JSON), `subtitle_body` (LRC), `lyrics_body` (plain) | `MXM_RICHSYNC_JSON` / `LRC` / `PLAIN` |
+| BiniLyrics | The TTML document | `TTML` |
+| lrc.red | The TTML (`source` of `<ISRC>.song.json`) | `TTML` |
+| Unison | Its lyrics with the attribution its terms require (`id`, `videoId`, `submitter`, inner `format`) as JSON | `UNISON_JSON` |
+| QQ Music | The decrypted QRC document (`<QrcInfos>` XML), or LRC when there's no QRC | `QRC` / `LRC` |
+| KuGou | The decrypted KRC text | `KRC` |
 | LRCLib | `syncedLyrics` (LRC or enhanced LRC), `plainLyrics` | `LRC` / `ELRC` / `PLAIN` |
 | Genius | `songPage.lyricsData.body` (JSON) | `GENIUS_BODY_JSON` |
 | YouTube Music | The lyrics payload as the client received it | `YTM_JSON` / `PLAIN` |
@@ -694,10 +699,10 @@ Everything is written in one transaction, in this order:
 
 1. **Stored lyrics first.** If any `track_lyrics_table` rows exist, return the best one (`rank_lyrics()`) right away.
    - **Recheck on request**: if a server service is due for a recheck (7.3), start a **background** recheck of the services that are due. The response doesn't wait for it. Better lyrics found this way are stored and reach the client on its next request or sync.
-2. **Otherwise, query the server services in parallel**: BiniLyrics, GoLyrics, Musixmatch, and LRCLib. Only query a service that hasn't been tried recently (7.3).
+2. **Otherwise, query the server services in parallel**: BiniLyrics, lrc.red, Unison, QQ Music, KuGou and LRCLib. Only query a service that hasn't been tried recently (7.3).
    - Each service has its own timeout. The response waits for **all** services to finish or time out, never longer than the overall deadline.
    - **One lookup per track at a time.** If two users ask for the same track at once, they share one lookup instead of starting two.
-   - Each service's own rate limits and cooldowns are respected. Musixmatch has a captcha cooldown, and LRCLib has `Retry-After`. A service that is cooling down is skipped and recorded as `SKIPPED`, not `NOT_FOUND`.
+   - Each service's own rate limits and cooldowns are respected: LRCLib's `Retry-After`, QQ Music withholding results, HTML block pages. A service that is cooling down is skipped and recorded as `SKIPPED`, not `NOT_FOUND`.
 3. **Store** every result that came back, plus a lookup record for every service that was queried, found or not (7.3).
 4. **If anything was found**: return the best result.
 5. **If nothing was found**: return `{ "lyrics": null }`. Include actions **only if every server service has a current `NOT_FOUND`**.
