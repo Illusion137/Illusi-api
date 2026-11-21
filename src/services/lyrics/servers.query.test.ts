@@ -165,6 +165,17 @@ describe('query_service LRCLIB', () => {
 		expect((await query_service('LRCLIB', q)).status).toBe('FOUND');
 	});
 
+	it('asks again without the album when the album doesn\'t match', async () => {
+		const { query_service } = await load();
+		mocks.lrclib_get.mockResolvedValueOnce({ error: 'Failed to find specified track\n : args{\n  status: 404\n}' }).mockResolvedValueOnce({ plainLyrics: 'Hi' });
+		expect((await query_service('LRCLIB', q)).status).toBe('FOUND');
+		expect(mocks.lrclib_get).toHaveBeenLastCalledWith({ track_name: 'Song', artist_name: 'Artist', duration: 180 }, {});
+		mocks.lrclib_get.mockClear();
+		mocks.lrclib_get.mockResolvedValue({ error: 'Failed to find specified track\n : args{\n  status: 404\n}' });
+		expect((await query_service('LRCLIB', bare)).status).toBe('NOT_FOUND');
+		expect(mocks.lrclib_get).toHaveBeenCalledTimes(1);
+	});
+
 	it('rate limits put the service on cooldown', async () => {
 		const { query_service } = await load();
 		mocks.lrclib_get.mockResolvedValue({ error: 'Too many requests\n : args{\n  status: 429\n}' });

@@ -190,7 +190,10 @@ async function fetch_kugou(q: LyricsQuery): Promise<Fetched> {
 
 async function fetch_lrclib(q: LyricsQuery): Promise<Fetched> {
 	const credentials = { ...(config.LRCLIB_APP_ID ? { app_id: config.LRCLIB_APP_ID } : {}), ...(config.LRCLIB_API_KEY ? { api_key: config.LRCLIB_API_KEY } : {}) };
-	const result = await LRCLib.get({ track_name: q.title, artist_name: q.artist, ...(q.album ? { album_name: q.album } : {}), ...(q.duration_s == null ? {} : { duration: Math.round(q.duration_s) }) }, credentials);
+	const params = { track_name: q.title, artist_name: q.artist, ...(q.duration_s == null ? {} : { duration: Math.round(q.duration_s) }) };
+	let result = await LRCLib.get(q.album ? { ...params, album_name: q.album } : params, credentials);
+	// LRCLib only matches album_name exactly, so an entry with another (or no) album needs asking without it
+	if (q.album && is_error(result) && classify_error(error_message(result)).status === 'NOT_FOUND') result = await LRCLib.get(params, credentials);
 	if (is_error(result)) return result;
 	const versions = lrclib_versions(result);
 	if (result.instrumental && versions.length === 0) return { status: 'INSTRUMENTAL', versions };
