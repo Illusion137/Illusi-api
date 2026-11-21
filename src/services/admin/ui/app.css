@@ -276,3 +276,4 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 	.db-layout { grid-template-columns: minmax(0, 1fr); }
 	.db-side { position: static; max-height: 240px; }
 }
+.drawer-actions .grow { flex: 1; }

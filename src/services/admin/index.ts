@@ -10,7 +10,7 @@ import { admin_update_entity, parse_entity_patch, resolve_table } from './entiti
 import { list_log_files, logs_query_schema, read_logs } from './logs';
 import { apply_body_schema, apply_review, dismiss_review, list_query_schema, list_review } from './review';
 import { system_status } from './status';
-import { get_row, list_rows, list_tables, row_patch_schema, rows_query_schema, update_row } from './tables';
+import { delete_row, get_row, insert_row, list_rows, list_tables, preview_delete, row_insert_schema, row_patch_schema, rows_query_schema, update_row } from './tables';
 import { admin_delete_user, list_users, revoke_user_sessions, update_user, user_patch_schema, users_query_schema } from './users';
 
 /**
@@ -154,6 +154,21 @@ admin_router.post('/tables/:table/row', async (req, res) => {
 admin_router.patch('/tables/:table/rows', async (req, res) => {
 	const admin = require_user(req);
 	res.json(await update_row(req.params.table, parse_body(row_patch_schema, req.body), admin.id));
+});
+
+admin_router.post('/tables/:table/rows', async (req, res) => {
+	const admin = require_user(req);
+	res.status(201).json(await insert_row(req.params.table, parse_body(row_insert_schema, req.body), admin.id));
+});
+
+admin_router.post('/tables/:table/delete_preview', async (req, res) => {
+	res.set('Cache-Control', 'no-store').json(await preview_delete(req.params.table, (req.body as { key?: unknown } | undefined)?.key));
+});
+
+admin_router.delete('/tables/:table/rows', async (req, res) => {
+	const admin = require_user(req);
+	await delete_row(req.params.table, (req.body as { key?: unknown } | undefined)?.key, admin.id);
+	res.status(204).end();
 });
 
 admin_router.get('/audit', async (req, res) => {

@@ -991,6 +991,18 @@ export const track_unavailable_reports_table = pgTable('track_unavailable_report
 	...timestamps
 }, table => [primaryKey({ columns: [table.track_id, table.user_id, table.service] })]);
 
+export const DURATION_REPORT_SOURCES = ['download', 'service'] as const;
+/** A user's measured length of a track: the audio file they downloaded, or what a streaming service reported. One per user and track. */
+export const track_duration_reports_table = pgTable('track_duration_reports_table', {
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	duration_ms: integer().notNull(),
+	source: varchar({ length: 16 }).notNull(),
+	/** Where the file or metadata came from (youtube, soundcloud, ...). */
+	service: varchar({ length: 32 }),
+	...timestamps
+}, table => [primaryKey({ columns: [table.track_id, table.user_id] })]);
+
 /** RESEARCH_TRACK progress for a backpacked track on one service. */
 export const track_research_table = pgTable('track_research_table', {
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),

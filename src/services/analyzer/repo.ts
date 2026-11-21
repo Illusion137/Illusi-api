@@ -1,8 +1,8 @@
-import { desc, eq, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
-import { itunes_tracks_table, media_table, service_ids_table, track_alignment_table, track_play_counts_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table } from '../../db/schema';
+import { itunes_tracks_table, media_table, service_ids_table, track_alignment_table, track_play_counts_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table, tracks_table } from '../../db/schema';
 import { write_vector } from '../vectors';
 import type { AlignmentResult, SampleInsert, VocalsResult } from './contract';
 import { SAMPLE_VERSION } from './contract';
@@ -288,6 +288,11 @@ export async function save_sample(row: SampleInsert, source: ResolvedSource): Pr
 			})
 			.returning({ id: track_sample_data_table.id });
 		if (inserted.length > 0) await write_vector(tx, row.id);
+		// The analyzer measured the audio itself: a track nobody gave a duration gets this one (and syncs it out).
+		if (row.source_duration_ms) {
+			await tx.update(tracks_table).set({ duration_ms: row.source_duration_ms, modified_at: new Date() })
+				.where(and(eq(tracks_table.id, row.id), isNull(tracks_table.duration_ms)));
+		}
 		await record_lookup(tx, row.id, source, 'DONE', null);
 		return inserted.length > 0;
 	});

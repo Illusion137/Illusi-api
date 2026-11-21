@@ -1104,14 +1104,20 @@ function table_grid(content, table) {
 		return h('td', { class: `cell ${c.kind === 'integer' || c.kind === 'number' ? 'num' : ''}`, title: text.length > 60 ? text.slice(0, 2000) : null }, text);
 	};
 
-	const open_row = (row) => {
+	const open_row = row => show_drawer(Object.fromEntries(table.primary_key.map(k => [k, row[k]])), row);
+
+	const show_drawer = (key, row) => {
 		drawer?.remove();
-		const key = Object.fromEntries(table.primary_key.map(k => [k, row[k]]));
-		drawer = row_drawer(table, key, (updated) => {
-			const i = rows.indexOf(row);
-			if (i >= 0) rows[i] = { ...updated, _truncated: [] };
-			draw();
-		}, () => { drawer = null; });
+		drawer = row_drawer(table, key, {
+			on_saved: (updated) => {
+				const i = rows.indexOf(row);
+				if (i >= 0) rows[i] = { ...updated, _truncated: [] };
+				draw();
+			},
+			on_created: () => void load(),
+			on_deleted: () => void load(),
+			on_close: () => { drawer = null; }
+		});
 		document.body.append(drawer);
 	};
 
@@ -1151,7 +1157,9 @@ function table_grid(content, table) {
 			select(FILTER_OPS, draft.op, (v) => { draft.op = v; value_input.disabled = ['is_null', 'not_null'].includes(v); }),
 			value_input,
 			h('button', { onclick: add_filter }, 'Add filter'),
-			h('button', { onclick: () => void load() }, 'Reload')),
+			h('button', { onclick: () => void load() }, 'Reload'),
+			h('span', { class: 'grow' }),
+			h('button', { class: 'primary', disabled: Boolean(table.insert_blocked), title: table.insert_blocked ?? '', onclick: () => show_drawer(null, null) }, '+ Insert row')),
 		chips,
 		body);
 	void load();
@@ -1184,36 +1192,83 @@ function field_value(c, text) {
 	}
 }
 
-function row_drawer(table, key, on_saved, on_close) {
-	const body = h('div', { class: 'stack' }, h('div', { class: 'empty' }, 'Loading…'));
+const table_path = (table, suffix) => `/admin/tables/${encodeURIComponent(table.name)}/${suffix}`;
+
+function delete_summary(table, preview) {
+	const lines = [`Delete this row from ${table.name}?`];
+	const effects = preview.dependents.filter(d => d.action !== 'blocks');
+	if (effects.length) {
+		lines.push('', 'This also:');
+		for (const d of effects) lines.push(d.action === 'delete' ? `• deletes ${d.rows} row${d.rows === 1 ? '' : 's'} in ${d.table}` : `• clears the link in ${d.rows} row${d.rows === 1 ? '' : 's'} of ${d.table}`);
+	}
+	if (preview.soft_delete_column) lines.push('', `The apps learn about deletions in this table through its "${preview.soft_delete_column}" column. Setting ${preview.soft_delete_column} = true instead keeps them in sync.`);
+	lines.push('', 'The deleted row is kept in the audit log.');
+	return lines.join('\n');
+}
+
+/** The side panel: edits the row with `key`, or fills in a new row when `key` is null. */
+function row_drawer(table, key, { on_saved, on_created, on_deleted, on_close }) {
+	const body = h('div', { class: 'stack' });
+	const title = h('h2', { style: 'margin:0' });
+	const subtitle = h('div', { class: 'mono muted small', style: 'margin:4px 0 16px' });
 	const close = () => {
 		el.remove();
-		document.removeEventListener('keydown', on_key);
 		on_close();
 	};
 	const on_key = (e) => { if (e.key === 'Escape') close(); };
 	document.addEventListener('keydown', on_key);
-	const el = h('aside', { class: 'drawer' },
-		h('div', { class: 'spread' },
-			h('h2', { style: 'margin:0' }, table.name),
-			h('button', { class: 'small', onclick: close }, 'Close')),
-		h('div', { class: 'mono muted small', style: 'margin:4px 0 16px' }, Object.entries(key).map(([k, v]) => `${k} = ${v}`).join(' · ')),
-		body);
+	const el = h('aside', { class: 'drawer' }, h('div', { class: 'spread' }, title, h('button', { class: 'small', onclick: close }, 'Close')), subtitle, body);
 	el.remove = ((remove) => () => { document.removeEventListener('keydown', on_key); remove(); })(el.remove.bind(el));
 
-	void (async () => {
-		let row;
-		try {
-			row = await api('POST', `/admin/tables/${encodeURIComponent(table.name)}/row`, { key });
-		} catch (err) {
-			replace(body, error_view(err));
-			return;
-		}
+	const show_row = (row) => {
+		key = Object.fromEntries(table.primary_key.map(k => [k, row[k]]));
+		replace(title, table.name);
+		replace(subtitle, Object.entries(key).map(([k, v]) => `${k} = ${v}`).join(' · '));
 		draw_fields(row);
-	})();
+	};
+
+	if (key) {
+		replace(title, table.name);
+		replace(subtitle, Object.entries(key).map(([k, v]) => `${k} = ${v}`).join(' · '));
+		replace(body, h('div', { class: 'empty' }, 'Loading…'));
+		void (async () => {
+			try {
+				show_row(await api('POST', table_path(table, 'row'), { key }));
+			} catch (err) {
+				replace(body, error_view(err));
+			}
+		})();
+	} else {
+		draw_insert();
+	}
+
+	function draw_insert() {
+		replace(title, `New row in ${table.name}`);
+		replace(subtitle, 'Columns left on "default" get their database default.');
+		const fields = table.columns.filter(c => c.insertable).map(c => field_editor(c, undefined, 'insert'));
+		const automatic = table.columns.filter(c => !c.insertable).map(c => c.name);
+		const insert = h('button', {
+			class: 'primary',
+			onclick: async () => {
+				const values = {};
+				try {
+					for (const fe of fields) if (fe.changed()) values[fe.column.name] = fe.value();
+				} catch (err) {
+					return toast(err.message, 'bad');
+				}
+				const row = await act(insert, () => api('POST', table_path(table, 'rows'), { values }), 'Row inserted');
+				on_created(row);
+				show_row(row);
+			}
+		}, 'Insert row');
+		replace(body,
+			fields.map(fe => fe.el),
+			automatic.length ? h('p', { class: 'muted small' }, `Set automatically: ${automatic.join(', ')}`) : null,
+			h('div', { class: 'row drawer-actions' }, insert, h('span', { class: 'muted small' }, 'The new row goes to the audit log.')));
+	}
 
 	function draw_fields(row) {
-		const fields = table.columns.map(c => field_editor(c, row[c.name]));
+		const fields = table.columns.map(c => field_editor(c, row[c.name], 'edit'));
 		const save = h('button', {
 			class: 'primary',
 			onclick: async () => {
@@ -1224,52 +1279,78 @@ function row_drawer(table, key, on_saved, on_close) {
 					return toast(err.message, 'bad');
 				}
 				if (Object.keys(values).length === 0) return toast('Nothing changed');
-				const updated = await act(save, () => api('PATCH', `/admin/tables/${encodeURIComponent(table.name)}/rows`, { key, values }), 'Row saved');
+				const updated = await act(save, () => api('PATCH', table_path(table, 'rows'), { key, values }), 'Row saved');
 				on_saved(updated);
 				draw_fields(updated);
 			}
 		}, 'Save changes');
+		const remove = h('button', {
+			class: 'danger',
+			title: table.delete_blocked ?? '',
+			disabled: Boolean(table.delete_blocked),
+			onclick: async () => {
+				const preview = await act(remove, () => api('POST', table_path(table, 'delete_preview'), { key }));
+				if (preview.blocked) {
+					const blockers = preview.dependents.filter(d => d.action === 'blocks').map(d => `${d.rows} in ${d.table}`).join(', ');
+					return toast(`Can't delete: other rows still point to this one (${blockers}). Remove or change them first.`, 'bad');
+				}
+				if (!confirm(delete_summary(table, preview))) return;
+				await act(remove, () => api('DELETE', table_path(table, 'rows'), { key }), 'Row deleted');
+				close();
+				on_deleted();
+			}
+		}, 'Delete row');
 		replace(body,
 			fields.map(fe => fe.el),
 			table.editable
-				? h('div', { class: 'row drawer-actions' }, save, h('span', { class: 'muted small' }, 'Only changed fields are saved; every edit goes to the audit log.'))
-				: h('p', { class: 'muted small' }, 'This table is read-only.'));
+				? h('div', { class: 'row drawer-actions' }, save, h('span', { class: 'muted small grow' }, 'Only changed fields are saved; every edit goes to the audit log.'), remove)
+				: h('p', { class: 'muted small' }, 'This table is read-only.'),
+			table.editable && table.delete_blocked ? h('p', { class: 'muted small' }, table.delete_blocked) : null);
 	}
 
 	return el;
 }
 
-function field_editor(c, original) {
+/**
+ * One column in the side panel. Editing, the checkbox is NULL; inserting, it is "default" for columns with a database
+ * default (or NULL for other nullable ones) and the column is only sent once unticked.
+ */
+function field_editor(c, original, mode) {
+	const inserting = mode === 'insert';
 	const label = h('div', { class: 'field-label' },
 		h('span', { class: 'mono' }, c.name), ' ',
 		h('span', { class: 'muted small' }, c.sql_type, c.nullable ? '' : ' · not null'),
 		c.primary_key ? badge('key') : null,
-		!c.editable && !c.redacted ? badge('read-only') : null);
+		!inserting && !c.editable && !c.redacted ? badge('read-only') : null);
 	if (c.redacted) return { column: c, el: h('div', { class: 'field' }, label, h('div', { class: 'muted' }, 'Hidden: never sent to the dashboard.')), changed: () => false };
-	if (!c.editable) {
+	if (!inserting && !c.editable) {
 		const text = field_text(c, original);
 		return { column: c, el: h('div', { class: 'field' }, label, original === null ? h('div', { class: 'null' }, 'NULL') : text.includes('\n') || text.length > 80 ? h('pre', null, text) : h('div', { class: 'mono value' }, text)), changed: () => false };
 	}
 
-	const initial = field_text(c, original);
+	const initial = inserting ? '' : field_text(c, original);
 	let input;
 	if (c.kind === 'enum' || c.kind === 'boolean') {
 		const options = c.kind === 'enum' ? c.enum_values : ['true', 'false'];
 		input = h('select', null, options.map(o => h('option', { value: o, selected: o === initial }, o)));
-		if (original === null) input.value = options[0];
+		if (!initial) input.value = options[0];
 	} else if (c.kind === 'json' || c.kind === 'array' || c.sql_type === 'text' || initial.length > 80) {
 		input = h('textarea', { rows: Math.min(14, Math.max(2, initial.split('\n').length + 1)) }, initial);
 	} else {
 		input = h('input', { value: initial, class: c.kind === 'text' ? '' : 'mono', placeholder: c.kind === 'timestamp' ? '2026-01-31T12:00:00Z' : c.kind === 'date' ? '2026-01-31' : '' });
 	}
-	const is_null = c.nullable ? h('input', { type: 'checkbox', checked: original === null, onchange: () => { input.disabled = is_null.checked; } }) : null;
-	input.disabled = original === null && c.nullable;
+
+	const toggle_label = inserting ? (c.has_default ? 'default' : c.nullable ? 'NULL' : null) : (c.nullable ? 'NULL' : null);
+	const toggle = toggle_label ? h('input', { type: 'checkbox', checked: inserting || original === null, onchange: () => { input.disabled = toggle.checked; } }) : null;
+	input.disabled = Boolean(toggle?.checked);
 
 	return {
 		column: c,
-		el: h('div', { class: 'field' }, label, input, is_null ? h('label', { class: 'check small' }, is_null, 'NULL') : null),
-		changed: () => (is_null?.checked ?? false) !== (original === null) || !is_null?.checked && input.value !== initial,
-		value: () => is_null?.checked ? null : field_value(c, input.value)
+		el: h('div', { class: 'field' }, label, input, toggle ? h('label', { class: 'check small' }, toggle, toggle_label) : null),
+		changed: inserting
+			? () => !toggle?.checked
+			: () => (toggle?.checked ?? false) !== (original === null) || !toggle?.checked && input.value !== initial,
+		value: () => !inserting && toggle?.checked ? null : field_value(c, input.value)
 	};
 }
 

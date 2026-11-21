@@ -102,3 +102,61 @@ describe('admin table browser', () => {
 		expect((await patch('users_table', { key: { id: user.id }, values: { email: admin.email } })).status).toBe(409);
 	});
 });
+
+describe('admin table browser: insert and delete', () => {
+	const insert = (table: string, values: unknown) => api('POST', `/admin/tables/${table}/rows`, { token: admin.access_token, body: { values } });
+	const preview = (table: string, key: unknown) => api('POST', `/admin/tables/${table}/delete_preview`, { token: admin.access_token, body: { key } });
+	const remove = (table: string, key: unknown) => api('DELETE', `/admin/tables/${table}/rows`, { token: admin.access_token, body: { key } });
+
+	it('marks which tables take inserts and deletes', async () => {
+		const tables = new Map<string, any>((await get('/admin/tables')).body.tables.map((t: any) => [t.name, t]));
+		expect(tables.get('users_table').insert_blocked).toMatch(/registering/u);
+		expect(tables.get('users_table').delete_blocked).toMatch(/Users page/u);
+		expect(tables.get('media_table').delete_blocked).toMatch(/track page/u);
+		expect(tables.get('audit_log_table').insert_blocked).toMatch(/read-only/u);
+		expect(tables.get('track_vectors_table').insert_blocked).toMatch(/embedding/u);
+		expect(tables.get('artists_table')).toMatchObject({ insert_blocked: null, delete_blocked: null });
+		expect(tables.get('artists_table').columns.find((c: any) => c.name === 'search_name')).toMatchObject({ generated: true, editable: false, insertable: false });
+	});
+
+	it('inserts with defaults, audits, and refuses blocked tables and bad rows', async () => {
+		// An artist's id is its service_ids row, whose id defaults.
+		const ids = await insert('service_ids_table', {});
+		expect(ids.status).toBe(201);
+		expect(ids.body.illusi_id).toMatch(/^[0-9a-f-]{36}$/u);
+		const name = unique('Inserted Artist');
+		expect((await insert('artists_table', { id: ids.body.illusi_id, name, search_name: 'x' })).status).toBe(400);
+		const res = await insert('artists_table', { id: ids.body.illusi_id, name });
+		expect(res.status).toBe(201);
+		expect(res.body).toMatchObject({ id: ids.body.illusi_id, name, search_name: expect.any(String) });
+		expect(res.body.created_at).toBeTruthy();
+		const [audit] = await query(`select * from audit_log_table where action = 'admin_table_insert' and entity_table = 'artists_table' and entity_id = $1`, [res.body.id]);
+		expect(audit.undo).toMatchObject({ table: 'artists_table', key: { id: res.body.id }, delete: true });
+
+		expect((await insert('users_table', { username: 'x', email: 'x@example.test' })).status).toBe(403);
+		expect((await insert('audit_log_table', { action: 'x', actor: 'x' })).status).toBe(403);
+		expect((await insert('artists_table', { created_at: new Date().toISOString(), name: 'x' })).status).toBe(400);
+		expect((await insert('artists_table', {})).status).toBe(400);
+		expect((await insert('artists_table', { id: res.body.id, name: 'dup' })).status).toBe(409);
+		expect((await insert('artists_table', { id: '00000000-0000-4000-8000-000000000000', name: 'orphan' })).status).toBe(409);
+	});
+
+	it('previews cascades, deletes, and keeps the row in the audit log', async () => {
+		const p = await preview('tracks_table', { id: track_id });
+		expect(p.status).toBe(200);
+		expect(p.body.blocked).toBe(false);
+		expect(p.body.dependents).toEqual(expect.arrayContaining([expect.objectContaining({ table: 'album_tracks_table', action: 'delete', rows: 1 })]));
+
+		const res = await remove('tracks_table', { id: track_id });
+		expect(res.status).toBe(204);
+		expect(await query('select 1 from tracks_table where id = $1', [track_id])).toHaveLength(0);
+		expect(await query('select 1 from album_tracks_table where track_id = $1', [track_id])).toHaveLength(0);
+		const [audit] = await query(`select * from audit_log_table where action = 'admin_table_delete' and entity_id = $1`, [track_id]);
+		expect(audit.undo.row).toMatchObject({ id: track_id, title: 'Trimmed Title' });
+
+		expect((await remove('tracks_table', { id: track_id })).status).toBe(404);
+		expect((await preview('tracks_table', { id: track_id })).status).toBe(404);
+		expect((await remove('users_table', { id: user.id })).status).toBe(403);
+		expect((await remove('audit_log_table', { id: 1 })).status).toBe(403);
+	});
+});

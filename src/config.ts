@@ -117,6 +117,9 @@ const schema = z.object({
 	/** A service answered NOT_FOUND is asked again after this long. */
 	BACKPACK_RESEARCH_RETRY_DAYS: num(30),
 
+	/** Users whose measured durations agree (within 3 s) needed to replace a stored duration they all disagree with. */
+	DURATION_CONSENSUS_REPORTS: num(3),
+
 	RECONCILE_INCREMENTAL_INTERVAL_MIN: num(15),
 	RECONCILE_DRY_RUN: z.stringbool().default(false),
 	/** Local hour (0-23) the worker starts the nightly full pass. */

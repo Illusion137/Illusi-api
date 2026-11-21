@@ -18,3 +18,9 @@ export function run_in_context<T>(context: RequestContext, fn: () => T): T {
 export function current_context(): RequestContext | undefined {
 	return storage.getStore();
 }
+
+/** Runs `fn` as the table owner, past row-level security, for code that has to see other users' rows. */
+export function as_owner<T>(fn: () => T): T {
+	const context = current_context();
+	return context ? run_in_context({ ...context, privileged: true }, fn) : fn();
+}

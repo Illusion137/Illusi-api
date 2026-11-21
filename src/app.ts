@@ -9,6 +9,7 @@ import { auth_router } from './routes/auth';
 import { account_router } from './services/account';
 import { admin_router, admin_ui } from './services/admin';
 import { backpack_router } from './services/backpack';
+import { durations_router } from './services/durations';
 import { catalog_router } from './services/catalog';
 import { entities_router } from './services/entities';
 import { lyrics_router } from './services/lyrics';
@@ -54,6 +55,7 @@ function api_v1() {
 	api.use(media_router);
 	api.use(releases_router);
 	api.use(backpack_router);
+	api.use(durations_router);
 	api.use(account_router);
 	api.use(catalog_router);
 	return api;

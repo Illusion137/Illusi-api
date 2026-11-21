@@ -29,6 +29,10 @@ export interface ColumnInfo {
 	has_default: boolean;
 	enum_values: string[] | null;
 	editable: boolean;
+	/** Can be given a value when inserting a row (keys too; managed timestamps, secrets and binary data never). */
+	insertable: boolean;
+	/** Computed by Postgres; never written. */
+	generated: boolean;
 	/** Never sent: shown as hidden, not filterable or sortable. */
 	redacted: boolean;
 }
@@ -38,6 +42,9 @@ interface TableMeta {
 	table: PgTable;
 	primary_key: string[];
 	editable: boolean;
+	/** Why rows can't be added or removed here, or null. */
+	insert_blocked: string | null;
+	delete_blocked: string | null;
 	columns: ColumnInfo[];
 	/** Drizzle column objects by database name. */
 	refs: Map<string, Column>;
@@ -51,6 +58,15 @@ const READ_ONLY_TABLES = new Set(['audit_log_table']);
 const REDACTED_COLUMNS = new Set(['users_table.password_hash', 'sessions_table.token_hash', 'email_verifications_table.token_hash']);
 /** Set by the app, never by hand. */
 const MANAGED_COLUMNS = new Set(['created_at', 'modified_at']);
+/** Rows these tables hold need more than a row change: the dedicated tools do the rest. */
+const INSERT_BLOCKED: Record<string, string> = {
+	users_table: 'Create accounts by registering, or with scripts/admin.sh.',
+	media_table: 'Media rows come from uploading a file.'
+};
+const DELETE_BLOCKED: Record<string, string> = {
+	users_table: 'Delete accounts from the Users page: it also erases their personal data and signs them out.',
+	media_table: 'Delete media from the track page: it also removes the file from disk.'
+};
 const READ_ONLY_KINDS = new Set<ColumnKind>(['vector', 'binary']);
 /** Comparisons need a scalar Postgres can cast the filter text to. */
 const SCALAR_KINDS = new Set<ColumnKind>(['text', 'uuid', 'enum', 'boolean', 'integer', 'number', 'timestamp', 'date']);
@@ -106,6 +122,9 @@ function describe_table(table: PgTable): TableMeta {
 	const columns = config.columns.map((c): ColumnInfo => {
 		const kind = column_kind(c);
 		const redacted = REDACTED_COLUMNS.has(`${config.name}.${c.name}`);
+		// Computed by Postgres (search columns): writing one is an error.
+		const generated = Boolean(c.generated || c.generatedIdentity?.type === 'always');
+		const writable = editable && !redacted && !generated && !MANAGED_COLUMNS.has(c.name) && !READ_ONLY_KINDS.has(kind);
 		refs.set(c.name, c);
 		values.set(c.name, value_schema(c, kind));
 		return {
@@ -116,11 +135,18 @@ function describe_table(table: PgTable): TableMeta {
 			primary_key: primary_key.includes(c.name),
 			has_default: c.hasDefault,
 			enum_values: c.enumValues ?? null,
-			editable: editable && !redacted && !primary_key.includes(c.name) && !MANAGED_COLUMNS.has(c.name) && !READ_ONLY_KINDS.has(kind),
+			editable: writable && !primary_key.includes(c.name),
+			insertable: writable,
+			generated,
 			redacted
 		};
 	});
-	return { name: config.name, table, primary_key, editable, columns, refs, keys, values };
+	const required = columns.find(c => !c.insertable && !c.nullable && !c.has_default && !c.generated);
+	const insert_blocked = !editable
+		? 'This table is read-only.'
+		: INSERT_BLOCKED[config.name] ?? (required ? `New rows need ${required.name}, which can't be set here.` : null);
+	const delete_blocked = !editable ? 'This table is read-only.' : DELETE_BLOCKED[config.name] ?? null;
+	return { name: config.name, table, primary_key, editable, insert_blocked, delete_blocked, columns, refs, keys, values };
 }
 
 const TABLES = new Map((Object.values(schema) as unknown[]).filter((v): v is PgTable => is(v, PgTable)).map(describe_table).map(t => [t.name, t]));
@@ -147,6 +173,8 @@ export async function list_tables() {
 			name: t.name,
 			primary_key: t.primary_key,
 			editable: t.editable,
+			insert_blocked: t.insert_blocked,
+			delete_blocked: t.delete_blocked,
 			// -1 until the table has been analyzed.
 			row_estimate: (estimates.get(t.name) ?? -1) < 0 ? null : estimates.get(t.name),
 			columns: t.columns
@@ -286,11 +314,12 @@ export const row_patch_schema = z.object({
 	values: z.record(z.string(), z.unknown())
 });
 
-function parse_values(meta: TableMeta, raw: Record<string, unknown>): Record<string, unknown> {
+function parse_values(meta: TableMeta, raw: Record<string, unknown>, mode: 'edit' | 'insert'): Record<string, unknown> {
 	const entries = Object.entries(raw);
-	if (entries.length === 0) throw new HttpError(400, 'empty patch');
-	const locked = entries.map(([k]) => k).filter(k => !meta.columns.find(c => c.name === k)?.editable);
-	if (locked.length) throw new HttpError(400, 'column not editable', { columns: locked });
+	if (entries.length === 0 && mode === 'edit') throw new HttpError(400, 'empty patch');
+	const flag = mode === 'edit' ? 'editable' : 'insertable';
+	const locked = entries.map(([k]) => k).filter(k => !meta.columns.find(c => c.name === k)?.[flag]);
+	if (locked.length) throw new HttpError(400, `column not `, { columns: locked });
 	const out: Record<string, unknown> = {};
 	const issues: unknown[] = [];
 	for (const [k, v] of entries) {
@@ -318,7 +347,7 @@ export async function update_row(name: string, body: z.infer<typeof row_patch_sc
 		events.flush();
 		return get_row(name, key);
 	}
-	const values = parse_values(meta, body.values);
+	const values = parse_values(meta, body.values, 'edit');
 	if (name === 'users_table' && key.id === admin_id && values.role === 'USER') throw new HttpError(400, 'you cannot remove your own admin role');
 	await db.transaction(tx => update_generic(tx, meta, key, values, admin_id));
 	if (name === 'users_table') forget_user(String(key.id));
@@ -334,12 +363,7 @@ async function update_generic(tx: Tx, meta: TableMeta, key: Record<string, unkno
 	try {
 		await tx.update(meta.table).set(set).where(where);
 	} catch (err) {
-		const code = pg_error_code(err);
-		const detail = pg_error_detail(err);
-		if (code === PG_ERRORS.unique_violation) throw new HttpError(409, 'value already exists in another row', { detail });
-		if (code === PG_ERRORS.foreign_key_violation) throw new HttpError(400, 'referenced row does not exist', { detail });
-		if (code === PG_ERRORS.check_violation) throw new HttpError(400, 'value breaks a table constraint', { detail });
-		throw err;
+		throw constraint_error(err) ?? err;
 	}
 	await write_audit(tx, {
 		action: 'admin_table_edit',
@@ -349,5 +373,131 @@ async function update_generic(tx: Tx, meta: TableMeta, key: Record<string, unkno
 		entity_id: Object.values(key).map(String).join(','),
 		details: { key, changes: values },
 		undo: { table: meta.name, key, values: Object.fromEntries(Object.keys(values).map(k => [k, before[meta.keys.get(k)!] ?? null])) }
+	});
+}
+
+/** A constraint the change broke, as the 4xx the dashboard shows; null for anything else. */
+function constraint_error(err: unknown, foreign_key_message = 'referenced row does not exist'): HttpError | null {
+	const code = pg_error_code(err);
+	const detail = pg_error_detail(err);
+	if (code === PG_ERRORS.unique_violation) return new HttpError(409, 'value already exists in another row', { detail });
+	if (code === PG_ERRORS.foreign_key_violation) return new HttpError(409, foreign_key_message, { detail });
+	if (code === PG_ERRORS.check_violation) return new HttpError(400, 'value breaks a table constraint', { detail });
+	// not_null_violation
+	if (code === '23502') return new HttpError(400, 'a required column has no value', { detail });
+	return null;
+}
+
+const row_key = (meta: TableMeta, row: Record<string, unknown>) => Object.fromEntries(meta.primary_key.map(k => [k, row[meta.keys.get(k)!]]));
+
+export const row_insert_schema = z.object({ values: z.record(z.string(), z.unknown()) });
+
+/** Adds a row. Columns left out take their defaults (generated ids, timestamps); the database enforces the rest. */
+export async function insert_row(name: string, body: z.infer<typeof row_insert_schema>, admin_id: string) {
+	const meta = table_meta(name);
+	if (meta.insert_blocked) throw new HttpError(403, meta.insert_blocked);
+	const values = parse_values(meta, body.values, 'insert');
+	const row = Object.fromEntries(Object.entries(values).map(([k, v]) => [meta.keys.get(k)!, v]));
+	const key = await db.transaction(async (tx) => {
+		let created: Record<string, unknown>;
+		try {
+			[created] = await tx.insert(meta.table).values(row).returning() as Record<string, unknown>[];
+		} catch (err) {
+			throw constraint_error(err) ?? err;
+		}
+		const key = row_key(meta, created);
+		await write_audit(tx, {
+			action: 'admin_table_insert',
+			actor: 'admin',
+			actor_user_id: admin_id,
+			entity_table: meta.name,
+			entity_id: Object.values(key).map(String).join(','),
+			details: { key, values },
+			undo: { table: meta.name, key, delete: true }
+		});
+		return key;
+	});
+	return get_row(name, key);
+}
+
+interface ChildRef {
+	child: TableMeta;
+	columns: Column[];
+	parent_columns: Column[];
+	on_delete: string;
+}
+
+/** Foreign keys pointing at each table, for showing what a delete takes with it. */
+const CHILDREN = new Map<string, ChildRef[]>();
+for (const meta of TABLES.values()) {
+	for (const fk of getTableConfig(meta.table).foreignKeys) {
+		const ref = fk.reference();
+		const parent = getTableConfig(ref.foreignTable).name;
+		if (!CHILDREN.has(parent)) CHILDREN.set(parent, []);
+		CHILDREN.get(parent)!.push({ child: meta, columns: ref.columns, parent_columns: ref.foreignColumns, on_delete: fk.onDelete ?? 'no action' });
+	}
+}
+
+const tuple = (columns: Column[]) => columns.length === 1 ? sql`${columns[0]}` : sql`(${sql.join(columns.map(c => sql`${c}`), sql`, `)})`;
+
+/** Cascades stop here; a deeper chain is still deleted by Postgres, just not counted. */
+const MAX_CASCADE_DEPTH = 4;
+
+export interface Dependent { table: string; action: 'delete' | 'unlink' | 'blocks'; rows: number }
+
+/** Counts the rows a delete would remove (cascades, followed a few levels), unlink (set null) or be refused by. */
+async function count_dependents(meta: TableMeta, where: SQL, depth: number, path: Set<string>, out: Map<string, Dependent>) {
+	for (const ref of CHILDREN.get(meta.name) ?? []) {
+		if (ref.child.name === meta.name || path.has(ref.child.name)) continue;
+		const child_where = sql`${tuple(ref.columns)} in (select ${tuple(ref.parent_columns)} from ${meta.table} where ${where})`;
+		const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(ref.child.table).where(child_where);
+		if (n === 0) continue;
+		const action = ref.on_delete === 'cascade' ? 'delete' : ref.on_delete === 'set null' || ref.on_delete === 'set default' ? 'unlink' : 'blocks';
+		const id = `${ref.child.name}:${action}`;
+		out.set(id, { table: ref.child.name, action, rows: (out.get(id)?.rows ?? 0) + n });
+		if (action === 'delete' && depth < MAX_CASCADE_DEPTH) await count_dependents(ref.child, child_where, depth + 1, new Set([...path, ref.child.name]), out);
+	}
+}
+
+export async function preview_delete(name: string, raw_key: unknown) {
+	const meta = table_meta(name);
+	if (meta.delete_blocked) throw new HttpError(403, meta.delete_blocked);
+	const key = parse_key(meta, raw_key);
+	const where = key_where(meta, key)!;
+	const [exists] = await db.select({ n: sql<number>`1` }).from(meta.table).where(where);
+	if (!exists) throw new HttpError(404, 'row not found');
+	const out = new Map<string, Dependent>();
+	await count_dependents(meta, where, 1, new Set([meta.name]), out);
+	const dependents = [...out.values()].sort((a, b) => b.rows - a.rows);
+	return {
+		dependents,
+		blocked: dependents.some(d => d.action === 'blocks'),
+		// Synced tables mark deletions with a flag so clients hear about them; removing the row skips that.
+		soft_delete_column: meta.keys.has('deleted') ? 'deleted' : null
+	};
+}
+
+/** Deletes a row (Postgres cascades the rest) and keeps the whole row in the audit log. */
+export async function delete_row(name: string, raw_key: unknown, admin_id: string) {
+	const meta = table_meta(name);
+	if (meta.delete_blocked) throw new HttpError(403, meta.delete_blocked);
+	const key = parse_key(meta, raw_key);
+	await db.transaction(async (tx) => {
+		let deleted: Record<string, unknown> | undefined;
+		try {
+			[deleted] = await tx.delete(meta.table).where(key_where(meta, key)).returning() as Record<string, unknown>[];
+		} catch (err) {
+			throw constraint_error(err, 'other rows still reference this row') ?? err;
+		}
+		if (!deleted) throw new HttpError(404, 'row not found');
+		await write_audit(tx, {
+			action: 'admin_table_delete',
+			actor: 'admin',
+			actor_user_id: admin_id,
+			entity_table: meta.name,
+			entity_id: Object.values(key).map(String).join(','),
+			details: { key },
+			undo: { table: meta.name, key, row: serialize_row(meta, deleted, false) }
+		});
 	});
 }

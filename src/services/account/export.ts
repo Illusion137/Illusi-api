@@ -10,7 +10,7 @@ import { db } from '../../db';
 import {
 	contributions_log_table, export_jobs_table, linked_playlists_table, media_table, playlist_inherited_playlists_table,
 	playlist_inherited_searches_table, playlist_tracks_table, playlists_table, sessions_table, track_plays_table,
-	track_unavailable_reports_table, user_recent_searches, user_tracks_table
+	track_duration_reports_table, track_unavailable_reports_table, user_recent_searches, user_tracks_table
 } from '../../db/schema';
 import { free_bytes } from '../../core/disk';
 import { on } from '../../core/events';
@@ -184,6 +184,9 @@ export async function write_export(user_id: string, file: string): Promise<void>
 
 		await write_array(out, 'unavailable_reports', single(db.select().from(track_unavailable_reports_table)
 			.where(eq(track_unavailable_reports_table.user_id, user_id)).then(note)));
+
+		await write_array(out, 'duration_reports', single(db.select().from(track_duration_reports_table)
+			.where(eq(track_duration_reports_table.user_id, user_id)).then(note)));
 
 		await write_array(out, 'media_uploads', single(db.select({
 			track_id: media_table.track_id,
