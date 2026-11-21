@@ -36,6 +36,8 @@ export interface LyricsLine {
 	segments?: LyricsSegment[];
 	/** Singer/agent id when the source has one (TTML `ttm:agent`). */
 	agent?: string;
+	/** Background vocals sung over the line (TTML `ttm:role="x-bg"`). */
+	background?: Pick<LyricsLine, 'text' | 'start_ms' | 'end_ms' | 'segments'>;
 }
 
 /** The one shared structure every format is parsed into and served to clients. */

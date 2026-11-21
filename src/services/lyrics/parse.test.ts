@@ -18,6 +18,23 @@ describe('TTML', () => {
 		]);
 	});
 
+	it('splits background vocals off the line and skips translations', () => {
+		const ttml = '<tt itunes:timing="Word"><body><div><p begin="0:01.000" end="0:04.500"><span begin="0:01.000" end="0:02.000">Hello</span> <span ttm:role="x-bg" begin="0:02.500" end="0:04.400"><span begin="0:02.500" end="0:03.000">(oh</span> <span begin="0:03.100" end="0:04.400">yeah)</span></span><span ttm:role="x-translation">Hola</span></p></div></body></tt>';
+		const [line] = parse_lyrics('TTML', 'WORD', ttml).lines;
+		expect(line.text).toBe('Hello');
+		expect(line.segments).toEqual([{ text: 'Hello ', start_ms: 1000, end_ms: 2000 }]);
+		expect(line.background).toEqual({
+			text: '(oh yeah)',
+			start_ms: 2500,
+			end_ms: 4400,
+			segments: [
+				{ text: '(oh ', start_ms: 2500, end_ms: 3000 },
+				{ text: 'yeah)', start_ms: 3100, end_ms: 4400 }
+			]
+		});
+		expect(parse_lyrics('TTML', 'LINE', ttml).lines[0].background).toEqual({ text: '(oh yeah)', start_ms: 2500, end_ms: 4400 });
+	});
+
 	it('drops segments for LINE sync', () => {
 		const parsed = parse_lyrics('TTML', 'LINE', TTML_WORD);
 		expect(parsed.lines[0].segments).toBeUndefined();

@@ -1,9 +1,9 @@
 import { Genius } from '@origin/genius/genius';
-import { parse_ttml } from '@common/utils/ttml_util';
+import { parse_ttml, type TtmlWord } from '@common/utils/ttml_util';
 import type { LyricsFormat, LyricsLine, LyricsSegment, ParsedLyrics, SyncType } from './types';
 
 /** Bump whenever any parser's output changes; stale `parsed_cache` rows are re-parsed. */
-export const PARSER_VERSION = 1;
+export const PARSER_VERSION = 2;
 
 export class LyricsParseError extends Error {}
 
@@ -34,19 +34,34 @@ function strip_xml(text: string): string {
 		.trim();
 }
 
+function ttml_segments(words: TtmlWord[], timed: boolean): { segments?: LyricsSegment[] } {
+	return timed && words.length > 0 ? { segments: words.map(w => ({ text: w.text, start_ms: seconds_to_ms(w.begin), end_ms: seconds_to_ms(w.end) })) } : {};
+}
+
 export function parse_ttml_lyrics(raw: string, sync_type: SyncType): ParsedLyrics {
 	const ttml = parse_ttml(raw);
 	if (ttml) {
 		const timed = sync_type === 'WORD' || sync_type === 'SYLLABLE';
+		const synced = sync_type !== 'NONE';
 		return {
 			sync_type,
 			songwriters: ttml.songwriters.length > 0 ? ttml.songwriters : undefined,
 			lines: ttml.lines.map(line => ({
 				text: line.text,
-				start_ms: sync_type === 'NONE' ? null : seconds_to_ms(line.begin),
-				end_ms: sync_type === 'NONE' ? null : seconds_to_ms(line.end),
-				...(timed && line.words.length > 0 ? { segments: line.words.map(w => ({ text: w.text, start_ms: seconds_to_ms(w.begin), end_ms: seconds_to_ms(w.end) })) } : {}),
-				...(line.agent ? { agent: line.agent } : {})
+				start_ms: synced ? seconds_to_ms(line.begin) : null,
+				end_ms: synced ? seconds_to_ms(line.end) : null,
+				...ttml_segments(line.words, timed),
+				...(line.agent ? { agent: line.agent } : {}),
+				...(line.background
+					? {
+							background: {
+								text: line.background.text,
+								start_ms: synced ? seconds_to_ms(line.background.begin) : null,
+								end_ms: synced ? seconds_to_ms(line.background.end) : null,
+								...ttml_segments(line.background.words, timed)
+							}
+						}
+					: {})
 			}))
 		};
 	}
