@@ -10,6 +10,7 @@ import { admin_update_entity, parse_entity_patch, resolve_table } from './entiti
 import { list_log_files, logs_query_schema, read_logs } from './logs';
 import { apply_body_schema, apply_review, dismiss_review, list_query_schema, list_review } from './review';
 import { system_status } from './status';
+import { get_row, list_rows, list_tables, row_patch_schema, rows_query_schema, update_row } from './tables';
 import { admin_delete_user, list_users, revoke_user_sessions, update_user, user_patch_schema, users_query_schema } from './users';
 
 /**
@@ -135,6 +136,24 @@ admin_router.delete('/media/:id', async (req, res) => {
 
 admin_router.get('/backpack', async (req, res) => {
 	res.json(await backpack_overview(parse_query(backpack_query_schema, req.query)));
+});
+
+admin_router.get('/tables', async (_req, res) => {
+	res.json(await list_tables());
+});
+
+admin_router.get('/tables/:table/rows', async (req, res) => {
+	res.set('Cache-Control', 'no-store').json(await list_rows(req.params.table, parse_query(rows_query_schema, req.query)));
+});
+
+// POST: a composite key doesn't fit a path, and a query string would put key values in access logs.
+admin_router.post('/tables/:table/row', async (req, res) => {
+	res.set('Cache-Control', 'no-store').json(await get_row(req.params.table, (req.body as { key?: unknown } | undefined)?.key));
+});
+
+admin_router.patch('/tables/:table/rows', async (req, res) => {
+	const admin = require_user(req);
+	res.json(await update_row(req.params.table, parse_body(row_patch_schema, req.body), admin.id));
 });
 
 admin_router.get('/audit', async (req, res) => {

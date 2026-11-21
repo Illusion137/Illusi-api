@@ -217,6 +217,7 @@ const PAGES = [
 	['backpack', 'Backpack'],
 	['tracks', 'Tracks'],
 	['users', 'Users'],
+	['tables', 'Tables'],
 	['audit', 'Audit log']
 ];
 
@@ -1009,6 +1010,269 @@ function user_row(u, reload) {
 			h('button', { class: 'small danger', disabled: self, onclick: remove }, 'Delete'))));
 }
 
+// ---- Tables ----
+
+const FILTER_OPS = [['eq', '='], ['neq', '≠'], ['gt', '>'], ['gte', '≥'], ['lt', '<'], ['lte', '≤'], ['contains', 'contains'], ['is_null', 'is null'], ['not_null', 'is not null']];
+const SCALAR_KINDS = ['text', 'uuid', 'enum', 'boolean', 'integer', 'number', 'timestamp', 'date'];
+let table_list = null;
+
+function tables_view(main, [name]) {
+	const list = h('div', { class: 'db-list' }, h('div', { class: 'empty' }, 'Loading…'));
+	const content = h('div', { class: 'db-content' });
+	let q = '';
+	main.append(h('div', { class: 'db-layout' }, h('div', { class: 'db-side' },
+		h('input', { placeholder: 'Find a table…', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw_list(); } }), list), content));
+
+	const draw_list = () => replace(list, table_list.filter(t => t.name.includes(q)).map(t => h('a', { href: `#/tables/${t.name}`, class: t.name === name ? 'active' : '' },
+		h('span', { class: 'ellipsis' }, t.name.replace(/_table$/u, '')),
+		t.row_estimate != null ? h('span', { class: 'muted small' }, compact(t.row_estimate)) : null)));
+
+	let close_drawer = null;
+	void (async () => {
+		try {
+			table_list ??= (await api('GET', '/admin/tables')).tables;
+		} catch (err) {
+			replace(content, error_view(err));
+			return;
+		}
+		draw_list();
+		const table = table_list.find(t => t.name === name);
+		if (!table) {
+			replace(content, h('div', { class: 'card empty' }, name ? `No table named ${name}.` : `Pick one of ${table_list.length} tables.`));
+			return;
+		}
+		close_drawer = table_grid(content, table);
+	})();
+	return () => close_drawer?.();
+}
+
+function compact(n) {
+	if (n < 1000) return String(n);
+	if (n < 1e6) return `${(n / 1000).toFixed(n < 1e4 ? 1 : 0)}k`;
+	return `${(n / 1e6).toFixed(1)}M`;
+}
+
+function cell_text(value) {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'object') return JSON.stringify(value);
+	return String(value);
+}
+
+function table_grid(content, table) {
+	const f = { page: 1, limit: 50, sort: '', dir: 'asc', filters: [] };
+	let rows = [];
+	let has_more = false;
+	let drawer = null;
+	const body = h('div');
+	const chips = h('div', { class: 'row' });
+	const filterable = table.columns.filter(c => !c.redacted);
+
+	const draft = { column: filterable[0]?.name ?? '', op: 'eq', value: '' };
+	const value_input = h('input', { placeholder: 'value', style: 'width:180px', oninput: (e) => { draft.value = e.target.value; }, onkeydown: (e) => { if (e.key === 'Enter') add_filter(); } });
+	const add_filter = () => {
+		const needs_value = !['is_null', 'not_null'].includes(draft.op);
+		if (needs_value && draft.value === '') return toast('Enter a value to filter by', 'bad');
+		f.filters.push({ column: draft.column, op: draft.op, ...needs_value ? { value: draft.value } : {} });
+		draft.value = '';
+		value_input.value = '';
+		f.page = 1;
+		void load();
+	};
+	const draw_chips = () => replace(chips, f.filters.map((x, i) => h('span', { class: 'chip' },
+		h('span', { class: 'mono' }, `${x.column} ${FILTER_OPS.find(([o]) => o === x.op)[1]}${x.value !== undefined ? ` ${x.value}` : ''}`),
+		h('button', { class: 'small', title: 'Remove filter', onclick: () => { f.filters.splice(i, 1); f.page = 1; void load(); } }, '×'))));
+
+	const sortable = c => !c.redacted && SCALAR_KINDS.includes(c.kind);
+	const sort_by = (c) => {
+		if (!sortable(c)) return;
+		if (f.sort !== c.name) Object.assign(f, { sort: c.name, dir: 'asc' });
+		else if (f.dir === 'asc') f.dir = 'desc';
+		else Object.assign(f, { sort: '', dir: 'asc' });
+		f.page = 1;
+		void load();
+	};
+
+	const header = () => h('tr', null, table.columns.map(c => h('th', { class: sortable(c) ? 'sortable' : '', title: `${c.sql_type}${c.nullable ? '' : ' not null'}`, onclick: () => sort_by(c) },
+		c.name, c.primary_key ? h('span', { class: 'key' }, ' 🔑') : null,
+		f.sort === c.name ? (f.dir === 'asc' ? ' ▲' : ' ▼') : null,
+		h('div', { class: 'type' }, c.sql_type))));
+
+	const cell = (c, row) => {
+		if (c.redacted) return h('td', { class: 'cell muted' }, 'hidden');
+		const text = cell_text(row[c.name]);
+		if (text === null) return h('td', { class: 'cell null' }, 'NULL');
+		return h('td', { class: `cell ${c.kind === 'integer' || c.kind === 'number' ? 'num' : ''}`, title: text.length > 60 ? text.slice(0, 2000) : null }, text);
+	};
+
+	const open_row = (row) => {
+		drawer?.remove();
+		const key = Object.fromEntries(table.primary_key.map(k => [k, row[k]]));
+		drawer = row_drawer(table, key, (updated) => {
+			const i = rows.indexOf(row);
+			if (i >= 0) rows[i] = { ...updated, _truncated: [] };
+			draw();
+		}, () => { drawer = null; });
+		document.body.append(drawer);
+	};
+
+	const draw = () => replace(body,
+		h('div', { class: 'table-wrap db-grid' }, h('table', null,
+			h('thead', null, header()),
+			h('tbody', null, rows.length === 0
+				? h('tr', null, h('td', { colspan: table.columns.length, class: 'empty' }, f.filters.length ? 'No rows match these filters.' : 'This table is empty.'))
+				: rows.map(r => h('tr', { class: 'clickable', onclick: () => open_row(r) }, table.columns.map(c => cell(c, r))))))),
+		h('div', { class: 'row', style: 'margin-top:12px' },
+			h('button', { class: 'small', disabled: f.page <= 1, onclick: () => { f.page--; void load(); } }, '← Prev'),
+			h('span', { class: 'muted small' }, `Page ${f.page} · rows ${rows.length ? (f.page - 1) * f.limit + 1 : 0}–${(f.page - 1) * f.limit + rows.length}`),
+			h('button', { class: 'small', disabled: !has_more, onclick: () => { f.page++; void load(); } }, 'Next →'),
+			select([['25', '25 rows'], ['50', '50 rows'], ['100', '100 rows'], ['200', '200 rows']], String(f.limit), (v) => { f.limit = Number(v); f.page = 1; void load(); })));
+
+	async function load() {
+		draw_chips();
+		try {
+			const data = await api('GET', `/admin/tables/${encodeURIComponent(table.name)}/rows${qs({
+				page: f.page, limit: f.limit, sort: f.sort, dir: f.sort ? f.dir : undefined, filters: f.filters.length ? JSON.stringify(f.filters) : undefined
+			})}`);
+			rows = data.items;
+			has_more = data.has_more;
+			draw();
+		} catch (err) {
+			replace(body, error_view(err));
+		}
+	}
+
+	replace(content,
+		h('h1', null, table.name,
+			table.editable ? null : badge('read-only', 'warn'),
+			h('span', { class: 'muted small' }, table.row_estimate != null ? `~${table.row_estimate.toLocaleString()} rows` : ''),
+			h('span', { class: 'muted small' }, `key: ${table.primary_key.join(', ')}`)),
+		h('div', { class: 'toolbar' },
+			select(filterable.map(c => c.name), draft.column, (v) => { draft.column = v; }),
+			select(FILTER_OPS, draft.op, (v) => { draft.op = v; value_input.disabled = ['is_null', 'not_null'].includes(v); }),
+			value_input,
+			h('button', { onclick: add_filter }, 'Add filter'),
+			h('button', { onclick: () => void load() }, 'Reload')),
+		chips,
+		body);
+	void load();
+	return () => drawer?.remove();
+}
+
+/** Text in an input for a stored value, and back. */
+function field_text(c, v) {
+	if (v === null || v === undefined) return '';
+	if (c.kind === 'json' || c.kind === 'array' || c.kind === 'vector') return JSON.stringify(v, null, 2);
+	return String(v);
+}
+
+function field_value(c, text) {
+	switch (c.kind) {
+		case 'integer': case 'number': {
+			if (text.trim() === '') throw new Error(`${c.name}: enter a number or tick NULL`);
+			const n = Number(text);
+			if (!Number.isFinite(n)) throw new Error(`${c.name}: not a number`);
+			return n;
+		}
+		case 'boolean': return text === 'true';
+		case 'json': case 'array':
+			try {
+				return JSON.parse(text);
+			} catch {
+				throw new Error(`${c.name}: not valid JSON`);
+			}
+		default: return text;
+	}
+}
+
+function row_drawer(table, key, on_saved, on_close) {
+	const body = h('div', { class: 'stack' }, h('div', { class: 'empty' }, 'Loading…'));
+	const close = () => {
+		el.remove();
+		document.removeEventListener('keydown', on_key);
+		on_close();
+	};
+	const on_key = (e) => { if (e.key === 'Escape') close(); };
+	document.addEventListener('keydown', on_key);
+	const el = h('aside', { class: 'drawer' },
+		h('div', { class: 'spread' },
+			h('h2', { style: 'margin:0' }, table.name),
+			h('button', { class: 'small', onclick: close }, 'Close')),
+		h('div', { class: 'mono muted small', style: 'margin:4px 0 16px' }, Object.entries(key).map(([k, v]) => `${k} = ${v}`).join(' · ')),
+		body);
+	el.remove = ((remove) => () => { document.removeEventListener('keydown', on_key); remove(); })(el.remove.bind(el));
+
+	void (async () => {
+		let row;
+		try {
+			row = await api('POST', `/admin/tables/${encodeURIComponent(table.name)}/row`, { key });
+		} catch (err) {
+			replace(body, error_view(err));
+			return;
+		}
+		draw_fields(row);
+	})();
+
+	function draw_fields(row) {
+		const fields = table.columns.map(c => field_editor(c, row[c.name]));
+		const save = h('button', {
+			class: 'primary',
+			onclick: async () => {
+				const values = {};
+				try {
+					for (const fe of fields) if (fe.changed()) values[fe.column.name] = fe.value();
+				} catch (err) {
+					return toast(err.message, 'bad');
+				}
+				if (Object.keys(values).length === 0) return toast('Nothing changed');
+				const updated = await act(save, () => api('PATCH', `/admin/tables/${encodeURIComponent(table.name)}/rows`, { key, values }), 'Row saved');
+				on_saved(updated);
+				draw_fields(updated);
+			}
+		}, 'Save changes');
+		replace(body,
+			fields.map(fe => fe.el),
+			table.editable
+				? h('div', { class: 'row drawer-actions' }, save, h('span', { class: 'muted small' }, 'Only changed fields are saved; every edit goes to the audit log.'))
+				: h('p', { class: 'muted small' }, 'This table is read-only.'));
+	}
+
+	return el;
+}
+
+function field_editor(c, original) {
+	const label = h('div', { class: 'field-label' },
+		h('span', { class: 'mono' }, c.name), ' ',
+		h('span', { class: 'muted small' }, c.sql_type, c.nullable ? '' : ' · not null'),
+		c.primary_key ? badge('key') : null,
+		!c.editable && !c.redacted ? badge('read-only') : null);
+	if (c.redacted) return { column: c, el: h('div', { class: 'field' }, label, h('div', { class: 'muted' }, 'Hidden: never sent to the dashboard.')), changed: () => false };
+	if (!c.editable) {
+		const text = field_text(c, original);
+		return { column: c, el: h('div', { class: 'field' }, label, original === null ? h('div', { class: 'null' }, 'NULL') : text.includes('\n') || text.length > 80 ? h('pre', null, text) : h('div', { class: 'mono value' }, text)), changed: () => false };
+	}
+
+	const initial = field_text(c, original);
+	let input;
+	if (c.kind === 'enum' || c.kind === 'boolean') {
+		const options = c.kind === 'enum' ? c.enum_values : ['true', 'false'];
+		input = h('select', null, options.map(o => h('option', { value: o, selected: o === initial }, o)));
+		if (original === null) input.value = options[0];
+	} else if (c.kind === 'json' || c.kind === 'array' || c.sql_type === 'text' || initial.length > 80) {
+		input = h('textarea', { rows: Math.min(14, Math.max(2, initial.split('\n').length + 1)) }, initial);
+	} else {
+		input = h('input', { value: initial, class: c.kind === 'text' ? '' : 'mono', placeholder: c.kind === 'timestamp' ? '2026-01-31T12:00:00Z' : c.kind === 'date' ? '2026-01-31' : '' });
+	}
+	const is_null = c.nullable ? h('input', { type: 'checkbox', checked: original === null, onchange: () => { input.disabled = is_null.checked; } }) : null;
+	input.disabled = original === null && c.nullable;
+
+	return {
+		column: c,
+		el: h('div', { class: 'field' }, label, input, is_null ? h('label', { class: 'check small' }, is_null, 'NULL') : null),
+		changed: () => (is_null?.checked ?? false) !== (original === null) || !is_null?.checked && input.value !== initial,
+		value: () => is_null?.checked ? null : field_value(c, input.value)
+	};
+}
+
 // ---- Audit ----
 
 function audit_table(items) {
@@ -1067,6 +1331,7 @@ const VIEWS = {
 	backpack: backpack_view,
 	tracks: tracks_view,
 	users: users_view,
+	tables: tables_view,
 	audit: audit_view
 };
 
