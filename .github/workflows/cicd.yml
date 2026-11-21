@@ -198,4 +198,4 @@ jobs:
       - name: Deploy
         run: |
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "${{ secrets.DEPLOY_USER || 'illusi' }}@${{ secrets.DEPLOY_HOST }}" \
-            "cd ${{ vars.DEPLOY_DIR || '/opt/illusi' }} && scripts/deploy.sh ${{ github.sha }}"
+            "cd ${{ vars.DEPLOY_DIR || '/opt/illusi' }} && if [ \"\$(id -u)\" = 0 ]; then exec sudo -u \"\$(stat -c %U .)\" -H scripts/deploy.sh ${{ github.sha }}; else exec scripts/deploy.sh ${{ github.sha }}; fi"

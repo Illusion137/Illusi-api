@@ -11,6 +11,10 @@
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
+# Logged in as root (CI or by hand): run as the user that owns the app dir instead, like remote_app. git refuses a
+# repo owned by someone else ("dubious ownership"), and nothing here should leave root-owned files behind.
+if [[ $EUID -eq 0 && "$(stat -c %U .)" != root ]]; then exec sudo -u "$(stat -c %U .)" -H -- "$PWD/scripts/deploy.sh" "$@"; fi
+
 local_images=0
 skip_git=0
 while [[ $# -gt 0 ]]; do
