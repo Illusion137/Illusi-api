@@ -1,4 +1,6 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -89,6 +91,24 @@ describe('call_analyze', () => {
 		const [url, init] = fetch_mock.mock.calls[0];
 		expect(String(url)).toBe('http://an:1/analyze');
 		expect(init).toMatchObject({ method: 'POST', body: JSON.stringify({ path: '/m/a.mp3' }) });
+	});
+	it('has no response-header deadline of its own, through the real fetch', async () => {
+		fetch_mock.mockResolvedValue(new Response('{}', { status: 200 }));
+		await call_analyze('http://an:1', 'f', signal());
+		expect(fetch_mock.mock.calls[0][1]).toHaveProperty('dispatcher');
+		vi.unstubAllGlobals();
+		const server = createServer((req, res) => {
+			let body = '';
+			req.on('data', (c: Buffer) => { body += c; });
+			req.on('end', () => setTimeout(() => res.end(JSON.stringify({ echo: JSON.parse(body).path })), 50));
+		});
+		await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+		try {
+			const { port } = server.address() as AddressInfo;
+			await expect(call_analyze(`http://127.0.0.1:${port}`, '/m/a.mp3', signal(), '/alignment')).resolves.toEqual({ echo: '/m/a.mp3' });
+		} finally {
+			await new Promise(resolve => server.close(resolve));
+		}
 	});
 	it('can target /vocals', async () => {
 		fetch_mock.mockResolvedValue(new Response('{}', { status: 200 }));

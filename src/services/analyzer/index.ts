@@ -167,6 +167,24 @@ async function media_file(job: Job, resource_id: string, signal: AbortSignal, te
 	}
 }
 
+/**
+ * Analyzes the file `locate` finds. scripts/backup-media.sh can move a local media file to the media bucket while the
+ * job waits on the analyzer, which then can't open it (400/422): that runs once more, on a download.
+ */
+async function analyze_located(locate: () => Promise<string>, temps: string[], at: (file: string) => void, analyze: (file: string) => Promise<unknown>): Promise<unknown> {
+	const file = await locate();
+	at(file);
+	try {
+		return await analyze(file);
+	} catch (err) {
+		if (!(err instanceof JobError && err.failure.kind === 'bad_file') || temps.includes(file) || await access(file).then(() => true, () => false)) throw err;
+		log.info(`${file} moved away during analysis; trying again`);
+		const moved = await locate();
+		at(moved);
+		return analyze(moved);
+	}
+}
+
 /** The file to analyze for a sample: the media file, or the downloaded iTunes preview (added to `temps`). */
 async function local_path(job: Job, source: ResolvedSource, signal: AbortSignal, temps: string[]): Promise<string> {
 	if (source.source === 'media') return media_file(job, source.ref, signal, temps);
@@ -218,8 +236,8 @@ async function run_alignment_job(job: Job): Promise<boolean> {
 	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		file_path = await media_file(job, target.resource_id, signal, temps);
-		const result = map_alignment(await call_analyze(config.ANALYZER_URL, file_path, signal, '/alignment'));
+		const result = map_alignment(await analyze_located(() => media_file(job, target.resource_id, signal, temps), temps, (f) => { file_path = f; },
+			f => call_analyze(config.ANALYZER_URL, f, signal, '/alignment')));
 		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await record_alignment(job.track_id, target, 'DONE', null, result);
 		log.info(`aligned ${job.track_id}: ${result.loudness.length} frame(s), ${result.words.length} word(s), ${result.repeat_strengths.length} repeat(s)`);
@@ -240,8 +258,8 @@ async function run_vocals_job(job: Job): Promise<boolean> {
 	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		file_path = await media_file(job, target.resource_id, signal, temps);
-		const result = map_vocals(await call_analyze(config.ANALYZER_URL, file_path, signal, '/vocals'));
+		const result = map_vocals(await analyze_located(() => media_file(job, target.resource_id, signal, temps), temps, (f) => { file_path = f; },
+			f => call_analyze(config.ANALYZER_URL, f, signal, '/vocals')));
 		if (!result) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await record_vocals(job.track_id, target, 'DONE', null, result);
 		log.info(`detected vocals in ${job.track_id}: ${result.segments.length / 2} segment(s), ${result.beats?.length ?? 0} beat(s), ${result.words?.length ?? 0} word(s)`);
@@ -262,9 +280,8 @@ async function run_sample_job(job: Job): Promise<boolean> {
 	const temps: string[] = [];
 	let file_path: string | null = null;
 	try {
-		const file = await local_path(job, source, signal, temps);
-		file_path = file;
-		const body = await call_analyze(config.ANALYZER_URL, file, signal);
+		const body = await analyze_located(() => local_path(job, source, signal, temps), temps, (f) => { file_path = f; },
+			f => call_analyze(config.ANALYZER_URL, f, signal));
 		const row = map_analysis(job.track_id, body);
 		if (!row) throw new JobError({ kind: 'analyzer_unavailable', detail: 'response breaks the contract', http_status: 200 });
 		await save_sample(row, source);

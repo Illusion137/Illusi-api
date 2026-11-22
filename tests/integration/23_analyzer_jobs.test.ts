@@ -1,5 +1,5 @@
 import { createHash, randomInt } from 'node:crypto';
-import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -473,6 +473,30 @@ describe('alignment jobs', () => {
 		});
 		expect((await alignment_of(broken.id)).retry_after.getTime()).toBeGreaterThan(Date.now());
 		await stop();
+	});
+
+	it('aligns a download when the media file moves to the bucket while the analyzer is busy', async () => {
+		const t = await played({ media: `${uuid()}.m4a` });
+		const original = config.MEDIA_PUBLIC_URL;
+		config.MEDIA_PUBLIC_URL = 'https://bucket.example.com/media';
+		const local = path.join(media_dir, t.resource_id!);
+		alignment_handler = async (body) => {
+			if (body.path !== local) return json(alignment);
+			// scripts/backup-media.sh moved it before the analyzer got to it
+			await unlink(local);
+			return new Response('{"error": "cannot decode audio: Error opening input files: No such file or directory"}', { status: 422 });
+		};
+		try {
+			await start();
+			emit('alignment_requested', { track_id: t.id });
+			await wait(async () => expect(await alignment_of(t.id)).toMatchObject({ status: 'DONE', resource_id: t.resource_id }));
+			const paths = alignment_calls().map(c => c.path!);
+			expect(paths[0]).toBe(local);
+			expect(path.dirname(paths[1])).toBe(tmp_dir);
+		} finally {
+			config.MEDIA_PUBLIC_URL = original;
+			await stop();
+		}
 	});
 
 	it('queues played tracks from the backlog', async () => {

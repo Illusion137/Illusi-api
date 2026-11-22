@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+import { Agent } from 'undici';
 import type { JobFailure } from './decisions';
 import { classify_analyzer_status, classify_download_status, DOWNLOAD_MAX_ATTEMPTS, download_retry_delay_ms } from './decisions';
 
@@ -40,6 +41,12 @@ export async function check_health(base_url: string, signal?: AbortSignal): Prom
 	}
 }
 
+/**
+ * The analyzer sends nothing until it is done, and an alignment can take longer than fetch's default 5 minutes to the
+ * response headers: the job's `signal` is the only deadline.
+ */
+const analyzer_agent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+
 /** `POST /analyze` or `/vocals`. Returns the parsed JSON body; throws `JobError` on failure, rethrows aborts. */
 export async function call_analyze(base_url: string, file_path: string, signal: AbortSignal, endpoint: '/analyze' | '/vocals' | '/alignment' = '/analyze'): Promise<unknown> {
 	let res: Response;
@@ -48,8 +55,9 @@ export async function call_analyze(base_url: string, file_path: string, signal: 
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ path: file_path }),
-			signal
-		});
+			signal,
+			dispatcher: analyzer_agent
+		} as RequestInit);
 	} catch (err) {
 		if (is_abort(err)) throw err;
 		throw new JobError({ kind: 'analyzer_unavailable', detail: err instanceof Error ? err.message : String(err) });
