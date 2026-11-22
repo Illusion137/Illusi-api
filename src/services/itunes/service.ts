@@ -4,6 +4,7 @@ import { on, PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
 import { chunk } from './batching';
 import { ITunesClient, ITunesDropError, ITunesStoppedError } from './client';
+import { attach_itunes_album } from './album_link';
 import { found_from_result, resolve_request, result_for_id } from './pipeline';
 import type { Found } from './pipeline';
 import { WorkQueue } from './queue';
@@ -183,6 +184,7 @@ export class ITunesService {
 		const linked = await db.transaction(async (tx) => {
 			const { artwork, preview_url } = await found.persist(tx);
 			const linked_ids = await link_entities(tx, illusi_ids, type, found.itunes_id, artwork, preview_url, events);
+			if (type === 'track') for (const id of linked_ids) await attach_itunes_album(tx, id, found.itunes_id, events);
 			await record_lookup(tx, illusi_ids, type, 'FOUND');
 			return linked_ids;
 		});

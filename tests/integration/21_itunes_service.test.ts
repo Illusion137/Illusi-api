@@ -344,3 +344,63 @@ describe('ITunesService: drain loop', () => {
 		await s.stop();
 	});
 });
+
+describe('ITunesService: albums for linked tracks', () => {
+	const song = (id: number, artist: { id: number; name: string }, name: string, collection: { id: number; name: string }, duration = 200_000) => ({
+		...track_result(id, artist, name), trackTimeMillis: duration, collectionId: collection.id, collectionName: collection.name, trackCount: 1, trackNumber: 1,
+		artworkUrl100: `https://img.test/${collection.id}/100x100bb.jpg`
+	});
+	async function seed_track(title: string, duration_ms: number | null) {
+		const artist_name = unique('Album Link Artist');
+		const artist_id = await seed('artist', artist_name);
+		const track_id = await seed('track', title, { artist_id });
+		await pool.query('update tracks_table set duration_ms = $2 where id = $1', [track_id, duration_ms]);
+		return { artist_name, artist_id, track_id };
+	}
+	async function link(track_id: string, result: object) {
+		const it_id = (result as { trackId: number }).trackId;
+		await pool.query('update service_ids_table set applemusic_id = $2 where illusi_id = $1', [track_id, String(it_id)]);
+		client.lookup_ids.mockResolvedValue([result]);
+		const [candidate] = await scan_candidates('track', { ids: [track_id], limit: 1 });
+		await internals(service).process(batch_of([candidate]));
+		const [row] = (await pool.query('select album_id from tracks_table where id = $1', [track_id])).rows;
+		if (row.album_id) seeded.push(row.album_id);
+		return row.album_id as string | null;
+	}
+
+	it('puts a surely matching track on the song\'s album, created from the collection', async () => {
+		const title = unique('Heart');
+		const { artist_name, artist_id, track_id } = await seed_track(title, 201_000);
+		const collection = { id: itunes_id(), name: `${title} - Single` };
+		const album_id = await link(track_id, song(itunes_id(), { id: itunes_id(), name: artist_name }, title, collection));
+		expect(album_id).not.toBeNull();
+		const [album] = (await pool.query('select name, album_type, artist_id from albums_table where id = $1', [album_id])).rows;
+		expect(album).toEqual({ name: title, album_type: 'SINGLE', artist_id });
+		expect(await applemusic_of(album_id!)).toBe(String(collection.id));
+		expect((await pool.query('select track_number from album_tracks_table where album_id = $1 and track_id = $2', [album_id, track_id])).rows).toEqual([{ track_number: 1 }]);
+	});
+
+	it('reuses the catalog album already linked to the collection', async () => {
+		const title = unique('Shared');
+		const { artist_name, artist_id, track_id } = await seed_track(title, 200_000);
+		const collection = { id: itunes_id(), name: unique('Shared Album') };
+		const existing = await seed('album', collection.name, { artist_id, applemusic_id: String(collection.id) });
+		expect(await link(track_id, song(itunes_id(), { id: itunes_id(), name: artist_name }, title, collection))).toBe(existing);
+	});
+
+	it('leaves the track alone when the match isn\'t sure or it already has an album', async () => {
+		const off = await seed_track(unique('Off'), 230_000);
+		const off_title = (await pool.query('select title from tracks_table where id = $1', [off.track_id])).rows[0].title as string;
+		expect(await link(off.track_id, song(itunes_id(), { id: itunes_id(), name: off.artist_name }, off_title, { id: itunes_id(), name: 'Far - Single' }))).toBeNull();
+
+		const unknown = await seed_track(unique('Untimed'), null);
+		const unknown_title = (await pool.query('select title from tracks_table where id = $1', [unknown.track_id])).rows[0].title as string;
+		expect(await link(unknown.track_id, song(itunes_id(), { id: itunes_id(), name: unknown.artist_name }, unknown_title, { id: itunes_id(), name: 'Untimed - Single' }))).toBeNull();
+
+		const has = await seed_track(unique('Has Album'), 200_000);
+		const own = await seed('album', unique('Own Album'), { artist_id: has.artist_id });
+		await pool.query('update tracks_table set album_id = $2 where id = $1', [has.track_id, own]);
+		const has_title = (await pool.query('select title from tracks_table where id = $1', [has.track_id])).rows[0].title as string;
+		expect(await link(has.track_id, song(itunes_id(), { id: itunes_id(), name: has.artist_name }, has_title, { id: itunes_id(), name: 'Other - Single' }))).toBe(own);
+	});
+});
