@@ -60,10 +60,10 @@ describe('media uploads (§13)', () => {
 		expect(resource_id).toMatch(/\.m4a$/u);
 		expect((await api('GET', '/media/requests', { token: user.access_token })).body.actions).toEqual([]);
 
-		// Same bytes again (no token needed for a user's own library track): deduped by the uploaded bytes' hash.
-		const dup = await upload(user, t0, file);
-		expect(dup.status).toBe(200);
-		expect(dup.body.duplicate).toBe(true);
+		// The first upload sticks: another one (a retry included) is refused before its body is read, with the media kept.
+		const again = await upload(user, t0, file);
+		expect(again.status).toBe(409);
+		expect(again.body).toMatchObject({ code: 'TRACK_HAS_MEDIA', media: { resource_id } });
 
 		const full = await fetch_media(user, resource_id);
 		expect(full.status).toBe(200);
@@ -77,14 +77,13 @@ describe('media uploads (§13)', () => {
 		expect(Buffer.from(await part.arrayBuffer()).equals(stored_file.subarray(0, 12))).toBe(true);
 		expect((await fetch_media(user, resource_id, { range: `bytes=${stored_file.length + 10}-` })).status).toBe(416);
 
-		// Another user only gets it once the track is in their library.
-		const other = await create_user('media-other');
-		expect((await fetch_media(other, resource_id)).status).toBe(403);
-		await add_to_library(other, [t0]);
-		expect((await fetch_media(other, resource_id)).status).toBe(200);
+		// The resource id is the capability: it streams to anyone, without a session, and caches for good.
+		const anonymous = await fetch(`${API_BASE}/media/${resource_id}`);
+		expect(anonymous.status).toBe(200);
+		expect(anonymous.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
 	});
 
-	it('asks for downloaded tracks whose only lyrics are unsynced', async () => {
+	it('asks for downloaded tracks whose lyrics are not word synced', async () => {
 		const user = await create_user('media-lyrics');
 		const created = await contribute(user, mock_album({ artist: unique('Lyrics Media'), album: unique('Lyrics Media Album'), n: 4 }));
 		const [plain, synced, both, none] = [0, 1, 2, 3].map(i => created.body.refs[`t${i}`] as string);
@@ -99,7 +98,7 @@ describe('media uploads (§13)', () => {
 		await add_lyrics(both, 'WORD');
 
 		const requests = await api('GET', '/media/requests', { token: user.access_token });
-		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id)).toEqual([plain]);
+		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id).sort()).toEqual([plain, synced].sort());
 	});
 
 	it('serves detected vocals once the analyzer has stored them', async () => {

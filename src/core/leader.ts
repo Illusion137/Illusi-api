@@ -5,7 +5,7 @@ import { logger } from './log';
 const log = logger('leader');
 
 /** Advisory lock keys. One per singleton role; the value is arbitrary but must never change. */
-export const LEADER_LOCKS = { background_services: 7_340_001, exports: 7_340_002 } as const;
+export const LEADER_LOCKS = { background_services: 7_340_001, exports: 7_340_002, cleanup: 7_340_004 } as const;
 
 export interface LeaderHandle { stop(): Promise<void> }
 

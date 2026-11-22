@@ -13,7 +13,7 @@ import { durations_router } from './services/durations';
 import { catalog_router } from './services/catalog';
 import { entities_router } from './services/entities';
 import { lyrics_router } from './services/lyrics';
-import { media_router } from './services/media';
+import { media_router, public_media_router } from './services/media';
 import { playlists_router } from './services/playlists';
 import { releases_router } from './services/releases';
 import { soundcloud_router } from './services/soundcloud';
@@ -42,6 +42,8 @@ export function create_app() {
 function api_v1() {
 	const api = express.Router();
 	api.use('/auth', auth_router);
+	// Media files are public by resource id (the id is unguessable), so players stream them without a session.
+	api.use(public_media_router);
 
 	// Everything below requires a valid access token and a confirmed email address.
 	api.use(require_auth, require_verified);

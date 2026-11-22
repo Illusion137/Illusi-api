@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '../../db';
 import { playlist_inherited_playlists_table, playlists_table } from '../../db/schema';
 import { HttpError } from '../../core/http';
@@ -39,6 +39,8 @@ export function creates_cycle(edges: InheritanceEdges, playlist_id: string, ref_
  */
 export async function assert_inheritance_allowed(tx: Tx, user_id: string, playlist_id: string, ref_id: string): Promise<void> {
 	if (playlist_id === ref_id) throw new HttpError(409, 'a playlist cannot inherit itself');
+	// Two devices adding A→B and B→A at once would each see no cycle; checks for one user take turns until commit.
+	await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`inheritance:${user_id}`}, 0))`);
 	const owners = await tx.select({ id: playlists_table.id, user_id: playlists_table.user_id })
 		.from(playlists_table)
 		.where(inArray(playlists_table.id, [playlist_id, ref_id]));

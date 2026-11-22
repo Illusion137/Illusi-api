@@ -9,8 +9,9 @@ import { db } from '../../db';
 import type { Tx } from '../../db';
 import {
 	illusi_id_redirects_table, linked_playlists_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, playlist_tracks_table,
-	playlists_table, track_plays_table, user_recent_searches, user_tracks_table, users_table
+	playlists_table, track_plays_table, user_inherited_tracks_table, user_recent_searches, user_tracks_table, users_table
 } from '../../db/schema';
+import { config } from '../../config';
 import type { ActionType } from '../../core/actions';
 import type { AuthUser } from '../../core/auth/tokens';
 import { logger } from '../../core/log';
@@ -80,7 +81,7 @@ const win_col = (ctx: PullContext, column: Parameters<typeof gt>[0]) => (ctx.sin
 	? sql`(${column} > ${ctx.since}::timestamptz and ${column} <= ${ctx.upper}::timestamptz)`
 	: sql`${column} <= ${ctx.upper}::timestamptz`);
 
-/** Tracks reached only through inheritance; computed outside the snapshot, it only widens the scope. */
+/** Tracks reached only through inheritance, resolved now (outside the snapshot, it only widens the scope). */
 async function inherited_track_ids(user_id: string): Promise<string[]> {
 	const rows = await db.execute<{ id: string }>(sql`
 		select p.id from ${playlists_table} p where p.user_id = ${user_id} and not p.deleted and (
@@ -99,14 +100,54 @@ async function inherited_track_ids(user_id: string): Promise<string[]> {
 	return [...out];
 }
 
+/**
+ * Whether the user's stored inheritance-only tracks are stale: never computed, older than INHERITED_SCOPE_TTL_MIN
+ * (inherited searches follow the catalog), or older than a change to the user's library or playlists.
+ */
+async function inherited_scope_stale(user_id: string): Promise<boolean> {
+	const [row] = await db.execute<{ stale: boolean }>(sql`
+		select u.inherited_scope_at is null
+			or u.inherited_scope_at < now() - make_interval(mins => ${config.INHERITED_SCOPE_TTL_MIN})
+			or exists(select 1 from ${playlists_table} p where p.user_id = u.id and p.modified_at > u.inherited_scope_at)
+			or exists(select 1 from ${playlist_tracks_table} x join ${playlists_table} p on p.id = x.playlist_id where p.user_id = u.id and x.modified_at > u.inherited_scope_at)
+			or exists(select 1 from ${playlist_inherited_playlists_table} x join ${playlists_table} p on p.id = x.playlist_id where p.user_id = u.id and x.modified_at > u.inherited_scope_at)
+			or exists(select 1 from ${playlist_inherited_searches_table} x join ${playlists_table} p on p.id = x.playlist_id where p.user_id = u.id and x.modified_at > u.inherited_scope_at)
+			or exists(select 1 from ${user_tracks_table} x where x.user_id = u.id and x.modified_at > u.inherited_scope_at)
+			as stale
+		from ${users_table} u where u.id = ${user_id}
+	`, 'objects');
+	return row?.stale ?? false;
+}
+
+/**
+ * Brings `user_inherited_tracks_table` up to date when stale. A track entering the set gets `created_at = now()`, which
+ * is how a pull learns it became part of the user's scope even though the track itself didn't change.
+ */
+export async function refresh_inherited_scope(user_id: string): Promise<void> {
+	if (!(await inherited_scope_stale(user_id))) return;
+	const ids = await inherited_track_ids(user_id);
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`delete from ${user_inherited_tracks_table} where user_id = ${user_id} and not (track_id = any(${uuid_array(ids)}))`);
+		if (ids.length > 0) {
+			await tx.execute(sql`
+				insert into ${user_inherited_tracks_table} (user_id, track_id)
+				select ${user_id}, id from unnest(${uuid_array(ids)}) as s(id) where exists(select 1 from tracks_table t where t.id = s.id)
+				on conflict do nothing
+			`);
+		}
+		// Raw update: the ORM's modified_at hook would make the user row look changed to every pull.
+		await tx.execute(sql`update ${users_table} set inherited_scope_at = now() where id = ${user_id}`);
+	});
+}
+
 /** Every track the user touches (library, own playlists, inherited) and their albums and artists. */
-async function compute_scope(tx: Tx, user_id: string, inherited: readonly string[]): Promise<Scope> {
+async function compute_scope(tx: Tx, user_id: string): Promise<Scope> {
 	const tracks = await tx.execute<{ id: string }>(sql`
 		select track_id as id from user_tracks_table where user_id = ${user_id}
 		union
 		select pt.track_id from playlist_tracks_table pt join playlists_table p on p.id = pt.playlist_id where p.user_id = ${user_id}
 		union
-		select t.id from tracks_table t where t.id = any(${uuid_array(inherited)})
+		select track_id from user_inherited_tracks_table where user_id = ${user_id}
 	`, 'objects');
 	const track_ids = tracks.map(r => r.id).sort();
 	const albums = await tx.execute<{ id: string }>(sql`
@@ -141,17 +182,20 @@ function track_changed(ctx: PullContext): SQL {
 		or exists(select 1 from track_lyrics_table x where x.track_id = s.id and ${win(ctx, 'x.modified_at')})
 		or exists(select 1 from user_tracks_table x where x.user_id = ${u} and x.track_id = s.id and ${win(ctx, 'x.modified_at')})
 		or exists(select 1 from playlist_tracks_table x join playlists_table p on p.id = x.playlist_id where p.user_id = ${u} and x.track_id = s.id and ${win(ctx, 'x.modified_at')})
+		or exists(select 1 from user_inherited_tracks_table x where x.user_id = ${u} and x.track_id = s.id and ${win(ctx, 'x.created_at')})
 		or exists(select 1 from service_ids_table si ${itunes_join('itunes_tracks_table')} where si.illusi_id = s.id and ${win(ctx, 'it.modified_at')})
 	)`;
 }
 
-/** Tracks of the user whose library / playlist row changed in the window: their albums and artists newly enter scope. */
+/** Tracks whose library / playlist row changed in the window, or that became inherited: their albums and artists newly enter scope. */
 function newly_scoped_tracks(ctx: PullContext): SQL {
 	const u = ctx.user.id;
 	return sql`(
 		select x.track_id from user_tracks_table x where x.user_id = ${u} and ${win(ctx, 'x.modified_at')}
 		union
 		select x.track_id from playlist_tracks_table x join playlists_table p on p.id = x.playlist_id where p.user_id = ${u} and ${win(ctx, 'x.modified_at')}
+		union
+		select x.track_id from user_inherited_tracks_table x where x.user_id = ${u} and ${win(ctx, 'x.created_at')}
 	)`;
 }
 
@@ -395,12 +439,13 @@ function queue_background(track_ids: readonly string[], entity_ids: readonly str
 }
 
 export async function pull(user: AuthUser, cursor: Cursor | null): Promise<SyncPullResponse> {
-	const inherited = await inherited_track_ids(user.id);
+	const resuming = cursor && in_progress(cursor) ? cursor : null;
+	// Once per sweep, and only when stale: resolving inheritance can run searches over the whole catalog.
+	if (!resuming) await refresh_inherited_scope(user.id);
 	const page = await db.transaction(async (tx) => {
-		const resuming = cursor && in_progress(cursor) ? cursor : null;
 		const since = cursor?.since ?? null;
 		const upper = resuming ? resuming.upper : await watermark(tx);
-		const ctx: PullContext = { tx, user, since, upper, scope: await compute_scope(tx, user.id, inherited), rows: empty_rows(), page_tracks: [], page_entities: [] };
+		const ctx: PullContext = { tx, user, since, upper, scope: await compute_scope(tx, user.id), rows: empty_rows(), page_tracks: [], page_entities: [] };
 		const position = await walk_phases(
 			PHASES.map(p => ({ cost: p.cost, run: (after: string | null, limit: number) => p.run(ctx, after, limit) })),
 			resuming ? { phase: resuming.phase, key: resuming.key ?? null } : { phase: 0, key: null },

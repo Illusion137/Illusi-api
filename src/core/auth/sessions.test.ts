@@ -71,10 +71,23 @@ describe('rotate_refresh_token', () => {
 		expect(await rotate_refresh_token('x')).toEqual({ ok: false, reason: 'unknown' });
 	});
 
-	it('detects reuse of a rotated token and revokes the family', async () => {
-		setup([[row({ revoked_at: new Date(), replaced_by: 'row-2' })], undefined]);
+	it('detects reuse of a rotated token whose replacement was used, and revokes the family', async () => {
+		setup([[row({ revoked_at: new Date(), replaced_by: 'row-2' })], [row({ id: 'row-2', revoked_at: new Date(), replaced_by: 'row-3' })], undefined, undefined]);
 		expect(await rotate_refresh_token('x')).toEqual({ ok: false, reason: 'reused' });
-		expect(t.calls[1].op).toBe('update');
+		expect(t.calls.map(c => c.op)).toEqual(['select', 'select', 'update', 'delete']);
+	});
+
+	it('treats reuse long after rotation as theft even if the replacement is unused', async () => {
+		setup([[row({ revoked_at: new Date(Date.now() - 30 * 86_400_000), replaced_by: 'row-2' })], [row({ id: 'row-2' })], undefined, undefined]);
+		expect(await rotate_refresh_token('x')).toEqual({ ok: false, reason: 'reused' });
+	});
+
+	it('rotates again when the replacement was never used (the refresh response was lost)', async () => {
+		setup([[row({ revoked_at: new Date(), replaced_by: 'row-2' })], [row({ id: 'row-2' })], [{ id: 'u1', role: 'USER' }], undefined, undefined]);
+		const result = await rotate_refresh_token('x');
+		expect(result.ok).toBe(true);
+		const inserted = t.arg(t.calls[3], 'values') as Record<string, unknown>;
+		expect(t.arg(t.calls[4], 'set')).toMatchObject({ replaced_by: inserted.id });
 	});
 
 	it('reports a plainly revoked token without touching the family', async () => {

@@ -705,8 +705,48 @@ export const users_table = pgTable('users_table', {
 	/** Null until the user follows the link emailed to them; unverified users can sign in but only reach `/auth`. */
 	email_verified_at: timestamptz(),
 	edited_at: timestamptz(),
+	/** `<uuid>.webp` in MEDIA_DIR/avatars, set with `PUT /me/avatar`. Null for none. */
+	avatar_id: varchar({ length: 64 }),
+	/** The /24 (IPv4) or /48 (IPv6) the account signed up from; consensus counts one vote per prefix. Null for older accounts. */
+	signup_ip_prefix: varchar({ length: 64 }),
+	/** When `user_inherited_tracks_table` was last recomputed for this user. */
+	inherited_scope_at: timestamptz(),
 	...timestamps
 }, table => [check('users_email_lowercase_check', sql`${table.email} = lower(${table.email})`)]);
+
+/** Password reset codes (6 digits, emailed); only an HMAC of the code is stored. */
+export const password_resets_table = pgTable('password_resets_table', {
+	id: uuid().primaryKey().defaultRandom(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	code_hash: varchar({ length: 64 }).notNull(),
+	attempts: integer().notNull().default(0),
+	expires_at: timestamptz().notNull(),
+	used_at: timestamptz(),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [index('password_resets_user_id_idx').on(table.user_id)]);
+
+/**
+ * Tracks a user reaches only through playlist inheritance, as of `users_table.inherited_scope_at`. `created_at` is when
+ * a track entered that set, so a pull can send tracks that became part of the user's scope without changing themselves.
+ */
+export const user_inherited_tracks_table = pgTable('user_inherited_tracks_table', {
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	created_at: timestamptz().notNull().defaultNow()
+}, table => [
+	primaryKey({ columns: [table.user_id, table.track_id] }),
+	index('user_inherited_tracks_created_at_idx').on(table.user_id, table.created_at)
+]);
+
+/** Fixed-window request counters shared by every API process (the migration makes the table UNLOGGED). */
+export const rate_limit_counters_table = pgTable('rate_limit_counters_table', {
+	key: varchar({ length: 256 }).notNull(),
+	window_start: timestamptz().notNull(),
+	count: integer().notNull().default(0)
+}, table => [
+	primaryKey({ columns: [table.key, table.window_start] }),
+	index('rate_limit_counters_window_start_idx').on(table.window_start)
+]);
 
 /** One-time email confirmation links; only the sha256 of the token is stored. */
 export const email_verifications_table = pgTable('email_verifications_table', {
@@ -784,17 +824,20 @@ export const user_recent_searches = pgTable('user_recent_searches', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	user_id: uuid().references(() => users_table.id, { onDelete: 'cascade' }),
 	text: varchar({ length: 128 }),
-	client_id: uuid().unique(),
+	/** Unique per user: two users' devices may derive the same id (e.g. from the search text) */
+	client_id: uuid(),
 	created_at: timestamptz().notNull().defaultNow()
-}, table => [index('user_recent_searches_user_id_idx').on(table.user_id)]);
+}, table => [index('user_recent_searches_user_id_idx').on(table.user_id), uniqueIndex('user_recent_searches_user_id_client_id_idx').on(table.user_id, table.client_id)]);
 
 export const track_plays_table = pgTable('track_plays_table', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
-	client_id: uuid().unique(),
+	/** Unique per user, like user_recent_searches.client_id */
+	client_id: uuid(),
 	created_at: timestamptz().notNull().defaultNow()
 }, table => [
+	uniqueIndex('track_plays_user_id_client_id_idx').on(table.user_id, table.client_id),
 	index('track_plays_user_id_track_id_idx').on(table.user_id, table.track_id),
 	index('track_plays_user_id_created_at_idx').on(table.user_id, table.created_at.desc().nullsFirst(), table.id.desc().nullsFirst()),
 	index('track_plays_track_id_idx').on(table.track_id)

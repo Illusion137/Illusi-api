@@ -88,10 +88,10 @@ describe('issue_action', () => {
 });
 
 describe('consume_action_token', () => {
-	it('rejects bad signatures and expiry with 401', async () => {
-		await expect(consume('garbage')).rejects.toMatchObject({ status: 401 });
+	it('rejects bad signatures and expiry with 403 (never 401, which clients read as an expired session)', async () => {
+		await expect(consume('garbage')).rejects.toMatchObject({ status: 403, body: { code: 'ACTION_TOKEN_INVALID' } });
 		const expired = await sign(claims(), 'u1', 'j', Math.floor(Date.now() / 1000) - 10);
-		await expect(consume(expired)).rejects.toMatchObject({ status: 401, message: 'invalid or expired action token' });
+		await expect(consume(expired)).rejects.toMatchObject({ status: 403, message: 'invalid or expired action token' });
 	});
 
 	it.each([
@@ -100,7 +100,7 @@ describe('consume_action_token', () => {
 		['typ', async () => sign({ tgt: 't1', sid: 's' })],
 		['sid', async () => sign({ typ: 'UPLOAD_MEDIA', tgt: 't1' })]
 	])('rejects a token without %s as malformed', async (_name, make) => {
-		await expect(consume(await make())).rejects.toMatchObject({ status: 401, message: 'malformed action token' });
+		await expect(consume(await make())).rejects.toMatchObject({ status: 403, message: 'malformed action token' });
 	});
 
 	it('rejects tokens issued to another user', async () => {
@@ -115,7 +115,7 @@ describe('consume_action_token', () => {
 
 	it('rejects a revoked session before recording the use', async () => {
 		h.live.mockResolvedValue(false);
-		await expect(consume(await sign(claims()))).rejects.toMatchObject({ status: 401, message: 'action token session revoked' });
+		await expect(consume(await sign(claims()))).rejects.toMatchObject({ status: 403, message: 'action token session revoked' });
 		expect(t.calls).toHaveLength(0);
 	});
 

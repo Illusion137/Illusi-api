@@ -77,7 +77,7 @@ const seeded: string[] = [];
 const BASE = 9_700_000_000 + randomInt(1_000_000) * 1000;
 let next_it = BASE;
 
-/** Seeds a track; `lyrics` lists the sync types of its lyrics rows (one unsynced row by default, which vocals need). */
+/** Seeds a track; `lyrics` lists the sync types of its lyrics rows (one unsynced row by default; vocals need lyrics). */
 async function seed_track(opts: { media?: string | null; write_file?: boolean; preview?: string | null; lyrics?: readonly string[] } = {}) {
 	const id = uuid();
 	const it_id = next_it++;
@@ -334,8 +334,8 @@ describe('analyzer jobs from media', () => {
 });
 
 describe('which tracks get vocals and in what order', () => {
-	it('skips vocals for a track with synced lyrics or no lyrics, still analyzing the sample', async () => {
-		const synced = await seed_track({ media: uuid(), lyrics: ['NONE', 'LINE'] });
+	it('skips vocals for a track with word-synced lyrics or no lyrics, still analyzing the sample', async () => {
+		const synced = await seed_track({ media: uuid(), lyrics: ['NONE', 'WORD'] });
 		const bare = await seed_track({ media: uuid(), lyrics: [] });
 		await start();
 		emit('media_inserted', { track_id: synced.id, resource_id: synced.resource_id! });
@@ -351,6 +351,16 @@ describe('which tracks get vocals and in what order', () => {
 		await stop();
 	});
 
+	it('analyzes vocals for a track with line-synced lyrics, without aligning it', async () => {
+		const t = await seed_track({ media: uuid(), lyrics: ['LINE'] });
+		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, 2)', [t.id]);
+		await start();
+		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
+		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE' }));
+		expect(calls.filter(c => c.url.endsWith('/alignment'))).toHaveLength(0);
+		await stop();
+	});
+
 	it('analyzes vocals once unsynced lyrics are stored for a track that had none', async () => {
 		const t = await seed_track({ media: uuid(), lyrics: [] });
 		await start();
@@ -363,7 +373,7 @@ describe('which tracks get vocals and in what order', () => {
 		await stop();
 	});
 
-	it('leaves the backlog of vocals alone for tracks whose lyrics are synced', async () => {
+	it('leaves the backlog of vocals alone for tracks whose lyrics are word synced', async () => {
 		const t = await seed_track({ media: uuid(), lyrics: ['WORD'] });
 		await pool.query('insert into track_sample_data_table (id, mood, tempo, brightness, key, acousticness, instrumentalness, liveness, danceability, arousal, valence, speechiness, version) values ($1, $2, 1, 1, $3, 0, 0, 0, 0, 0, 0, 0, 2)', [t.id, 'Low Energy', 'C']);
 		flags.only = [t.id];

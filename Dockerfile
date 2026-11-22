@@ -14,9 +14,10 @@ RUN chmod -R a+rX,go-w /app
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
-# ffmpeg converts every media upload to AAC .m4a (src/services/media/transcode.ts).
+# ffmpeg converts every media upload to AAC .m4a and avatars to WebP (src/services/media/transcode.ts).
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/* \
-	&& ffmpeg -hide_banner -encoders | grep -qE "^ A.{5} aac " || { echo "ffmpeg lacks the aac encoder"; exit 1; }
+	&& { ffmpeg -hide_banner -encoders | grep -qE "^ A.{5} aac " || { echo "ffmpeg lacks the aac encoder"; exit 1; }; } \
+	&& { ffmpeg -hide_banner -encoders | grep -qE "^ V.{5} libwebp " || { echo "ffmpeg lacks the libwebp encoder (avatars)"; exit 1; }; }
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=source /app ./

@@ -208,7 +208,7 @@ describe('account deletion', () => {
 		expect(Number(plays_before)).toBe(1);
 
 		expect((await api('DELETE', '/me', { token: user.access_token, body: {} })).status).toBe(400);
-		expect((await api('DELETE', '/me', { token: user.access_token, body: { password: 'not-the-password' } })).status).toBe(401);
+		expect((await api('DELETE', '/me', { token: user.access_token, body: { password: 'not-the-password' } })).status).toBe(403);
 		expect((await api('GET', '/me', { token: user.access_token })).status).toBe(200);
 
 		expect((await api('DELETE', '/me', { token: user.access_token, body: { password: user.password } })).status).toBe(204);

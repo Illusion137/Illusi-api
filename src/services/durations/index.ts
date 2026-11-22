@@ -1,9 +1,9 @@
 /**
  * Measured track durations. A client that downloads a track (or reads its length from a streaming service) reports
  * what it measured; the stored duration is filled when empty, confirmed when within tolerance, and replaced once
- * enough users agree on a different length. A lone disagreement goes to the review queue instead.
+ * enough trusted users (core/trust.ts) agree on a different length. A lone disagreement goes to the review queue instead.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
@@ -13,10 +13,11 @@ import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../
 import { DURATION_TOLERANCE_MS } from '../../core/normalize';
 import { rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect } from '../../core/redirects';
+import { counted_reports } from '../../core/trust';
 import { add_review_item } from '../../core/review';
 import { db } from '../../db';
 import type { Tx } from '../../db';
-import { DURATION_REPORT_SOURCES, review_items_table, track_duration_reports_table, tracks_table } from '../../db/schema';
+import { DURATION_REPORT_SOURCES, review_items_table, track_duration_reports_table, tracks_table, user_tracks_table, users_table } from '../../db/schema';
 
 /** Mounted after `require_auth`: `POST /tracks/:id/duration`. */
 export const durations_router = Router();
@@ -68,8 +69,18 @@ export async function report_duration(tx: Tx, track_id: string, user_id: string,
 	}
 	if (close(stored, report.duration_ms)) return settle('confirmed', stored);
 
-	const reports = await tx.select({ duration_ms: track_duration_reports_table.duration_ms }).from(track_duration_reports_table)
-		.where(eq(track_duration_reports_table.track_id, track_id));
+	// Only trusted reporters count, one per signup network, so a handful of fresh accounts can't rewrite a duration.
+	const all_reports = await tx.select({
+		duration_ms: track_duration_reports_table.duration_ms,
+		user_id: track_duration_reports_table.user_id,
+		account_created_at: users_table.created_at,
+		signup_ip_prefix: users_table.signup_ip_prefix,
+		in_library: sql<boolean>`exists(select 1 from ${user_tracks_table} ut where ut.user_id = ${track_duration_reports_table.user_id} and ut.track_id = ${track_id} and not ut.deleted)`
+	}).from(track_duration_reports_table)
+		.innerJoin(users_table, eq(users_table.id, track_duration_reports_table.user_id))
+		.where(eq(track_duration_reports_table.track_id, track_id))
+		.orderBy(asc(track_duration_reports_table.created_at));
+	const reports = counted_reports(all_reports, now);
 	const corrected = consensus_duration(stored, report.duration_ms, reports.map(r => r.duration_ms));
 	if (corrected == null) {
 		await add_review_item(tx, {

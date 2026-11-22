@@ -304,7 +304,7 @@ catalog_router.get('/tracks/:id/alignment', read_limit, async (req, res) => {
 		.where(and(eq(track_alignment_table.track_id, id), eq(track_alignment_table.status, 'DONE')));
 	if (!row) {
 		const user = require_user(req);
-		if (alignment_asked.hit(`${user.id}:${id}`) && alignment_budget.hit(user.id)) emit('alignment_requested', { track_id: id });
+		if (await alignment_asked.hit(`${user.id}:${id}`) && await alignment_budget.hit(user.id)) emit('alignment_requested', { track_id: id });
 		throw new HttpError(404, 'no alignment analysis for this track yet');
 	}
 	const repeats = row.repeats ?? [];

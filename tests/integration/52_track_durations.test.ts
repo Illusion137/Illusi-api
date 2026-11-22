@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { api, contribute, create_user, query, unique, uuid } from './helpers';
+import { add_to_library, api, contribute, create_user, query, unique, uuid } from './helpers';
 import type { TestUser } from './helpers';
 
 let users: TestUser[];
@@ -11,6 +11,9 @@ beforeAll(async () => {
 	users = await Promise.all([1, 2, 3, 4, 5].map(i => create_user(`dur${i}`)));
 	const created = await contribute(users[0], { tracks: [{ ref: 't', title: unique('Duration Track') }] });
 	track_id = created.body.refs.t;
+	// Only established accounts with the track in their library count toward consensus
+	await query(`update users_table set created_at = now() - interval '30 days' where id = any($1)`, [users.map(u => u.id)]);
+	for (const user of users) await add_to_library(user, [track_id]);
 });
 
 describe('POST /tracks/:id/duration', () => {
@@ -55,6 +58,19 @@ describe('POST /tracks/:id/duration', () => {
 		expect(audit.undo).toMatchObject({ values: { duration_ms: 200_000 } });
 		// The old value's backers now disagree; they alone can't flip it back.
 		expect((await report(users[0], track_id, { duration_ms: 200_000, source: 'download' })).body.outcome).toBe('disputed');
+	});
+
+	it('does not let new accounts or ones without the track outvote established users', async () => {
+		const created = await contribute(users[0], { tracks: [{ ref: 't', title: unique('Sybil Track') }] });
+		const id: string = created.body.refs.t;
+		await add_to_library(users[0], [id]);
+		expect((await report(users[0], id, { duration_ms: 200_000, source: 'download' })).body.outcome).toBe('filled');
+		const fresh = await Promise.all([1, 2, 3].map(i => create_user(`sybil${i}`)));
+		for (const user of fresh) await add_to_library(user, [id]);
+		const strangers = await Promise.all([1, 2, 3].map(i => create_user(`stranger${i}`)));
+		await query(`update users_table set created_at = now() - interval '30 days' where id = any($1)`, [strangers.map(u => u.id)]);
+		for (const user of [...fresh, ...strangers]) expect((await report(user, id, { duration_ms: 320_000, source: 'download' })).body.outcome).toBe('disputed');
+		expect(Number((await query('select duration_ms from tracks_table where id = $1', [id]))[0].duration_ms)).toBe(200_000);
 	});
 
 	it('rejects bad requests', async () => {

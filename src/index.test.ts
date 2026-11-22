@@ -24,11 +24,13 @@ vi.mock('./instrument', () => ({}));
 vi.mock('@sentry/node', () => ({ close: h.sentry_close }));
 vi.mock('./config', () => ({ config: h.config }));
 vi.mock('./app', () => ({ create_app: h.create_app }));
-vi.mock('./db', () => ({ db: { execute: h.execute, $client: { end: vi.fn(async () => undefined) } } }));
+vi.mock('./db', () => ({ db: { execute: h.execute, $client: { end: vi.fn(async () => undefined) } }, create_pool: vi.fn(() => ({})) }));
+vi.mock('./core/rate_limit', () => ({ use_shared_rate_limits: vi.fn() }));
+vi.mock('./core/cleanup', () => ({ start: h.service_start, stop: h.service_stop }));
 vi.mock('./core/disk', () => ({ start_disk_monitor: () => () => undefined }));
 vi.mock('./core/events', () => ({ start_event_bridge: () => async () => undefined }));
 vi.mock('./core/health', () => ({ set_draining: vi.fn() }));
-vi.mock('./core/leader', () => ({ LEADER_LOCKS: { background_services: 1, exports: 2 }, run_as_leader: h.run_as_leader }));
+vi.mock('./core/leader', () => ({ LEADER_LOCKS: { background_services: 1, exports: 2, cleanup: 3 }, run_as_leader: h.run_as_leader }));
 vi.mock('./core/log', () => ({ logger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }));
 vi.mock('./services/account/export', () => ({ start: vi.fn(), stop: vi.fn() }));
 vi.mock('./services/analyzer', () => ({ start: h.service_start, stop: h.service_stop }));
@@ -54,11 +56,11 @@ describe('server entrypoint', () => {
 		try {
 			await import('./index.js');
 			await vi.waitFor(() => { expect(handlers.SIGTERM).toBeDefined(); }, { timeout: 5_000 });
-			expect(h.service_start).toHaveBeenCalledTimes(2);
+			expect(h.service_start).toHaveBeenCalledTimes(3);
 			handlers.SIGTERM();
 			handlers.SIGINT();
 			await vi.waitFor(() => { expect(exit).toHaveBeenCalledWith(0); });
-			expect(h.service_stop).toHaveBeenCalledTimes(2);
+			expect(h.service_stop).toHaveBeenCalledTimes(3);
 		} finally {
 			exit.mockRestore();
 			on.mockRestore();

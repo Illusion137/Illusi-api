@@ -80,15 +80,22 @@ describe('verify_email', () => {
 		expect(t.calls).toHaveLength(1);
 	});
 
-	it('marks the link used and the user verified', async () => {
-		setup([[{ id: 5, user_id: 'u1', email: 'a@b.c' }], undefined, [{ id: 'u1' }]]);
+	it('marks the link used and the user verified at the linked address', async () => {
+		setup([[{ id: 5, user_id: 'u1', email: 'a@b.c' }], [], undefined, [{ id: 'u1' }]]);
 		expect(await verify_email('x')).toBe(true);
-		expect(t.arg(t.calls[1], 'set')).toHaveProperty('used_at');
-		expect(t.arg(t.calls[2], 'set')).toHaveProperty('email_verified_at');
+		expect(t.arg(t.calls[2], 'set')).toHaveProperty('used_at');
+		expect(t.arg(t.calls[3], 'set')).toMatchObject({ email: 'a@b.c' });
+		expect(t.arg(t.calls[3], 'set')).toHaveProperty('email_verified_at');
 	});
 
-	it('is false when the account email changed since the link was sent', async () => {
-		setup([[{ id: 5, user_id: 'u1', email: 'old@b.c' }], undefined, []]);
+	it('is false when another account took the address meanwhile', async () => {
+		setup([[{ id: 5, user_id: 'u1', email: 'new@b.c' }], [{ id: 'u2' }]]);
+		expect(await verify_email('x')).toBe(false);
+		expect(t.calls).toHaveLength(2);
+	});
+
+	it('is false when the account is gone', async () => {
+		setup([[{ id: 5, user_id: 'u1', email: 'a@b.c' }], [], undefined, []]);
 		expect(await verify_email('x')).toBe(false);
 	});
 });

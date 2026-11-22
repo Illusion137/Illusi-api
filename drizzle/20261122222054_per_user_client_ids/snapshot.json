@@ -1,0 +1,171 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "45d0f271-c26f-4b19-9ee6-1e8eae27c462",
+  "prevIds": [
+    "34c518a4-3c7d-47b0-bca6-6f192d50fa06"
+  ],
+  "footprints": [
+    {
+      "statementType": "drop_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "track_plays_table"
+      ],
+      "writes": [
+        "s|uq|public.track_plays_table.track_plays_table_client_id_key",
+        "n|uq|public.track_plays_table.track_plays_table_client_id_key",
+        "e|uq|public.track_plays_table.track_plays_table_client_id_key",
+        "n|con|public.track_plays_table.track_plays_table_client_id_key",
+        "n|rel|public.track_plays_table_client_id_key"
+      ],
+      "reads": [
+        "n|tbl|public.track_plays_table",
+        "n|sch|public",
+        "e|col|public.track_plays_table.client_id"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.track_plays_table.client_id"
+      ]
+    },
+    {
+      "statementType": "drop_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "user_recent_searches"
+      ],
+      "writes": [
+        "s|uq|public.user_recent_searches.user_recent_searches_client_id_key",
+        "n|uq|public.user_recent_searches.user_recent_searches_client_id_key",
+        "e|uq|public.user_recent_searches.user_recent_searches_client_id_key",
+        "n|con|public.user_recent_searches.user_recent_searches_client_id_key",
+        "n|rel|public.user_recent_searches_client_id_key"
+      ],
+      "reads": [
+        "n|tbl|public.user_recent_searches",
+        "n|sch|public",
+        "e|col|public.user_recent_searches.client_id"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.user_recent_searches.client_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "track_plays_table",
+        "track_plays_user_id_client_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.track_plays_user_id_client_id_idx",
+        "n|idx|public.track_plays_user_id_client_id_idx",
+        "e|idx|public.track_plays_user_id_client_id_idx",
+        "n|rel|public.track_plays_user_id_client_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.track_plays_table",
+        "n|sch|public",
+        "n|col|public.track_plays_table.user_id",
+        "n|col|public.track_plays_table.client_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "user_recent_searches",
+        "user_recent_searches_user_id_client_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.user_recent_searches_user_id_client_id_idx",
+        "n|idx|public.user_recent_searches_user_id_client_id_idx",
+        "e|idx|public.user_recent_searches_user_id_client_id_idx",
+        "n|rel|public.user_recent_searches_user_id_client_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.user_recent_searches",
+        "n|sch|public",
+        "n|col|public.user_recent_searches.user_id",
+        "n|col|public.user_recent_searches.client_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_plays_table",
+        "name": "track_plays_user_id_client_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "client_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_recent_searches",
+        "name": "user_recent_searches_user_id_client_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "client_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"track_plays_table\",\"track_plays_table_client_id_key\"]"
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"user_recent_searches\",\"user_recent_searches_client_id_key\"]"
+    }
+  ]
+}

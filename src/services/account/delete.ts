@@ -8,6 +8,7 @@ import { PendingEvents } from '../../core/events';
 import { HttpError } from '../../core/http';
 import { logger } from '../../core/log';
 import { remove_artwork_files } from '../playlists';
+import { remove_avatar_files } from './avatar';
 import { remove_export_files } from './export';
 
 const log = logger('account');
@@ -16,12 +17,12 @@ const log = logger('account');
  * Deletes an account and everything personal in one transaction. Rows owned by the user go with it through their
  * foreign keys (sessions, library, playlists and their tracks and inheritance, plays, searches, linked playlists,
  * reports, exports, sync replays). What the user added to the shared catalog stays, with the user's id removed
- * from every column that recorded it. Their playlist artwork and export files are removed after commit.
+ * from every column that recorded it. Their avatar, playlist artwork and export files are removed after commit.
  */
 export async function delete_account(user_id: string): Promise<void> {
 	const events = new PendingEvents();
 	const files = await db.transaction(async (tx) => {
-		const [user] = await tx.select({ id: users_table.id }).from(users_table).where(eq(users_table.id, user_id)).for('update');
+		const [user] = await tx.select({ id: users_table.id, avatar_id: users_table.avatar_id }).from(users_table).where(eq(users_table.id, user_id)).for('update');
 		if (!user) throw new HttpError(404, 'user not found');
 
 		const artwork = await tx.select({ id: playlists_table.artwork_id }).from(playlists_table)
@@ -57,10 +58,11 @@ export async function delete_account(user_id: string): Promise<void> {
 		await tx.delete(users_table).where(eq(users_table.id, user_id));
 		events.push('user_library_changed', { user_id });
 		events.push('user_deleted', { user_id });
-		return { artwork: artwork.map(r => r.id), exports: exports.map(r => r.file_name) };
+		return { artwork: artwork.map(r => r.id), avatar: user.avatar_id, exports: exports.map(r => r.file_name) };
 	});
 	events.flush();
 	await remove_artwork_files(files.artwork);
+	await remove_avatar_files([files.avatar]);
 	await remove_export_files(files.exports);
 	log.info('account deleted', { user_id, artwork_files: files.artwork.length, export_files: files.exports.length });
 }

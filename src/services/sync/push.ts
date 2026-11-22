@@ -6,7 +6,7 @@
 import { and, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 import type { z } from 'zod';
 import { db } from '../../db';
-import type { Tx } from '../../db';
+import type { Executor, Tx } from '../../db';
 import {
 	linked_playlists_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, playlist_tracks_table, playlists_table,
 	sync_pushes_table, track_downloads_table, track_plays_table, tracks_artists_table, user_recent_searches, user_tracks_table, users_table
@@ -22,7 +22,7 @@ import type { EngineResult } from '../entities';
 import { resolve_existing_ref } from '../entities/match';
 import { OverrideResolver } from './overrides';
 import { assert_inheritance_allowed } from '../playlists';
-import { clamp_edited_at, lww_update, lww_wins } from './lww';
+import { clamp_edited_at, clock_skew_ms, correct_skew, lww_update, lww_wins } from './lww';
 import { load_album_bundles, load_artist_bundles, load_override_bundles, load_track_bundles, load_user } from './rows';
 import { empty_rows, profile_schema, PUSH_TABLES, push_row_schemas } from './types';
 import type { PushBody, PushRejection, PushRow, PushTable, SyncPushResponse, SyncRows } from './types';
@@ -30,6 +30,7 @@ import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
 
 const log = logger('sync');
 
+/** Kept small enough that one push finishes well inside the proxy timeout; clients send 250 entities / 2,000 rows. */
 export const PUSH_MAX_ENTITIES = 2_000;
 export const PUSH_MAX_RELATIONS = 10_000;
 export const PUSH_MAX_USER_ROWS = 20_000;
@@ -75,11 +76,15 @@ class PushApplier {
 	private readonly track_cache = new Map<string, string | null>();
 	private readonly owned = new Map<string, boolean>();
 
-	constructor(private tx: Tx, private user_id: string, private session_family_id: string, private now: Date, private refs: Record<string, string>, readonly overrides: OverrideResolver) {}
+	constructor(
+		private tx: Tx, private user_id: string, private session_family_id: string, private now: Date, private refs: Record<string, string>,
+		readonly overrides: OverrideResolver, private skew_ms = 0, private client_now?: Date
+	) {}
 
 	private count(table: PushTable | 'profile') { this.applied[table] = (this.applied[table] ?? 0) + 1; }
 	private reject(table: PushTable | 'profile', index: number, reason: string) { this.rejected.push({ table, index, reason }); }
-	private edited(at: Date) { return clamp_edited_at(at, this.now); }
+	/** A device time on the server's clock (skew corrected), never past the server's now. */
+	private edited(at: Date) { return clamp_edited_at(correct_skew(at, this.client_now, this.skew_ms), this.now); }
 
 	/** A temp ref of this push's entities, or an existing track id (following redirects, which are returned). */
 	async track(ref: string): Promise<string | null> {
@@ -116,7 +121,7 @@ class PushApplier {
 		await this.device_download(track_id, r);
 		const t = user_tracks_table;
 		const edited_at = this.edited(r.edited_at);
-		const [cur] = await this.tx.select({ edited_at: t.edited_at }).from(t).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id))).for('update');
+		const [cur] = await this.tx.select({ edited_at: t.edited_at, deleted: t.deleted }).from(t).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id))).for('update');
 		if (cur && !lww_wins(cur.edited_at, edited_at)) {
 			this.touched.user_tracks.add(track_id);
 			return;
@@ -125,14 +130,24 @@ class PushApplier {
 		if (credits === null) return this.reject('user_tracks', index, 'unresolvable artist or album');
 		const values = truncate_to_columns(t, defined({ title: r.title, ...credits, downloaded_at: r.downloaded_at, start_at: r.start_at, end_at: r.end_at, deleted: r.deleted }), 'sync user_tracks');
 		this.touched.user_tracks.add(track_id);
+		const added = this.added(r.added_at, cur, r.deleted);
 		if (!cur) {
-			await this.tx.insert(t).values({ ...values, user_id: this.user_id, track_id, edited_at });
+			await this.tx.insert(t).values({ ...values, user_id: this.user_id, track_id, edited_at, ...added });
 		} else if (lww_wins(cur.edited_at, edited_at)) {
-			await this.tx.update(t).set(lww_update(['title', 'artist_ids', 'album_id', 'downloaded_at', 'start_at', 'end_at', 'deleted'], values, edited_at)).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id)));
+			await this.tx.update(t).set({ ...lww_update(['title', 'artist_ids', 'album_id', 'downloaded_at', 'start_at', 'end_at', 'deleted'], values, edited_at), ...added }).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id)));
 		} else {
 			return;
 		}
 		this.count('user_tracks');
+	}
+
+	/**
+	 * `created_at` from the device's `added_at` (the "date added" that orders libraries and playlists), set when the
+	 * row is created or re-added after a delete. Without it, the server's time of the push is used.
+	 */
+	private added(added_at: Date | undefined, cur: { deleted: boolean } | undefined, deleted: boolean | undefined): { created_at?: Date } {
+		const creates = !cur || (cur.deleted && deleted === false);
+		return added_at && creates ? { created_at: this.edited(added_at) } : {};
 	}
 
 	/**
@@ -218,10 +233,11 @@ class PushApplier {
 		const t = playlist_tracks_table;
 		const edited_at = this.edited(r.edited_at);
 		const where = and(eq(t.playlist_id, r.playlist_id), eq(t.track_id, track_id));
-		const [cur] = await this.tx.select({ edited_at: t.edited_at }).from(t).where(where).for('update');
+		const [cur] = await this.tx.select({ edited_at: t.edited_at, deleted: t.deleted }).from(t).where(where).for('update');
 		this.touched.playlist_tracks.add(`${r.playlist_id}|${track_id}`);
-		if (!cur) await this.tx.insert(t).values({ playlist_id: r.playlist_id, track_id, deleted: r.deleted ?? false, edited_at });
-		else if (lww_wins(cur.edited_at, edited_at)) await this.tx.update(t).set(lww_update(['deleted'], defined({ deleted: r.deleted }), edited_at)).where(where);
+		const added = this.added(r.added_at, cur, r.deleted);
+		if (!cur) await this.tx.insert(t).values({ playlist_id: r.playlist_id, track_id, deleted: r.deleted ?? false, edited_at, ...added });
+		else if (lww_wins(cur.edited_at, edited_at)) await this.tx.update(t).set({ ...lww_update(['deleted'], defined({ deleted: r.deleted }), edited_at), ...added }).where(where);
 		else return;
 		this.count('playlist_tracks');
 	}
@@ -306,20 +322,20 @@ class PushApplier {
 				this.reject('track_plays', index, 'unknown track');
 				continue;
 			}
-			values.push({ user_id: this.user_id, track_id, client_id: row.client_id, created_at: clamp_edited_at(row.created_at, this.now) });
+			values.push({ user_id: this.user_id, track_id, client_id: row.client_id, created_at: this.edited(row.created_at) });
 			this.touched.track_plays.add(row.client_id);
 		}
 		for (let i = 0; i < values.length; i += 1_000) {
-			const inserted = await this.tx.insert(track_plays_table).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: track_plays_table.client_id }).returning({ id: track_plays_table.id });
+			const inserted = await this.tx.insert(track_plays_table).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: [track_plays_table.user_id, track_plays_table.client_id] }).returning({ id: track_plays_table.id });
 			this.applied.track_plays = (this.applied.track_plays ?? 0) + inserted.length;
 		}
 	}
 
 	async searches(rows: ValidRows['recent_searches']) {
-		const values = rows.map(({ row }) => truncate_to_columns(user_recent_searches, { user_id: this.user_id, text: row.text, client_id: row.client_id, created_at: clamp_edited_at(row.created_at, this.now) }, 'sync searches'));
+		const values = rows.map(({ row }) => truncate_to_columns(user_recent_searches, { user_id: this.user_id, text: row.text, client_id: row.client_id, created_at: this.edited(row.created_at) }, 'sync searches'));
 		for (const { row } of rows) this.touched.recent_searches.add(row.client_id);
 		for (let i = 0; i < values.length; i += 1_000) {
-			const inserted = await this.tx.insert(user_recent_searches).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: user_recent_searches.client_id }).returning({ id: user_recent_searches.id });
+			const inserted = await this.tx.insert(user_recent_searches).values(values.slice(i, i + 1_000)).onConflictDoNothing({ target: [user_recent_searches.user_id, user_recent_searches.client_id] }).returning({ id: user_recent_searches.id });
 			this.applied.recent_searches = (this.applied.recent_searches ?? 0) + inserted.length;
 		}
 	}
@@ -365,11 +381,17 @@ class PushApplier {
 	}
 }
 
-async function replay(push_id: string, user_id: string): Promise<SyncPushResponse | null> {
-	const [row] = await db.select().from(sync_pushes_table).where(eq(sync_pushes_table.push_id, push_id));
-	if (!row) return null;
-	if (row.user_id !== user_id) throw new HttpError(409, 'push_id already used');
-	return row.response as SyncPushResponse;
+async function replay(ex: Executor, push_id: string): Promise<SyncPushResponse | null> {
+	// Row-level security hides other users' pushes: a push_id taken by someone else surfaces as a unique violation.
+	const [row] = await ex.select({ response: sync_pushes_table.response }).from(sync_pushes_table).where(eq(sync_pushes_table.push_id, push_id));
+	return row ? row.response as SyncPushResponse : null;
+}
+
+/** Sentinel: the push was applied by a concurrent request (a retry after a proxy timeout) while this one waited. */
+class Replayed extends Error {
+	constructor(readonly response: SyncPushResponse) {
+		super('replayed');
+	}
 }
 
 const is_unique_violation = (err: unknown) => pg_error_code(err) === PG_ERRORS.unique_violation;
@@ -381,7 +403,7 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 	if (counts.entities > PUSH_MAX_ENTITIES || counts.relations > PUSH_MAX_RELATIONS || user_row_count > PUSH_MAX_USER_ROWS) {
 		throw new HttpError(413, 'push too large, send it in chunks', { max_entities: PUSH_MAX_ENTITIES, max_relations: PUSH_MAX_RELATIONS, max_user_rows: PUSH_MAX_USER_ROWS });
 	}
-	const previous = await replay(body.push_id, user.id);
+	const previous = await replay(db, body.push_id);
 	if (previous) return previous;
 
 	const { graph, rejected: graph_rejected } = validate_graph(raw_graph);
@@ -390,10 +412,16 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 	let outcome;
 	try {
 		outcome = await db.transaction(async (tx) => {
+			// A client that timed out resends the same push_id while the first request is still applying it: the
+			// retry waits here, then answers with the stored result instead of doing the work twice.
+			await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`sync_push:${body.push_id}`}, 0))`);
+			const replayed = await replay(tx, body.push_id);
+			if (replayed) throw new Replayed(replayed);
 			const [{ now }] = await tx.execute<{ now: string }>(sql`select now()::text as now`, 'objects');
+			const server_now = new Date(now);
 			const provenance = new ProvenanceLog('sync_push', user.id);
 			const engine = await apply_graph(tx, graph, { user_id: user.id, source: 'sync_push', provenance });
-			const applier = new PushApplier(tx, user.id, user.sid, new Date(now), engine.refs, new OverrideResolver(tx, user.id, provenance));
+			const applier = new PushApplier(tx, user.id, user.sid, server_now, engine.refs, new OverrideResolver(tx, user.id, provenance), clock_skew_ms(body.client_now, server_now), body.client_now);
 
 			if (profile) await applier.profile(profile);
 			for (const r of rows.user_tracks) await applier.user_track(r);
@@ -431,9 +459,11 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 			return { response: json, engine, overrides: applier.overrides.results, library_changed: applier.library_changed };
 		});
 	} catch (err) {
+		if (err instanceof Replayed) return err.response;
 		if (is_unique_violation(err)) {
-			const stored = await replay(body.push_id, user.id);
+			const stored = await replay(db, body.push_id);
 			if (stored) return stored;
+			throw new HttpError(409, 'push_id already used', { code: 'PUSH_ID_TAKEN' });
 		}
 		throw err;
 	}

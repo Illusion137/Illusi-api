@@ -1,5 +1,5 @@
 /** The view shapes of the read API, built in batches. Every builder drops ids that don't exist. */
-import { and, asc, count, desc, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, max, sql } from 'drizzle-orm';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
 import type {
@@ -45,7 +45,7 @@ export interface TrackView extends TrackRow {
 	sample_data: SampleRow | null;
 	producers: { id: number; name: string | null }[];
 	has_media: boolean;
-	/** The track's newest media, streamable through `GET /media/:resource_id` */
+	/** The track's media (its first upload, which sticks), streamable through `GET /media/:resource_id` */
 	resource_id: string | null;
 	has_lyrics: boolean;
 	user: UserTrackOverlay | null;
@@ -69,7 +69,7 @@ export interface ArtistView extends ArtistRow {
 	redirected_from?: string;
 }
 export interface PlaylistView extends PlaylistRow {
-	owner: { id: string; username: string };
+	owner: { id: string; username: string; avatar_id: string | null };
 	is_owner: boolean;
 	track_count: number;
 	thumbnails: ViewThumbnail[];
@@ -142,7 +142,7 @@ export async function track_views(ex: Executor, user_id: string, track_ids: read
 			.where(and(eq(track_plays_table.user_id, user_id), inArray(track_plays_table.track_id, ids)))
 			.groupBy(track_plays_table.track_id),
 		ex.select({ track_id: media_table.track_id, resource_id: media_table.resource_id }).from(media_table)
-			.where(inArray(media_table.track_id, ids)).orderBy(desc(media_table.created_at), desc(media_table.id)),
+			.where(inArray(media_table.track_id, ids)).orderBy(asc(media_table.created_at), asc(media_table.id)),
 		ex.selectDistinct({ track_id: track_lyrics_table.track_id }).from(track_lyrics_table).where(inArray(track_lyrics_table.track_id, ids))
 	]);
 
@@ -258,7 +258,7 @@ export async function playlist_views(ex: Executor, viewer_id: string, playlists:
 	const ids = playlists.map(p => p.id);
 	const owned = playlists.filter(p => p.user_id === viewer_id).map(p => p.id);
 	const [owners, searches, inherited] = await all_queries(ex, [
-		ex.select({ id: users_table.id, username: users_table.username }).from(users_table).where(inArray(users_table.id, [...new Set(playlists.map(p => p.user_id))])),
+		ex.select({ id: users_table.id, username: users_table.username, avatar_id: users_table.avatar_id }).from(users_table).where(inArray(users_table.id, [...new Set(playlists.map(p => p.user_id))])),
 		owned.length === 0
 			? Promise.resolve([])
 			: ex.select().from(playlist_inherited_searches_table)
@@ -286,7 +286,7 @@ export async function playlist_views(ex: Executor, viewer_id: string, playlists:
 		const is_owner = p.user_id === viewer_id;
 		const view: PlaylistView = {
 			...p,
-			owner: owner_by_id.get(p.user_id) ?? { id: p.user_id, username: '' },
+			owner: owner_by_id.get(p.user_id) ?? { id: p.user_id, username: '', avatar_id: null },
 			is_owner,
 			track_count: track_ids.length,
 			thumbnails: track_ids.slice(0, PLAYLIST_ARTWORK_TRACKS).flatMap((id) => {

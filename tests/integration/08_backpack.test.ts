@@ -10,7 +10,7 @@ async function backpacked(track_id: string): Promise<{ backpacked: boolean; back
 	return row;
 }
 
-/** Moves the report back past the upload window so research actions start. */
+/** Moves the report back past the research window, after which devices that have the file are asked for a copy. */
 async function age_report(track_id: string, hours = 49) {
 	await query(`update tracks_table set backpacked_at = now() - make_interval(hours => $2) where id = $1`, [track_id, hours]);
 }
@@ -30,13 +30,13 @@ async function pull_actions(user: TestUser) {
 	for (;;) {
 		const res = await api('POST', '/sync/pull', { token: user.access_token, body: cursor ? { cursor } : {} });
 		expect(res.status).toBe(200);
-		if (!res.body.has_more) return (res.body.actions ?? []) as { type: string; track_id: string; service?: string }[];
+		if (!res.body.has_more) return (res.body.actions ?? []) as { type: string; track_id: string; service?: string; token?: string }[];
 		cursor = res.body.next_cursor;
 	}
 }
 
 describe('backpacked tracks', () => {
-	it('flags a reported track, asks downloaders for a copy, and clears the flag on upload', async () => {
+	it('flags a reported track, researches it first, then asks downloaders for a copy and clears the flag on upload', async () => {
 		const owner = await create_user('bp-owner');
 		const created = await contribute(owner, mock_album({ artist: unique('BP Artist'), album: unique('BP Album'), n: 3 }));
 		const tracks: string[] = [created.body.refs.t0, created.body.refs.t1, created.body.refs.t2];
@@ -58,13 +58,15 @@ describe('backpacked tracks', () => {
 		expect(await query('select service from track_unavailable_reports_table where track_id = $1 order by service', [target]))
 			.toEqual([{ service: 'soundcloud' }, { service: 'youtube' }]);
 
-		const actions = await pull_actions(owner);
-		const uploads = actions.filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
+		// Research comes first: a service may still have it, and that costs nobody an upload.
+		expect((await research_requests(reporter)).body.actions).toEqual([expect.objectContaining({ type: 'RESEARCH_TRACK', track_id: target })]);
+		expect((await pull_actions(owner)).filter(a => a.type === 'UPLOAD_MEDIA')).toEqual([]);
+
+		// Research didn't turn it up within the window: the device that has it is asked for a copy.
+		await age_report(target);
+		const uploads = (await pull_actions(owner)).filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
 		// Only the backpacked track: the other downloads can still be played from a service.
 		expect(uploads).toEqual([target]);
-
-		// Still inside the upload window: nobody is asked to research it.
-		expect((await research_requests(reporter)).body.actions).toEqual([]);
 
 		expect((await upload(owner, target, wav_bytes(Math.floor(Math.random() * 1000)))).status).toBe(201);
 		expect((await backpacked(target)).backpacked).toBe(false);
@@ -147,6 +149,44 @@ describe('backpacked tracks', () => {
 		await age_report(t0);
 		const research = (await pull_actions(owner)).filter(a => a.type === 'RESEARCH_TRACK');
 		expect(research).toEqual([expect.objectContaining({ track_id: t0, service: 'youtube' })]);
+	});
+
+	it('asks for a copy as soon as every service has answered not found', async () => {
+		const owner = await create_user('bp-all-answered');
+		const created = await contribute(owner, mock_album({ artist: unique('Answered Artist'), album: unique('Answered Album'), n: 1 }));
+		const t0: string = created.body.refs.t0;
+		await add_to_library(owner, [t0], { downloaded_at: new Date().toISOString(), downloaded: true });
+		await api('POST', `/tracks/${t0}/unavailable`, { token: owner.access_token, body: { service: 'youtube' } });
+		// A pull hands out research too; every action it gives is answered
+		const answer = async (actions: { type: string; token?: string; service?: string }[]) => {
+			for (const action of actions.filter(a => a.type === 'RESEARCH_TRACK')) {
+				const res = await api('POST', '/ingest/track_research', { token: owner.access_token, body: { token: action.token, track_id: t0, service: action.service, result: 'NOT_FOUND' } });
+				expect(res.status).toBe(200);
+			}
+			return actions.filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
+		};
+		let uploads: string[] = [];
+		for (let i = 0; i < 10 && uploads.length === 0; i++) {
+			const answered = await query<{ n: number }>(`select count(*)::int as n from track_research_table where track_id = $1 and status <> 'PENDING'`, [t0]);
+			uploads = await answer(await pull_actions(owner));
+			// No copy is asked for while a service is still unanswered
+			if (answered[0].n < 4) expect(uploads).toEqual([]);
+			await answer((await research_requests(owner)).body.actions);
+		}
+		expect(uploads).toEqual([t0]);
+	});
+
+	it('flags only for reporters who have the track in their library', async () => {
+		const owner = await create_user('bp-lib');
+		const created = await contribute(owner, mock_album({ artist: unique('Lib Artist'), album: unique('Lib Album'), n: 1 }));
+		const t0: string = created.body.refs.t0;
+		const stranger = await create_user('bp-stranger');
+		const res = await api('POST', `/tracks/${t0}/unavailable`, { token: stranger.access_token, body: { service: 'youtube' } });
+		expect(res.status).toBe(200);
+		expect(res.body).toMatchObject({ backpacked: false });
+		expect((await backpacked(t0)).backpacked).toBe(false);
+		// The report is kept for review
+		expect(await query('select count(*)::int as n from track_unavailable_reports_table where track_id = $1', [t0])).toEqual([{ n: 1 }]);
 	});
 
 	it('validates reports', async () => {

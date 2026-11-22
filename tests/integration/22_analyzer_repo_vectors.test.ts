@@ -227,11 +227,11 @@ describe('analyzer repo: vocals', () => {
 		expect([done, error_wait, bad].some(id => listed.has(id))).toBe(false);
 	});
 
-	it('resolves the vocals target for the newest media file', async () => {
+	it('resolves the vocals target for the served (first) media file', async () => {
 		const no_media = await seed_track();
 		expect(await resolve_vocals_target(no_media)).toBeNull();
 		const ref = unique('t');
-		const id = await seed_track({ media: ['older-' + ref, ref] });
+		const id = await seed_track({ media: [ref, 'later-' + ref] });
 		expect(await resolve_vocals_target(id)).toEqual({ resource_id: ref, prior: null });
 		await pool.query(`insert into track_vocals_table (track_id, resource_id, status, attempts) values ($1, $2, 'DONE', 1)`, [id, ref]);
 		// From before beat tracking: analyzed again
@@ -245,17 +245,19 @@ describe('analyzer repo: vocals', () => {
 		expect(await resolve_vocals_target(id)).toMatchObject({ resource_id: ref, prior: { status: 'DONE', source_ref: 'previous-file', attempts: 1 } });
 	});
 
-	it('only lists and resolves tracks whose lyrics are all unsynced', async () => {
+	it('only lists and resolves tracks with lyrics that are not word synced', async () => {
 		const ref = unique('l');
 		const unsynced = await seed_track({ media: [ref + 'u'], lyrics: ['NONE', 'NONE'] });
 		const line = await seed_track({ media: [ref + 'l'], lyrics: ['NONE', 'LINE'] });
 		const word = await seed_track({ media: [ref + 'w'], lyrics: ['WORD'] });
+		const syllable = await seed_track({ media: [ref + 's'], lyrics: ['LINE', 'SYLLABLE'] });
 		const none = await seed_track({ media: [ref + 'n'], lyrics: [] });
 		const listed = new Set(await eligible_vocals_track_ids());
-		expect(listed.has(unsynced)).toBe(true);
-		expect([line, word, none].some(id => listed.has(id))).toBe(false);
+		expect(listed.has(unsynced) && listed.has(line)).toBe(true);
+		expect([word, syllable, none].some(id => listed.has(id))).toBe(false);
 		expect(await resolve_vocals_target(unsynced)).toEqual({ resource_id: ref + 'u', prior: null });
-		for (const id of [line, word, none]) expect(await resolve_vocals_target(id)).toBeNull();
+		expect(await resolve_vocals_target(line)).toEqual({ resource_id: ref + 'l', prior: null });
+		for (const id of [word, syllable, none]) expect(await resolve_vocals_target(id)).toBeNull();
 	});
 
 	it('records results and later failures, clearing the old results', async () => {
@@ -310,7 +312,7 @@ describe('analyzer repo: alignment', () => {
 
 	it('resolves the target only for played tracks with only unsynced lyrics, or when a user asks', async () => {
 		const ref = unique('at');
-		const unplayed = await seed_track({ media: ['older-' + ref, ref] });
+		const unplayed = await seed_track({ media: [ref, 'later-' + ref] });
 		expect(await resolve_alignment_target(unplayed)).toBeNull();
 		expect(await resolve_alignment_target(unplayed, true)).toEqual({ resource_id: ref, prior: null });
 		const id = await played({ media: [ref + 'p'] });

@@ -90,6 +90,34 @@ describe('sync (§8)', () => {
 		expect(delta.rows.tracks.map(r => r.id)).toContain(pushed.body.id_map.t1);
 	});
 
+	it('keeps plays and searches with the same client id apart for different users', async () => {
+		const [a, b] = [await create_user('cid-a'), await create_user('cid-b')];
+		const track_id: string = (await contribute(a, mock_album({ artist: unique('Cid Artist'), album: unique('Cid Album'), n: 1 }))).body.refs.t0;
+		// Ids derived from the same data on two users' devices (e.g. a search's text)
+		const changes = { recent_searches: [{ client_id: uuid(), text: 'drake', created_at: new Date().toISOString() }], track_plays: [{ client_id: uuid(), track_id, created_at: new Date().toISOString() }] };
+		for (const user of [a, b]) {
+			const res = await push(user, changes);
+			expect(res.status).toBe(200);
+			expect(res.body.applied).toMatchObject({ recent_searches: 1, track_plays: 1 });
+		}
+		// The same user again is deduped
+		expect((await push(a, changes)).body.applied.recent_searches ?? 0).toBe(0);
+		expect(await query('select count(*)::int as n from user_recent_searches where client_id = $1', [changes.recent_searches[0].client_id])).toEqual([{ n: 2 }]);
+	});
+
+	it('corrects only recent device times for clock skew', async () => {
+		const user = await create_user('skew');
+		const track_id: string = (await contribute(user, mock_album({ artist: unique('Skew Artist'), album: unique('Skew Album'), n: 2 }))).body.refs.t0;
+		const hour = 3_600_000;
+		const client_now = Date.now() - hour; // the device runs an hour slow
+		const old = Date.parse('2019-05-01T00:00:00Z');
+		const res = await push(user, { user_tracks: [{ track_id, added_at: old, edited_at: client_now - 60_000 }] }, { client_now });
+		expect(res.status).toBe(200);
+		const [row] = await query<{ created_at: Date; edited_at: Date }>('select created_at, edited_at from user_tracks_table where user_id = $1 and track_id = $2', [user.id, track_id]);
+		expect(row.created_at.getTime()).toBe(old);
+		expect(Math.abs(row.edited_at.getTime() - (client_now - 60_000 + hour))).toBeLessThan(5_000);
+	});
+
 	it('a retried push_id is applied once and replays the same response', async () => {
 		const user = await create_user('retry');
 		const graph = mock_album({ artist: unique('Retry Artist'), album: unique('Retry Album'), n: 1 });

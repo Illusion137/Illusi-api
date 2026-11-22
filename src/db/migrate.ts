@@ -19,7 +19,7 @@ const log = logger('migrate');
 // and backfills on large tables legitimately run long.
 const db = drizzle({ client: create_pool({ max: 1, statement_timeout: false, idle_in_transaction_session_timeout: 0 }) });
 
-// Not a leader lock: the API being replaced still holds those (7_340_001, 7_340_002) while this runs.
+// Not a leader lock: the API being replaced still holds those (LEADER_LOCKS, 7_340_001 and up) while this runs.
 const MIGRATE_LOCK = 7_340_003;
 
 const ROLE_NAME_RE = /^[a-z_][a-z0-9_]{0,62}$/u;

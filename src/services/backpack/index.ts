@@ -1,10 +1,10 @@
 /**
- * Unavailable ("backpacked") tracks. A client reports a track it can't play or download; the server flags it, asks
- * users who downloaded it for a copy (UPLOAD_MEDIA, backpacked tracks first) for a while, then asks users who have
- * it in their library to look for it on a download service (RESEARCH_TRACK). Media or a usable research result
- * clears the flag.
+ * Unavailable ("backpacked") tracks. A client reports a track it can't play or download; the server flags it and asks
+ * users who have it in their library to look for it on a download service (RESEARCH_TRACK). Once every service has
+ * answered without a usable result (or BACKPACK_RESEARCH_WINDOW_HOURS passed), any user or device that downloaded
+ * it is asked for a copy (UPLOAD_MEDIA, backpacked tracks first). Media or a usable research result clears the flag.
  */
-import { and, asc, eq, inArray, isNotNull, lte, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, notExists, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
@@ -51,19 +51,17 @@ export async function clear_backpacked(tx: Tx, track_id: string): Promise<boolea
 }
 
 /**
- * RESEARCH_TRACK actions for `user`: backpacked tracks in their library with no media whose upload window has
- * passed, each on the next due service. Marks every handed-out pair as requested.
+ * RESEARCH_TRACK actions for `user`: backpacked tracks in their library with no media, each on the next due service.
+ * Marks every handed-out pair as requested.
  */
 export async function research_actions(user: AuthUser, limit: number, now = new Date()): Promise<ActionType[]> {
 	if (limit <= 0) return [];
-	const window_start = new Date(now.getTime() - config.BACKPACK_UPLOAD_WINDOW_HOURS * 3_600_000);
 	const candidates = await db.select({ id: tracks_table.id, title: tracks_table.title, duration_ms: tracks_table.duration_ms })
 		.from(tracks_table)
 		.innerJoin(user_tracks_table, and(eq(user_tracks_table.track_id, tracks_table.id), eq(user_tracks_table.user_id, user.id), eq(user_tracks_table.deleted, false)))
 		.where(and(
 			eq(tracks_table.backpacked, true),
 			isNotNull(tracks_table.backpacked_at),
-			lte(tracks_table.backpacked_at, window_start),
 			notExists(db.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, tracks_table.id)))
 		))
 		.orderBy(asc(tracks_table.backpacked_at), asc(tracks_table.id))
@@ -132,6 +130,13 @@ backpack_router.post('/tracks/:id/unavailable', rate_limit_user('backpack_report
 			});
 		// A server copy exists, so the track is playable through GET /media.
 		if (media) return { track_id, backpacked: false, backpacked_at: null, has_media: true };
+		// Only someone who has the track can say it's unplayable for them; other reports are kept but flag nothing.
+		const [own] = await tx.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+			.where(and(eq(user_tracks_table.user_id, user.id), eq(user_tracks_table.track_id, track_id), eq(user_tracks_table.deleted, false)));
+		if (!own) {
+			const [current] = await tx.select({ backpacked: tracks_table.backpacked, backpacked_at: tracks_table.backpacked_at }).from(tracks_table).where(eq(tracks_table.id, track_id));
+			return { track_id, backpacked: current.backpacked, backpacked_at: current.backpacked_at, has_media: false };
+		}
 		const [row] = await tx.update(tracks_table)
 			.set({ backpacked: true, backpacked_at: sql`coalesce(${tracks_table.backpacked_at}, ${now})`, modified_at: now })
 			.where(eq(tracks_table.id, track_id))

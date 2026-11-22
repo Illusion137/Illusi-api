@@ -68,7 +68,7 @@ describe('lyrics', () => {
 		];
 		expect_error(await api('POST', '/ingest/genius', { token: user.access_token, body: { ...wrong[0], track_id, result: 'NOT_FOUND' } }), 403, 'action token type mismatch');
 		expect_error(await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { ...wrong[0], track_id, result: 'NOT_FOUND' } }), 403, 'action token type mismatch');
-		expect_error(await api('POST', '/ingest/genius', { token: user.access_token, body: { ...wrong[1], track_id, result: 'NOT_FOUND' } }), 401, 'invalid or expired action token');
+		expect_error(await api('POST', '/ingest/genius', { token: user.access_token, body: { ...wrong[1], track_id, result: 'NOT_FOUND' } }), 403, 'invalid or expired action token');
 		expect_error(await api('POST', '/ingest/genius', { token: other.access_token, body: { ...wrong[0], track_id, result: 'NOT_FOUND' } }), 403, 'action token issued to another user');
 	});
 
@@ -159,7 +159,7 @@ describe('new releases', () => {
 		const body = { token: upload_token, artist_id, service: 'spotify' };
 		expect_error(await api('POST', '/ingest/new_releases', { token: user.access_token, body }), 403, 'action token type mismatch');
 		expect_error(await api('POST', '/ingest/new_releases', { token: other.access_token, body }), 403, 'action token issued to another user');
-		expect_error(await api('POST', '/ingest/new_releases', { token: user.access_token, body: { ...body, token: 'garbage' } }), 401, 'invalid or expired action token');
+		expect_error(await api('POST', '/ingest/new_releases', { token: user.access_token, body: { ...body, token: 'garbage' } }), 403, 'invalid or expired action token');
 	});
 
 	it('accepts a real check action once, then refuses a replay', async () => {
@@ -192,6 +192,9 @@ describe('backpack', () => {
 
 	it('is idempotent and keeps backpacked_at stable across repeated and cross-user reports', async () => {
 		const refs = (await contribute(user, mock_album({ artist: unique('BP Artist'), album: unique('BP Album'), n: 1 }))).body.refs;
+		// Only a report from someone with the track in their library flags it
+		await add_to_library(user, [refs.t0]);
+		await add_to_library(other, [refs.t0]);
 		const first = await report(refs.t0, { service: 'youtube', reason: 'one' });
 		const second = await report(refs.t0, { service: 'youtube' });
 		const third = await report(refs.t0, { service: 'soundcloud' }, other.access_token);
@@ -223,7 +226,7 @@ describe('backpack', () => {
 		const body = { token: upload_token, track_id, service: 'youtube', result: 'NOT_FOUND' };
 		expect_error(await api('POST', '/ingest/track_research', { token: user.access_token, body }), 403, 'action token type mismatch');
 		expect_error(await api('POST', '/ingest/track_research', { token: other.access_token, body }), 403, 'action token issued to another user');
-		expect_error(await api('POST', '/ingest/track_research', { token: user.access_token, body: { ...body, token: 'garbage' } }), 401, 'invalid or expired action token');
+		expect_error(await api('POST', '/ingest/track_research', { token: user.access_token, body: { ...body, token: 'garbage' } }), 403, 'invalid or expired action token');
 	});
 
 	it('limits reports to 60 per minute with 429', async () => {

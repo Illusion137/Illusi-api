@@ -32,6 +32,20 @@ const schema = z.object({
 	ACCESS_TOKEN_TTL_S: num(15 * 60),
 	REFRESH_TOKEN_TTL_DAYS: num(60),
 	ACTION_TOKEN_TTL_S: num(10 * 60),
+	/** UPLOAD_MEDIA tokens: a device uploads its files one after another, often slowly, so the token outlives the queue. */
+	UPLOAD_ACTION_TOKEN_TTL_S: num(24 * 3600),
+	/**
+	 * A rotated refresh token presented again while its replacement was never used is a lost refresh response (network
+	 * drop, app killed), not theft: it rotates again instead of revoking the login. Only within this many days.
+	 */
+	REFRESH_LOST_RESPONSE_DAYS: num(7),
+	/** Password reset codes: lifetime and wrong guesses allowed per code. */
+	PASSWORD_RESET_TTL_MIN: num(15),
+	PASSWORD_RESET_MAX_ATTEMPTS: num(5),
+	/** Never-verified accounts older than this are deleted, and their email can be registered again. */
+	UNVERIFIED_ACCOUNT_TTL_DAYS: num(7),
+	/** Whole-request limit (Node's default is 5 minutes, too short for a large upload on a slow connection). */
+	REQUEST_TIMEOUT_MS: num(30 * 60_000),
 
 	/** Resend API key. Unset logs the verification link instead of sending it (development and CI). */
 	RESEND_API_KEY: z.string().optional(),
@@ -84,6 +98,7 @@ const schema = z.object({
 	/** Playlist artwork uploads: largest accepted file, and the longest side it is scaled down to (stored as JPEG). */
 	ARTWORK_MAX_BYTES: num(10 * 1024 * 1024),
 	ARTWORK_MAX_PX: num(1024),
+	AVATAR_MAX_PX: num(512),
 
 	/** Data exports are kept this long after they're ready, and a user can request one per cooldown. */
 	EXPORT_TTL_DAYS: num(7),
@@ -113,8 +128,11 @@ const schema = z.object({
 	NEW_RELEASES_REQUEST_COOLDOWN_MIN: num(30),
 	NEW_RELEASES_MAX_ACTIONS: num(25),
 
-	/** After a track is backpacked, only users who downloaded it are asked (UPLOAD_MEDIA) for this long, then research starts. */
-	BACKPACK_UPLOAD_WINDOW_HOURS: num(48),
+	/**
+	 * A backpacked track is researched on download services first. Users who downloaded it are asked for the file
+	 * (UPLOAD_MEDIA) once every service has answered, or once it has been backpacked this long, whichever comes first.
+	 */
+	BACKPACK_RESEARCH_WINDOW_HOURS: num(48),
 	/** A handed-out RESEARCH_TRACK isn't handed out again for this long, unless it gets fulfilled. */
 	BACKPACK_RESEARCH_COOLDOWN_MIN: num(60),
 	/** A service answered NOT_FOUND is asked again after this long. */
@@ -122,6 +140,13 @@ const schema = z.object({
 
 	/** Users whose measured durations agree (within 3 s) needed to replace a stored duration they all disagree with. */
 	DURATION_CONSENSUS_REPORTS: num(3),
+	/** Reports from accounts younger than this are stored but don't count toward consensus (one vote per signup network either way). */
+	TRUSTED_ACCOUNT_MIN_AGE_DAYS: num(7),
+
+	/** A user's inheritance-only tracks are recomputed at most this often (sooner when their playlists change). */
+	INHERITED_SCOPE_TTL_MIN: num(10),
+	/** Push replays are kept this long; a push retried later is applied again (last-write-wins makes that harmless). */
+	SYNC_PUSH_RETENTION_DAYS: num(30),
 
 	RECONCILE_INCREMENTAL_INTERVAL_MIN: num(15),
 	RECONCILE_DRY_RUN: z.stringbool().default(false),

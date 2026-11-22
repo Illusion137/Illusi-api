@@ -19,9 +19,12 @@ const auth_user = (u: User) => ({ id: u.id, role: 'USER' as const, sid: JSON.par
 
 const downloaded = () => ({ downloaded_at: new Date().toISOString() });
 
+/** Imported tracks in the user's library (an upload without a token has to be for one) */
 async function imported_track(user: User, n = 1) {
 	const created = await contribute(user, mock_album({ artist: unique('Media Artist'), album: unique('Media Album'), n, imported: true }));
-	return Array.from({ length: n }, (_, i) => created.body.refs[`t${i}`] as string);
+	const ids = Array.from({ length: n }, (_, i) => created.body.refs[`t${i}`] as string);
+	await add_to_library(user, ids);
+	return ids;
 }
 
 function form_with(parts: [string, string | Blob, string?][]) {
@@ -47,8 +50,8 @@ describe('media upload errors', () => {
 		expect((await api('POST', `/tracks/${t}/media`, { token: user.access_token, body: { x: 1 } })).status).toBe(400);
 		expect((await upload(user, t, [['quality', 'lossless']])).body).toMatchObject({ error: expect.stringContaining('missing file') });
 		// Only the first file part is read, and it has to be named `file`.
-		expect((await upload(user, t, [['file', wav_blob(), 'a.wav'], ['other', wav_blob(), 'b.wav']])).status).toBe(201);
 		expect((await upload(user, t, [['other', wav_blob(), 'a.wav']])).status).toBe(400);
+		expect((await upload(user, t, [['file', wav_blob(), 'a.wav'], ['other', wav_blob(), 'b.wav']])).status).toBe(201);
 		expect((await upload(user, uuid(), [['file', wav_blob(), 'a.wav']])).status).toBe(404);
 	});
 
@@ -62,6 +65,22 @@ describe('media upload errors', () => {
 		const broken = Buffer.concat([Buffer.from('RIFF\0\0\0\0WAVE'), Buffer.alloc(300, 7)]);
 		expect((await upload(user, t, [['file', new Blob([new Uint8Array(broken)]), 'a.wav']])).status).toBe(422);
 		expect(await query(`select 1 from media_table where track_id = $1`, [t])).toHaveLength(0);
+	});
+
+	it('refuses an unsolicited upload outside the library, and any second upload, before reading the body', async () => {
+		const user = await create_user('media-refuse');
+		const created = await contribute(user, mock_album({ artist: unique('Refused Artist'), album: unique('Refused Album'), n: 1, imported: true }));
+		const t: string = created.body.refs.t0;
+		expect((await upload(user, t, [['file', wav_blob(), 'a.wav']])).body).toMatchObject({ code: 'NOT_IN_LIBRARY' });
+		await add_to_library(user, [t]);
+		const first = await upload(user, t, [['file', wav_blob(), 'a.wav']]);
+		expect(first.status).toBe(201);
+		const second = await upload(user, t, [['file', wav_blob(), 'a.wav']]);
+		expect(second.status).toBe(409);
+		expect(second.body).toMatchObject({ code: 'TRACK_HAS_MEDIA', media: { resource_id: first.body.media.resource_id } });
+		// A token sent as a header is checked up front too
+		const res = await api('POST', `/tracks/${t}/media`, { token: user.access_token, headers: { 'x-action-token': 'forged.token.value' }, raw: form_with([['file', wav_blob(), 'a.wav']]) });
+		expect(res.body).toMatchObject({ code: 'ACTION_TOKEN_INVALID' });
 	});
 
 	it('refuses uploads over the size limit', async () => {
@@ -79,7 +98,7 @@ describe('media upload errors', () => {
 	it('refuses invalid, replayed and misdirected upload tokens', async () => {
 		const user = await create_user('media-token');
 		const [t, other] = await imported_track(user, 2);
-		expect((await upload(user, t, [['token', 'forged.token.value'], ['file', wav_blob(), 'a.wav']])).status).toBe(401);
+		expect((await upload(user, t, [['token', 'forged.token.value'], ['file', wav_blob(), 'a.wav']])).status).toBe(403);
 		const for_other = (await issue_action(auth_user(user), { type: 'UPLOAD_MEDIA', track_id: other })).token;
 		expect((await upload(user, t, [['token', for_other], ['file', wav_blob(), 'a.wav']])).status).toBe(403);
 		expect(token_target('not a jwt', 'a', 'b')).toBe('b');
@@ -136,33 +155,29 @@ describe('media streaming', () => {
 		expect(bad.headers.get('content-range')).toBe(`bytes */${size}`);
 	});
 
-	it('answers 404 for unknown or vanished media and 400 for odd ids, and checks access through playlists', async () => {
+	it('answers 404 for unknown or vanished media and 400 for odd ids, and streams to anyone with the id', async () => {
 		const user = await create_user('media-missing');
 		expect((await get(user, `${uuid()}.m4a`)).status).toBe(404);
 		expect((await get(user, 'not-a-resource')).status).toBe(400);
-		const { track_id, resource_id } = await stored(user);
+		const { resource_id } = await stored(user);
 		const outsider = await create_user('media-outsider');
-		expect((await get(outsider, resource_id)).status).toBe(403);
-		const [playlist] = await query<{ id: string }>(`insert into playlists_table (user_id, title) values ($1, 'P') returning id`, [outsider.id]);
-		await query(`insert into playlist_tracks_table (playlist_id, track_id) values ($1, $2)`, [playlist.id, track_id]);
 		expect((await get(outsider, resource_id)).status).toBe(200);
+		expect((await fetch(`${API_BASE}/media/${resource_id}`)).status).toBe(200);
 		expect(await user_can_access_tracks(db, outsider.id, [])).toBe(false);
 		await rm(path.join(config.MEDIA_DIR, resource_id));
 		expect((await get(user, resource_id)).status).toBe(404);
 	});
 
-	it('redirects to the media bucket once the file has moved there, after checking access', async () => {
+	it('redirects to the media bucket once the file has moved there, without a session', async () => {
 		const user = await create_user('media-remote');
 		const { resource_id } = await stored(user);
-		const outsider = await create_user('media-remote-outsider');
 		await rm(path.join(config.MEDIA_DIR, resource_id));
 		const original = config.MEDIA_PUBLIC_URL;
 		config.MEDIA_PUBLIC_URL = 'https://bucket.example.com/abc:illusi-media';
 		try {
-			const res = await fetch(`${API_BASE}/media/${resource_id}`, { headers: { authorization: `Bearer ${user.access_token}` }, redirect: 'manual' });
+			const res = await fetch(`${API_BASE}/media/${resource_id}`, { redirect: 'manual' });
 			expect(res.status).toBe(302);
 			expect(res.headers.get('location')).toBe(`https://bucket.example.com/abc:illusi-media/${resource_id}`);
-			expect((await get(outsider, resource_id)).status).toBe(403);
 		} finally {
 			config.MEDIA_PUBLIC_URL = original;
 		}

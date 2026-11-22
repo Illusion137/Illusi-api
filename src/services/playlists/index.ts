@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { eq } from 'drizzle-orm';
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
@@ -20,7 +21,7 @@ import { remote_media_url } from '../media/remote';
 
 export { assert_inheritance_allowed, creates_cycle } from './inheritance';
 export { invalidate_user_cache, resolve_playlist, resolve_playlist_track_ids } from './resolve';
-export { remove_artwork_files } from './artwork';
+export { receive_image, remove_artwork_files } from './artwork';
 
 const log = logger('playlists');
 
@@ -95,10 +96,24 @@ playlists_router.get('/artwork/:artwork_id', async (req, res) => {
 		.from(playlists_table).where(eq(playlists_table.artwork_id, artwork_id)).limit(1);
 	if (!playlist || (playlist.user_id !== user.id && (!playlist.public || playlist.deleted))) throw new HttpError(404, 'artwork not found');
 
+	await send_image_file(req, res, { id: artwork_id, file, subdir: ARTWORK_SUBDIR, type: 'image/jpeg' });
+});
+
+export interface ImageFile {
+	/** `<uuid>.<ext>`, new for every upload. */
+	id: string;
+	file: string;
+	/** Its folder in MEDIA_DIR (and in the media bucket). */
+	subdir: string;
+	type: string;
+}
+
+/** Sends a stored image (playlist artwork, an avatar) once the caller may see it. */
+export async function send_image_file(req: Request, res: Response, { id, file, subdir, type }: ImageFile) {
 	// A new upload always gets a new id, so the id is a strong validator and the file can be cached forever.
-	const etag = `"${artwork_id}"`;
+	const etag = `"${id}"`;
 	res.setHeader('ETag', etag);
-	res.setHeader('Content-Type', 'image/jpeg');
+	res.setHeader('Content-Type', type);
 	res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
 	if (matches_if_none_match(req.headers['if-none-match'], etag)) {
 		res.status(304).end();
@@ -109,16 +124,16 @@ playlists_router.get('/artwork/:artwork_id', async (req, res) => {
 		size = (await stat(file)).size;
 	} catch {
 		// Moved to the media bucket by scripts/backup-media.sh: the bucket serves it publicly.
-		const remote = remote_media_url(`${ARTWORK_SUBDIR}/${artwork_id}`);
+		const remote = remote_media_url(`${subdir}/${id}`);
 		if (remote) {
 			res.redirect(302, remote);
 			return;
 		}
-		log.error('artwork file missing', { artwork_id });
-		throw new HttpError(404, 'artwork file not found');
+		log.error('image file missing', { subdir, id });
+		throw new HttpError(404, 'image file not found');
 	}
 	if (config.MEDIA_ACCEL_PREFIX) {
-		res.setHeader('X-Accel-Redirect', `${config.MEDIA_ACCEL_PREFIX}${ARTWORK_SUBDIR}/${artwork_id}`);
+		res.setHeader('X-Accel-Redirect', `${config.MEDIA_ACCEL_PREFIX}${subdir}/${id}`);
 		res.end();
 		return;
 	}
@@ -130,6 +145,6 @@ playlists_router.get('/artwork/:artwork_id', async (req, res) => {
 	try {
 		await pipeline(createReadStream(file), res);
 	} catch (err) {
-		if ((err as NodeJS.ErrnoException).code !== 'ERR_STREAM_PREMATURE_CLOSE') log.warn('artwork stream failed', { artwork_id, err });
+		if ((err as NodeJS.ErrnoException).code !== 'ERR_STREAM_PREMATURE_CLOSE') log.warn('image stream failed', { subdir, id, err });
 	}
-});
+}

@@ -84,11 +84,19 @@ describe('email verification', () => {
 		expect((await query('select email_verified_at from users_table where id = $1', [user.id]))[0].email_verified_at).toBeNull();
 	});
 
-	it('does not verify an address the account no longer has', async () => {
+	it('makes a link\'s new address the account email, unless another account took it', async () => {
 		const user = await create_user('moved', { verified: false });
-		const token = await issue_link(user, { email: `${uuid()}@example.test` });
-		expect((await api('POST', '/auth/verify_email', { body: { token } })).status).toBe(400);
+		const other = await create_user('squatter');
+		const taken = await issue_link(user, { email: other.email });
+		expect((await api('POST', '/auth/verify_email', { body: { token: taken } })).status).toBe(400);
 		expect((await query('select email_verified_at from users_table where id = $1', [user.id]))[0].email_verified_at).toBeNull();
+
+		const email = `${uuid()}@example.test`;
+		const token = await issue_link(user, { email });
+		expect((await api('POST', '/auth/verify_email', { body: { token } })).status).toBe(204);
+		const [row] = await query<{ email: string; email_verified_at: Date | null }>('select email, email_verified_at from users_table where id = $1', [user.id]);
+		expect(row.email).toBe(email);
+		expect(row.email_verified_at).not.toBeNull();
 	});
 
 	it('resends a fresh link, replacing the pending one, and limits how often', async () => {

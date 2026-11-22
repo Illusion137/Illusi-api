@@ -185,7 +185,7 @@ describe('new releases endpoints', () => {
 		const post = (body: Record<string, unknown>) => api('POST', '/ingest/new_releases', { token: fan.access_token, body });
 		expect((await post({ token: 'x', artist_id, service: 'napster' })).status).toBe(400);
 		expect((await post({ token: 'x', artist_id: 'nope', service: 'spotify' })).status).toBe(400);
-		expect((await post({ token: 'forged', artist_id, service: 'spotify' })).status).toBe(401);
+		expect((await post({ token: 'forged', artist_id, service: 'spotify' })).status).toBe(403);
 		const many = Array.from({ length: 2_001 }, (_, i) => ({ ref: `a${i}`, name: `Artist ${i}` }));
 		expect((await post({ token: 'x', artist_id, service: 'spotify', releases: { artists: many } })).status).toBe(413);
 	});
@@ -207,6 +207,7 @@ describe('backpack endpoints', () => {
 		const old = uuid();
 		await query(`insert into service_ids_table (illusi_id) values ($1)`, [old]);
 		await query(`insert into illusi_id_redirects_table (old_id, new_id) values ($1, $2)`, [old, t]);
+		await add_to_library(user, [t]);
 		const res = await report(old, { service: 'youtube', reason: '  gone  ' });
 		expect(res.body).toMatchObject({ track_id: t, backpacked: true, redirected_from: old });
 		expect(await query(`select reason from track_unavailable_reports_table where track_id = $1`, [t])).toEqual([{ reason: 'gone' }]);

@@ -5,7 +5,7 @@ import { start_inproc_app } from './inproc_app';
 const app = await start_inproc_app();
 process.env.API_URL = app.url;
 afterAll(async () => { await app.stop(); });
-const { api, contribute, create_user, mock_album, unique, uuid, wav_bytes } = await import('./helpers');
+const { add_to_library, api, contribute, create_user, mock_album, unique, uuid, wav_bytes } = await import('./helpers');
 
 function png(size: number): Buffer {
 	const chunk = (type: string, data: Buffer) => {
@@ -41,6 +41,7 @@ describe('media upload streaming (in-process)', () => {
 		const user = await create_user('upload-stream');
 		const created = await contribute(user, mock_album({ artist: unique('Up Artist'), album: unique('Up Album'), n: 1, imported: true }));
 		const track_id = created.body.refs.t0 as string;
+		await add_to_library(user, [track_id]);
 		const upload = (parts: [string, string | Blob, string?][]) => api('POST', `/tracks/${track_id}/media`, { token: user.access_token, raw: form_of(parts) });
 		const big = blob(wav_bytes(11, 300_000), 'audio/wav');
 

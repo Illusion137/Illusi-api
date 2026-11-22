@@ -48,12 +48,32 @@ describe('auth (§12)', () => {
 		const first = await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } });
 		expect(first.status).toBe(200);
 		expect(first.body.refresh_token).not.toBe(user.refresh_token);
+		// The new token is used, so the client did get it
+		const second = await api('POST', '/auth/refresh', { body: { refresh_token: first.body.refresh_token } });
+		expect(second.status).toBe(200);
 
-		// Reusing the rotated-out token is theft detection: the whole family dies, including the new token.
+		// Reusing a token whose replacement was already used is theft detection: the whole family dies.
 		const reuse = await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } });
 		expect(reuse.status).toBe(401);
-		const after = await api('POST', '/auth/refresh', { body: { refresh_token: first.body.refresh_token } });
+		const after = await api('POST', '/auth/refresh', { body: { refresh_token: second.body.refresh_token } });
 		expect(after.status).toBe(401);
+	});
+
+	it('rotates again when the client never received the last rotation', async () => {
+		const user = await create_user('lostresponse');
+		const lost = await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } });
+		expect(lost.status).toBe(200);
+		// The response never arrived, so the client retries with the token it still has
+		const retry = await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } });
+		expect(retry.status).toBe(200);
+		expect(retry.body.refresh_token).not.toBe(lost.body.refresh_token);
+		// A second lost response is survived too
+		const again = await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } });
+		expect(again.status).toBe(200);
+		expect((await api('POST', '/auth/refresh', { body: { refresh_token: again.body.refresh_token } })).status).toBe(200);
+		// The replacement it never got was retired: presenting it is reuse, which ends the login
+		expect((await api('POST', '/auth/refresh', { body: { refresh_token: lost.body.refresh_token } })).status).toBe(401);
+		expect((await api('POST', '/auth/refresh', { body: { refresh_token: user.refresh_token } })).status).toBe(401);
 	});
 
 	// Access tokens are stateless ~15 min JWTs: logout revokes the refresh side of a session, and

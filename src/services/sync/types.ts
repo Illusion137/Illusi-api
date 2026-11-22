@@ -16,7 +16,7 @@ import type { ConflictReport, EntityOutcome, MatchedOutcome, Rejection } from '.
 import { raw_graph_schema } from '../entities';
 
 /** `users_table` without `password_hash` (never synced). */
-export type SyncUser = Omit<typeof users_table.$inferSelect, 'password_hash' | 'email_verified_at'>;
+export type SyncUser = Omit<typeof users_table.$inferSelect, 'password_hash' | 'email_verified_at' | 'signup_ip_prefix' | 'inherited_scope_at'>;
 export interface Redirect { old_id: string; new_id: string }
 /** Selected iTunes fields for a local track / album / artist, keyed by its `illusi_id`. */
 export interface ItunesFields {
@@ -112,6 +112,8 @@ export const push_row_schemas = {
 		start_at: z.number().int().nullish(),
 		end_at: z.number().int().nullish(),
 		deleted: z.boolean().optional(),
+		/** When the user added the track on their device; becomes `created_at` (the library's "date added") */
+		added_at: time.optional(),
 		edited_at: time
 	}),
 	playlists: z.object({
@@ -125,7 +127,8 @@ export const push_row_schemas = {
 		deleted: z.boolean().optional(),
 		edited_at: time
 	}),
-	playlist_tracks: z.object({ playlist_id: z.uuid(), track_id: ref, deleted: z.boolean().optional(), edited_at: time }),
+	/** `added_at`: when the track was added to the playlist on the device; becomes `created_at`, which orders the playlist */
+	playlist_tracks: z.object({ playlist_id: z.uuid(), track_id: ref, deleted: z.boolean().optional(), added_at: time.optional(), edited_at: time }),
 	playlist_inherited_searches: z.object({
 		/** Server id of an existing row; omit with `temp_id` for a new one. */
 		id: z.number().int().positive().optional(),
@@ -165,6 +168,12 @@ export const profile_schema = z.object({ username: z.string().trim().min(1).max(
 export const push_body_schema = z.object({
 	push_id: z.uuid(),
 	base_cursor: z.string().max(2048).nullish(),
+	/**
+	 * The device's clock when it sent this request. Every device time in the push (`edited_at`, `added_at`,
+	 * `created_at`) is shifted by the difference to the server's clock, so a device whose clock runs slow or fast
+	 * still wins and loses conflicts by when its edits really happened.
+	 */
+	client_now: time.optional(),
 	changes: z.object({
 		entities: raw_graph_schema.optional(),
 		profile: z.unknown().optional(),

@@ -102,19 +102,23 @@ export async function transcode_to_m4a(input: string, out_dir: string): Promise<
 }
 
 /**
- * Re-encodes an uploaded image as a baseline JPEG no larger than `max_px` on either side (never upscaled), dropping
- * every metadata block (EXIF GPS included). Undecodable input is a 422; the caller owns both files.
+ * Re-encodes an uploaded image as a baseline JPEG, or a WebP that keeps transparency, no larger than `max_px` on either
+ * side (never upscaled), dropping every metadata block (EXIF GPS included). Undecodable input is a 422; the caller
+ * owns both files.
  */
-export async function normalize_image(input: string, output: string, max_px: number): Promise<void> {
+export async function normalize_image(input: string, output: string, max_px: number, format: 'jpeg' | 'webp' = 'jpeg'): Promise<void> {
 	const px = String(Math.max(16, Math.floor(max_px)));
+	const scale = `scale=w='min(${px},iw)':h='min(${px},ih)':force_original_aspect_ratio=decrease`;
+	const encode = format === 'jpeg'
+		? ['-vf', `${scale},format=yuvj420p`, '-q:v', '3', '-c:v', 'mjpeg', '-f', 'image2', '-update', '1']
+		: ['-vf', `${scale},format=yuva420p`, '-quality', '80', '-c:v', 'libwebp', '-f', 'webp'];
 	try {
 		await with_slot(async () => {
 			await run('ffmpeg', [
 				'-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
 				'-i', input,
 				'-map', '0:v:0', '-frames:v', '1', '-map_metadata', '-1',
-				'-vf', `scale=w='min(${px},iw)':h='min(${px},ih)':force_original_aspect_ratio=decrease,format=yuvj420p`,
-				'-q:v', '3', '-c:v', 'mjpeg', '-f', 'image2', '-update', '1', output
+				...encode, output
 			], config.MEDIA_TRANSCODE_TIMEOUT_MS);
 		});
 	} catch (err) {

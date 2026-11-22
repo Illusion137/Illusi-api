@@ -3,13 +3,15 @@ import * as Sentry from '@sentry/node';
 import { sql } from 'drizzle-orm';
 import { config } from './config';
 import { create_app } from './app';
-import { db } from './db';
+import { create_pool, db } from './db';
 import { start_disk_monitor } from './core/disk';
 import { start_event_bridge } from './core/events';
 import { set_draining } from './core/health';
 import { LEADER_LOCKS, run_as_leader } from './core/leader';
 import type { LeaderHandle } from './core/leader';
 import { logger } from './core/log';
+import { use_shared_rate_limits } from './core/rate_limit';
+import * as cleanup from './core/cleanup';
 import * as exports_runner from './services/account/export';
 import * as analyzer from './services/analyzer';
 import * as itunes from './services/itunes';
@@ -38,6 +40,8 @@ async function main() {
 	const app = create_app();
 	const server = app.listen(config.PORT, () => log.info(`listening on :${config.PORT} (${config.APP_VERSION})`));
 	server.keepAliveTimeout = 65_000;
+	server.requestTimeout = config.REQUEST_TIMEOUT_MS;
+	use_shared_rate_limits(create_pool({ max: 4 }));
 	const stop_disk_monitor = start_disk_monitor();
 	const stop_event_bridge = start_event_bridge();
 
@@ -55,6 +59,8 @@ async function main() {
 
 	// Data exports run whatever BACKGROUND_SERVICES says (users wait on them), in one instance at a time.
 	const exports_leader = run_as_leader('exports', LEADER_LOCKS.exports, exports_runner.start, exports_runner.stop);
+	// Housekeeping for tables that only grow; like exports it runs whatever BACKGROUND_SERVICES says.
+	const cleanup_leader = run_as_leader('cleanup', LEADER_LOCKS.cleanup, cleanup.start, cleanup.stop);
 
 	let stopping = false;
 	const shutdown = async (signal: string) => {
@@ -72,6 +78,7 @@ async function main() {
 		server.closeAllConnections();
 		await leader?.stop();
 		await exports_leader.stop();
+		await cleanup_leader.stop();
 		await stop_event_bridge();
 		await db.$client.end().catch(() => undefined);
 		log.info('stopped');

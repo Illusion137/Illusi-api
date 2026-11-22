@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
@@ -71,7 +71,7 @@ export async function resolve_source(track_id: string, prefer?: SampleSource, up
 
 	const candidates: SourceCandidate[] = [];
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
-		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
+		.where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);
 	if (media) candidates.push({ source: 'media', ref: media.resource_id });
 
 	const [preview] = await db.select({ preview_url: itunes_tracks_table.preview_url }).from(service_ids_table)
@@ -104,19 +104,28 @@ export async function record_lookup(ex: Executor, track_id: string, source: Reso
 	});
 }
 
-/**
- * Whether the track's lyrics are all unsynced: only then does the app line them up with the vocals, so only then is
- * the costly `/vocals` worth running.
- */
+/** Whether the track's lyrics are all unsynced: only those does the app letter-align, so only then is `/alignment` worth running. */
 const has_only_unsynced_lyrics = (track_id: SQL) => sql`(
 	exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type = 'NONE')
 	and not exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type <> 'NONE')
 )`;
 
-export async function has_only_unsynced_lyrics_now(track_id: string): Promise<boolean> {
-	const rows = await db.execute<{ ok: boolean }>(sql`select ${has_only_unsynced_lyrics(sql`${track_id}::uuid`)} as ok`, 'objects');
+/**
+ * Whether the track has lyrics and none of them are word or syllable synced: the app word-syncs those (line-synced
+ * ones too) against the `/vocals` analysis.
+ */
+const lacks_word_synced_lyrics = (track_id: SQL) => sql`(
+	exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id})
+	and not exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type in ('WORD', 'SYLLABLE'))
+)`;
+
+async function lyrics_check(check: SQL): Promise<boolean> {
+	const rows = await db.execute<{ ok: boolean }>(sql`select ${check} as ok`, 'objects');
 	return rows[0]?.ok ?? false;
 }
+
+export const has_only_unsynced_lyrics_now = (track_id: string) => lyrics_check(has_only_unsynced_lyrics(sql`${track_id}::uuid`));
+export const lacks_word_synced_lyrics_now = (track_id: string) => lyrics_check(lacks_word_synced_lyrics(sql`${track_id}::uuid`));
 
 export interface TrackPriority { plays: number; views: number }
 
@@ -152,7 +161,7 @@ export async function eligible_vocals_track_ids(): Promise<string[]> {
 			or v.resource_id <> lm.resource_id
 			or (v.status = 'ERROR' and (v.retry_after is null or v.retry_after <= now()))
 			or (v.status = 'DONE' and (v.beats is null or v.words is null)))
-		and ${has_only_unsynced_lyrics(sql`lm.track_id`)}`, 'objects');
+		and ${lacks_word_synced_lyrics(sql`lm.track_id`)}`, 'objects');
 	return rows.map(r => r.track_id);
 }
 
@@ -160,9 +169,9 @@ export interface VocalsTarget { resource_id: string; prior: LookupRow | null }
 
 /** The media file a vocals job should analyze right now, or null (no media / lyrics synced or missing / already done / blocked). */
 export async function resolve_vocals_target(track_id: string): Promise<VocalsTarget | null> {
-	if (!(await has_only_unsynced_lyrics_now(track_id))) return null;
+	if (!(await lacks_word_synced_lyrics_now(track_id))) return null;
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
-		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
+		.where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);
 	if (!media) return null;
 	const [row] = await db.select().from(track_vocals_table).where(eq(track_vocals_table.track_id, track_id));
 	const prior: LookupRow | null = row ? { status: row.status, retry_after: row.retry_after, source_ref: row.resource_id, attempts: row.attempts } : null;
@@ -235,7 +244,7 @@ export async function resolve_alignment_target(track_id: string, requested = fal
 		if (!count || count.plays <= 0) return null;
 	}
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
-		.where(eq(media_table.track_id, track_id)).orderBy(desc(media_table.id)).limit(1);
+		.where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);
 	if (!media) return null;
 	const [row] = await db.select({ status: track_alignment_table.status, retry_after: track_alignment_table.retry_after, resource_id: track_alignment_table.resource_id, attempts: track_alignment_table.attempts })
 		.from(track_alignment_table).where(eq(track_alignment_table.track_id, track_id));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decode_cursor, encode_cursor, next_cursor } from './cursor';
-import { clamp_edited_at, lww_update, lww_wins } from './lww';
+import { clamp_edited_at, clock_skew_ms, correct_skew, lww_update, lww_wins } from './lww';
 import { walk_phases } from './pull';
 import { validate_push_rows } from './push';
 import { in_ids } from './rows';
@@ -45,6 +45,22 @@ describe('lww', () => {
 	it('replaces the whole row: present fields, explicit nulls; omitted fields kept', () => {
 		const at = new Date();
 		expect(lww_update<{ title: string | null; start_at: number | null; deleted: boolean }>(['title', 'start_at', 'deleted'], { title: null, deleted: true }, at)).toEqual({ title: null, deleted: true, edited_at: at });
+	});
+});
+
+describe('clock skew', () => {
+	const server_now = new Date('2026-11-22T12:00:00Z');
+	const client_now = new Date('2026-11-22T11:00:00Z');
+	const skew = clock_skew_ms(client_now, server_now);
+
+	it('ignores network delay and corrects only recent device times', () => {
+		expect(clock_skew_ms(new Date(server_now.getTime() - 500), server_now)).toBe(0);
+		expect(clock_skew_ms(undefined, server_now)).toBe(0);
+		expect(correct_skew(new Date('2026-11-22T10:30:00Z'), client_now, skew)).toEqual(new Date('2026-11-22T11:30:00Z'));
+		// An imported timestamp from years ago keeps its value
+		const old = new Date('2019-05-01T00:00:00Z');
+		expect(correct_skew(old, client_now, skew)).toBe(old);
+		expect(correct_skew(old, undefined, skew)).toBe(old);
 	});
 });
 

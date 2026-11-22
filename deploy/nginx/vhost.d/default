@@ -1,8 +1,11 @@
 # Included inside every vhost's server{} block by nginx-proxy (no host-specific file exists).
 
-# 120 requests per minute per IP (zone in conf.d/illusi.conf). The burst lets an app start fire its batch of
-# requests at once; past it, requests over the rate get a JSON 429.
-limit_req zone=per_ip burst=60 nodelay;
+# Zones in conf.d/illusi.conf: 240 requests per minute per client (token, else IP), a looser per-IP backstop, media
+# streaming per IP, and sign-in. The bursts let an app start fire its batch of requests at once; past them, requests
+# over the rate get a JSON 429.
+limit_req zone=per_client burst=120 nodelay;
+limit_req zone=per_ip burst=300 nodelay;
+limit_req zone=media_per_ip burst=400 nodelay;
 limit_req zone=auth_per_ip burst=10 nodelay;
 limit_req_status 429;
 error_page 429 = @rate_limited;
@@ -12,7 +15,7 @@ location @rate_limited {
 	return 429 '{"error":"too many requests"}';
 }
 
-# Media files, after the API has checked access: it answers with X-Accel-Redirect to this location (MEDIA_ACCEL_PREFIX).
+# Media files, after the API has found the file: it answers with X-Accel-Redirect to this location (MEDIA_ACCEL_PREFIX).
 # Not reachable from outside. nginx handles Range and If-Range itself; the API's ETag is kept as the validator, and
 # Content-Type and Cache-Control are passed through from the API response.
 location ^~ /_internal_media/ {

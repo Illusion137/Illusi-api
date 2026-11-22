@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { rm, stat } from 'node:fs/promises';
+import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import argon2 from 'argon2';
 import { and, desc, eq, ne } from 'drizzle-orm';
@@ -9,17 +10,23 @@ import { config } from '../../config';
 import { db } from '../../db';
 import { export_jobs_table, users_table } from '../../db/schema';
 import { forget_user } from '../../core/auth/middleware';
+import { require_disk_space } from '../../core/disk';
 import { PendingEvents } from '../../core/events';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
 import { logger } from '../../core/log';
 import { RateLimiter, rate_limit_user } from '../../core/rate_limit';
+import { receive_image, send_image_file } from '../playlists';
+import { AVATAR_SUBDIR, avatar_exists, avatar_path, set_avatar, store_avatar_file } from './avatar';
 import { delete_account } from './delete';
 import { EXPORTS_SUBDIR, export_path, job_view } from './export';
 import type { ExportJob } from './export';
 
 const log = logger('account');
 
-/** Mounted after `require_auth`: data exports (`/me/export...`) and account deletion (`DELETE /me`). */
+/**
+ * Mounted after `require_auth`: data exports (`/me/export...`), the user's avatar (`PUT|DELETE /me/avatar`,
+ * `GET /avatars/:avatar_id`) and account deletion (`DELETE /me`).
+ */
 export const account_router = Router();
 
 const export_limit = rate_limit_user('export', 30, 60_000);
@@ -123,11 +130,47 @@ const delete_schema = z.object({ password: z.string().min(1).max(1024) });
 account_router.delete('/me', json_body('4kb'), async (req, res) => {
 	const user = require_user(req);
 	const body = parse_body(delete_schema, req.body);
-	if (!delete_user_limiter.hit(`user:${user.id}`) || !delete_ip_limiter.hit(`ip:${req.ip}`)) throw new HttpError(429, 'too many attempts');
+	if (!(await delete_user_limiter.hit(`user:${user.id}`)) || !(await delete_ip_limiter.hit(`ip:${req.ip}`))) throw new HttpError(429, 'too many attempts');
 	const [row] = await db.select({ password_hash: users_table.password_hash }).from(users_table).where(eq(users_table.id, user.id));
 	if (!row) throw new HttpError(404, 'user not found');
-	if (!(await argon2.verify(row.password_hash, body.password))) throw new HttpError(401, 'invalid password');
+	if (!(await argon2.verify(row.password_hash, body.password))) throw new HttpError(403, 'invalid password', { code: 'WRONG_PASSWORD' });
 	await delete_account(user.id);
 	forget_user(user.id);
 	res.status(204).end();
+});
+
+const avatar_limit = rate_limit_user('avatar', 10, 60_000);
+
+/** Multipart with a `file` part (jpeg, png or webp), re-encoded as a webp of at most AVATAR_MAX_PX a side. */
+account_router.put('/me/avatar', avatar_limit, require_disk_space, async (req, res) => {
+	const user = require_user(req);
+	let upload;
+	try {
+		upload = await receive_image(req, path.join(config.MEDIA_DIR, '.incoming'), config.ARTWORK_MAX_BYTES);
+	} catch (err) {
+		// The body may not have been read; don't let the client keep sending it.
+		res.setHeader('Connection', 'close');
+		throw err;
+	}
+	try {
+		const avatar_id = await store_avatar_file(upload.temp_path);
+		const result = await set_avatar(user.id, avatar_id);
+		log.info('avatar set', { user_id: user.id, avatar_id, source: upload.kind });
+		res.json(result);
+	} finally {
+		await rm(upload.temp_path, { force: true });
+	}
+});
+
+account_router.delete('/me/avatar', avatar_limit, async (req, res) => {
+	res.json(await set_avatar(require_user(req).id, null));
+});
+
+/** Visible where the user is (row-level security): to themselves, and to anyone who can see one of their playlists. */
+account_router.get('/avatars/:avatar_id', async (req, res) => {
+	const avatar_id = req.params.avatar_id;
+	const file = avatar_path(avatar_id);
+	if (file === null) throw new HttpError(400, 'invalid avatar id');
+	if (!(await avatar_exists(avatar_id))) throw new HttpError(404, 'avatar not found');
+	await send_image_file(req, res, { id: avatar_id, file, subdir: AVATAR_SUBDIR, type: 'image/webp' });
 });

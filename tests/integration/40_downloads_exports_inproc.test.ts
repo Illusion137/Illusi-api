@@ -70,10 +70,10 @@ describe('media downloads', () => {
 		const user = await create_user('media-dl');
 		const created = await contribute(user, mock_album({ artist: unique('DL Artist'), album: unique('DL Album'), n: 1, imported: true }));
 		const track_id = created.body.refs.t0 as string;
+		await add_to_library(user, [track_id]);
 		const form = new FormData();
 		form.append('file', new Blob([new Uint8Array(wav_bytes(7))], { type: 'audio/wav' }), 'a.wav');
 		expect((await api('POST', `/tracks/${track_id}/media`, { token: user.access_token, raw: form })).status).toBe(201);
-		await add_to_library(user, [track_id]);
 		const [{ resource_id }] = await query<{ resource_id: string }>('select resource_id from media_table where track_id = $1', [track_id]);
 		const url = `${API_BASE}/media/${resource_id}`;
 

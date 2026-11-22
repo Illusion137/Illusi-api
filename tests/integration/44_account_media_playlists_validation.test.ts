@@ -39,7 +39,8 @@ describe('auth required', () => {
 		const id = uuid();
 		const routes: [string, string][] = [
 			['POST', '/me/export'], ['GET', '/me/exports'], ['GET', `/me/export/${id}`], ['GET', `/me/export/${id}/file`], ['DELETE', '/me'],
-			['POST', `/tracks/${track_id}/media`], ['GET', '/media/requests'], ['GET', '/media/abc.m4a'],
+			// Media files themselves are public: the resource id is the capability
+			['POST', `/tracks/${track_id}/media`], ['GET', '/media/requests'],
 			['POST', `/playlists/${id}/copy`], ['PUT', `/playlists/${id}/artwork`], ['DELETE', `/playlists/${id}/artwork`], ['GET', `/artwork/${id}`]
 		];
 		for (const [method, path] of routes) expect_error(await api(method, path), 401, 'missing access token');
@@ -132,7 +133,7 @@ describe('account deletion validation', () => {
 
 	it('answers 401 for a wrong password, 429 after five attempts, and keeps the account', async () => {
 		const u = await create_user('del-rl');
-		for (let i = 0; i < 5; i++) expect_error(await api('DELETE', '/me', { token: u.access_token, body: { password: 'wrong-password' } }), 401, 'invalid password');
+		for (let i = 0; i < 5; i++) expect_error(await api('DELETE', '/me', { token: u.access_token, body: { password: 'wrong-password' } }), 403, 'invalid password');
 		expect_error(await api('DELETE', '/me', { token: u.access_token, body: { password: u.password } }), 429, 'too many attempts');
 		expect((await api('GET', '/me', { token: u.access_token })).status).toBe(200);
 	});
@@ -159,8 +160,11 @@ describe('media validation', () => {
 	});
 
 	it('rejects an upload with a forged token for a track outside the library', async () => {
-		const res = await upload(other.access_token, track_id, multipart(wav_bytes(Math.floor(Math.random() * 100_000) + 10), { token: 'forged' }, 'audio/wav'));
-		expect_error(res, 401, 'invalid or expired action token');
+		const file = () => multipart(wav_bytes(Math.floor(Math.random() * 100_000) + 10), { token: 'forged' }, 'audio/wav');
+		// A token in the form only comes after the body, so outside the library the upload is refused up front
+		expect_error(await upload(other.access_token, track_id, file()), 403, 'track is not in your library');
+		const res = await api('POST', `/tracks/${track_id}/media`, { token: other.access_token, headers: { 'x-action-token': 'forged' }, raw: file() });
+		expect_error(res, 403, 'invalid or expired action token');
 	});
 
 	it('validates media request queries', async () => {

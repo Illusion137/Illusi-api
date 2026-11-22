@@ -49,7 +49,7 @@ describe('admin dashboard', () => {
 			disk: { free_gb: expect.any(Number), total_gb: expect.any(Number) },
 			queues: { backpacked_tracks: expect.any(Number), users: { total: expect.any(Number) } }
 		});
-		expect(res.body.leaders.map((l: { role: string }) => l.role)).toEqual(['background_services', 'exports']);
+		expect(res.body.leaders.map((l: { role: string }) => l.role)).toEqual(['background_services', 'exports', 'cleanup']);
 		expect(res.body.leaders.find((l: { role: string }) => l.role === 'exports').held).toBe(true);
 		expect(res.body.database.connections.length).toBeGreaterThan(0);
 	});

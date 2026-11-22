@@ -15,6 +15,7 @@ export const user_columns = {
 	username: users_table.username,
 	email: users_table.email,
 	role: users_table.role,
+	avatar_id: users_table.avatar_id,
 	edited_at: users_table.edited_at,
 	created_at: users_table.created_at,
 	modified_at: users_table.modified_at

@@ -86,10 +86,10 @@ describe('lyrics (§7) with client actions', () => {
 		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: ytm.token, track_id: b.id, lyrics: lrc } })).status).toBe(403);
 		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: other.access_token, body: { token: ytm.token, track_id: a.id, lyrics: lrc } })).status).toBe(403);
 		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: genius.token, track_id: a.id, lyrics: lrc } })).status).toBe(403);
-		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: 'forged.token.value', track_id: a.id, lyrics: lrc } })).status).toBe(401);
+		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: 'forged.token.value', track_id: a.id, lyrics: lrc } })).status).toBe(403);
 
 		await api('POST', '/auth/logout', { token: user.access_token });
-		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: ytm.token, track_id: a.id, lyrics: lrc } })).status).toBe(401);
+		expect((await api('POST', '/ingest/youtube_music_lyrics', { token: user.access_token, body: { token: ytm.token, track_id: a.id, lyrics: lrc } })).status).toBe(403);
 		// Nothing was stored by any of the refused attempts.
 		expect(await query(`select count(*)::int as n from track_lyrics_table where track_id in ($1, $2)`, [a.id, b.id])).toEqual([{ n: 0 }]);
 	});

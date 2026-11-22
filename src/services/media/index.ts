@@ -2,24 +2,25 @@ import { createReadStream } from 'node:fs';
 import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
 import { media_table, tracks_table } from '../../db/schema';
-import { issue_actions } from '../../core/actions';
+import { check_action_token, issue_actions } from '../../core/actions';
 import type { ActionType } from '../../core/actions';
 import type { AuthUser } from '../../core/auth/tokens';
 import { require_disk_space } from '../../core/disk';
 import { HttpError, parse_body, require_user, uuid_schema } from '../../core/http';
 import { logger } from '../../core/log';
+import { rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect } from '../../core/redirects';
 import { parse_range } from './range';
 import { remote_media_url } from './remote';
 import { resource_ext, resource_path } from './resource_id';
 import { MIME_BY_EXT } from './sniff';
-import { backpacked_upload_track_ids, pending_upload_track_ids, store_upload, user_can_access_tracks } from './store';
+import { backpacked_upload_track_ids, pending_upload_track_ids, store_upload, token_target, user_can_access_tracks } from './store';
 import { M4A_KIND, transcode_to_m4a } from './transcode';
 import { receive_upload } from './upload';
 
@@ -29,24 +30,53 @@ export { sniff_audio } from './sniff';
 
 const log = logger('media');
 
-/** Mounted after `require_auth`: `POST /tracks/:id/media`, `GET /media/requests`, `GET /media/:resource_id`. */
+/** Mounted after `require_auth`: `POST /tracks/:id/media`, `GET /media/requests`. */
 export const media_router = Router();
+
+/** Mounted before `require_auth`: `GET /media/:resource_id`, public to anyone holding the resource id. */
+export const public_media_router = Router();
 
 const upload_fields_schema = z.object({
 	quality: z.string().trim().min(1).max(32).optional(),
 	token: z.string().min(1).max(4096).optional()
 });
 
-media_router.post('/tracks/:id/media', require_disk_space, async (req, res) => {
+const upload_limit = rate_limit_user('media_upload', 60, 60 * 60_000);
+
+/** The track's first media (the one served), if any. */
+async function existing_media(track_id: string) {
+	const [row] = await db.select().from(media_table).where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);
+	return row;
+}
+
+/**
+ * Everything that can refuse an upload is checked before its body is read, so a client never sends 200 MB for
+ * nothing: an UPLOAD_MEDIA token in `X-Action-Token` is checked (not used up), an unsolicited upload must be for a
+ * track in the user's library, and a track that already has media takes no more (the first upload sticks).
+ */
+media_router.post('/tracks/:id/media', require_disk_space, upload_limit, async (req, res) => {
+	const started = new Date();
 	const user = require_user(req);
 	const requested = uuid_schema.safeParse(req.params.id);
 	if (!requested.success) throw new HttpError(400, 'invalid track id');
+	const refuse = (err: HttpError): never => {
+		res.setHeader('Connection', 'close');
+		throw err;
+	};
 	const track_id = await resolve_redirect(db, requested.data);
 	const [track] = await db.select({ id: tracks_table.id }).from(tracks_table).where(eq(tracks_table.id, track_id));
-	if (!track) {
-		res.setHeader('Connection', 'close');
-		throw new HttpError(404, 'track not found');
+	if (!track) refuse(new HttpError(404, 'track not found'));
+
+	const header_token = typeof req.headers['x-action-token'] === 'string' ? req.headers['x-action-token'] : undefined;
+	try {
+		if (header_token !== undefined) await check_action_token(user, header_token, 'UPLOAD_MEDIA', token_target(header_token, requested.data, track_id), started);
+		else if (!(await user_can_access_tracks(db, user.id, [track_id]))) throw new HttpError(403, 'track is not in your library', { code: 'NOT_IN_LIBRARY' });
+	} catch (err) {
+		if (err instanceof HttpError) refuse(err);
+		throw err;
 	}
+	const current = await existing_media(track_id);
+	if (current) refuse(new HttpError(409, 'track already has media', { code: 'TRACK_HAS_MEDIA', media: current }));
 
 	const incoming_dir = path.join(config.MEDIA_DIR, '.incoming');
 	let upload;
@@ -59,6 +89,14 @@ media_router.post('/tracks/:id/media', require_disk_space, async (req, res) => {
 	let encoded: string | undefined;
 	try {
 		const fields = parse_body(upload_fields_schema, upload.fields);
+		// Older clients send the token as a form field after the file; it's checked when stored.
+		const token = header_token ?? fields.token ?? null;
+		// A retry of an upload that already went through (same bytes) answers at once, without encoding or a token.
+		const duplicate = await find_duplicate(track_id, upload.sha256);
+		if (duplicate) {
+			res.status(200).json({ media: duplicate, duplicate: true });
+			return;
+		}
 		encoded = await transcode_to_m4a(upload.temp_path, incoming_dir);
 		// Dedupe stays keyed on the uploaded bytes: the encoder output isn't byte-stable across ffmpeg versions.
 		const result = await store_upload({
@@ -67,7 +105,8 @@ media_router.post('/tracks/:id/media', require_disk_space, async (req, res) => {
 			track_id,
 			upload: { ...upload, temp_path: encoded, kind: M4A_KIND },
 			quality: fields.quality ?? null,
-			token: fields.token ?? null
+			token,
+			started
 		});
 		if (!result.duplicate) {
 			log.info('media stored', { track_id, resource_id: result.media.resource_id, uploaded_bytes: upload.size, source: upload.kind.ext, user_id: user.id });
@@ -111,16 +150,23 @@ media_router.get('/media/requests', async (req, res) => {
 	});
 });
 
-media_router.get('/media/:resource_id', async (req, res) => {
-	const user = require_user(req);
+/**
+ * Streams a media file. Resource ids are random and never reused, so the id itself is the capability: no session is
+ * needed, and native players can stream (and seek, long after any access token would have expired) with no headers.
+ * Ids that aren't resource ids fall through to the authenticated routes (`/media/requests`).
+ */
+public_media_router.get('/media/:resource_id', async (req, res, next) => {
 	const resource_id = req.params.resource_id;
 	const ext = resource_ext(resource_id);
 	const file_path = resource_path(config.MEDIA_DIR, resource_id);
-	if (ext === null || file_path === null) throw new HttpError(400, 'invalid resource id');
-
-	const rows = await db.select({ track_id: media_table.track_id }).from(media_table).where(eq(media_table.resource_id, resource_id));
-	if (rows.length === 0) throw new HttpError(404, 'media not found');
-	if (!(await user_can_access_tracks(db, user.id, rows.map(r => r.track_id)))) throw new HttpError(403, 'track is not in your library');
+	if (ext === null || file_path === null) {
+		// The authenticated GET /media/requests
+		if (resource_id === 'requests') {
+			next();
+			return;
+		}
+		throw new HttpError(400, 'invalid resource id');
+	}
 
 	let size: number;
 	try {
@@ -132,15 +178,14 @@ media_router.get('/media/:resource_id', async (req, res) => {
 			res.redirect(302, remote);
 			return;
 		}
-		log.error('media file missing', { resource_id });
-		throw new HttpError(404, 'media file not found');
+		throw new HttpError(404, 'media not found');
 	}
 
 	// Stored media never changes, so the resource id is a strong validator.
 	const etag = `"${resource_id}"`;
 	res.setHeader('ETag', etag);
 	res.setHeader('Content-Type', MIME_BY_EXT[ext]);
-	res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+	res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
 	if (config.MEDIA_ACCEL_PREFIX) {
 		// nginx serves the file itself (ranges, If-Range against this ETag, sendfile); Node is done.
@@ -176,3 +221,8 @@ media_router.get('/media/:resource_id', async (req, res) => {
 		if ((err as NodeJS.ErrnoException).code !== 'ERR_STREAM_PREMATURE_CLOSE') log.warn('media stream failed', { resource_id, err });
 	}
 });
+
+async function find_duplicate(track_id: string, sha256: string) {
+	const [row] = await db.select().from(media_table).where(and(eq(media_table.track_id, track_id), eq(media_table.content_hash, sha256)));
+	return row;
+}
