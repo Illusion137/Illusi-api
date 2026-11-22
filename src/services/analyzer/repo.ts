@@ -288,8 +288,9 @@ export async function save_sample(row: SampleInsert, source: ResolvedSource): Pr
 			})
 			.returning({ id: track_sample_data_table.id });
 		if (inserted.length > 0) await write_vector(tx, row.id);
-		// The analyzer measured the audio itself: a track nobody gave a duration gets this one (and syncs it out).
-		if (row.source_duration_ms) {
+		// The analyzer measured the full audio itself: a track nobody gave a duration gets this one (and syncs it out).
+		// Not from an iTunes preview, which is a ~30 s clip of the song.
+		if (row.source_duration_ms && source.source === 'media') {
 			await tx.update(tracks_table).set({ duration_ms: row.source_duration_ms, modified_at: new Date() })
 				.where(and(eq(tracks_table.id, row.id), isNull(tracks_table.duration_ms)));
 		}

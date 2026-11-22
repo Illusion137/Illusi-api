@@ -495,7 +495,7 @@ describe('analyzer jobs from iTunes previews', () => {
 		analyze = async (body) => {
 			seen_path = body.path;
 			expect((await stat(body.path)).isFile()).toBe(true);
-			return json(analysis);
+			return json({ ...analysis, duration_ms: 30_000 });
 		};
 		await start();
 		emit('itunes_track_linked', { track_id: t.id, itunes_track_id: t.it_id, preview_url: 'https://audio.test/clip.m4a' });
@@ -503,6 +503,9 @@ describe('analyzer jobs from iTunes previews', () => {
 		expect(seen_path.startsWith(tmp_dir)).toBe(true);
 		expect(seen_path.endsWith('.m4a')).toBe(true);
 		expect(await lookups_of(t.id)).toEqual([expect.objectContaining({ source: 'itunes_preview', status: 'DONE', source_ref: 'https://audio.test/clip.m4a' })]);
+		// The clip's length is kept with the sample, but it isn't the song's.
+		expect(await sample_of(t.id)).toMatchObject({ source_duration_ms: 30_000 });
+		expect(await pool.query('select duration_ms from tracks_table where id = $1', [t.id]).then(r => r.rows[0].duration_ms)).toBeNull();
 		await wait(async () => expect(await readdir(tmp_dir)).not.toContain(path.basename(seen_path)));
 		expect(calls.filter(c => c.url.endsWith('/vocals'))).toHaveLength(0);
 		await stop();
@@ -575,6 +578,8 @@ describe('analyzer startup and shutdown', () => {
 			expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE', beats: [500, 1000, 1500], rhythm_bpm: 120, rhythm_model: 'test-rhythm' });
 		});
 		expect((await sample_of(t.id)).mfccs).toHaveLength(13);
+		// Measured from the full media file, so the track without a duration gets it.
+		expect(await pool.query('select duration_ms from tracks_table where id = $1', [t.id]).then(r => Number(r.rows[0].duration_ms))).toBe(214_300);
 		await stop();
 
 		// Current now: another start leaves it alone
