@@ -92,8 +92,8 @@ async function upload_actions(user: AuthUser, track_ids: readonly string[]): Pro
 /** Pending UPLOAD_MEDIA actions for this user, at most `limit`, backpacked tracks first. */
 export async function pending_upload_actions(user: AuthUser, limit: number): Promise<ActionType[]> {
 	if (limit <= 0) return [];
-	const backpacked = await backpacked_upload_track_ids(db, user.id, limit);
-	const rest = backpacked.length < limit ? await pending_upload_track_ids(db, user.id, limit) : [];
+	const backpacked = await backpacked_upload_track_ids(db, user, limit);
+	const rest = backpacked.length < limit ? await pending_upload_track_ids(db, user, limit) : [];
 	const ids = [...new Set([...backpacked, ...rest])].slice(0, limit);
 	return upload_actions(user, ids);
 }
@@ -104,7 +104,7 @@ media_router.get('/media/requests', async (req, res) => {
 	const query = requests_query_schema.safeParse(req.query);
 	if (!query.success) throw new HttpError(400, 'invalid query', { issues: query.error.issues });
 	const { limit, cursor } = query.data;
-	const track_ids = await pending_upload_track_ids(db, user.id, limit, cursor);
+	const track_ids = await pending_upload_track_ids(db, user, limit, cursor);
 	res.json({
 		actions: await upload_actions(user, track_ids),
 		next_cursor: track_ids.length === limit ? track_ids[track_ids.length - 1] : null

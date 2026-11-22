@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
@@ -21,6 +21,8 @@ export const list_query_schema = z.object({
 	kind: z.enum(REVIEW_KINDS).optional(),
 	entity_table: z.string().max(64).optional(),
 	status: z.enum(REVIEW_STATUSES).default('OPEN'),
+	/** Leaves out the merges and splits reconciliation already made on its own (`AUTO_*`), which only need acknowledging. */
+	hide_auto: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
 	sort: z.enum(['occurrences', 'age']).default('occurrences'),
 	order: z.enum(['asc', 'desc']).optional(),
 	page: z.coerce.number().int().min(1).default(1),
@@ -97,10 +99,12 @@ export async function entity_context(ex: Executor, entity_table: string, entity_
 }
 
 const MAX_GROUP_CONTEXT = 10;
+const AUTO_REVIEW_KINDS = REVIEW_KINDS.filter(k => k.startsWith('AUTO_'));
 
 export async function list_review(q: ListQuery) {
 	const filters = [eq(review_items_table.status, q.status)];
 	if (q.kind) filters.push(eq(review_items_table.kind, q.kind));
+	else if (q.hide_auto) filters.push(notInArray(review_items_table.kind, AUTO_REVIEW_KINDS));
 	if (q.entity_table) filters.push(eq(review_items_table.entity_table, resolve_table(q.entity_table) ?? q.entity_table));
 	const where = and(...filters);
 	const [{ total }] = await db.select({ total: count() }).from(review_items_table).where(where);

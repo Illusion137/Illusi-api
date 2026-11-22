@@ -52,7 +52,9 @@ describe('review helpers', () => {
 	});
 
 	it('parses list queries with defaults and bounds', () => {
-		expect(list_query_schema.parse({})).toMatchObject({ status: 'OPEN', sort: 'occurrences', page: 1, limit: 25 });
+		expect(list_query_schema.parse({})).toMatchObject({ status: 'OPEN', sort: 'occurrences', hide_auto: false, page: 1, limit: 25 });
+		expect(list_query_schema.parse({ hide_auto: 'true' }).hide_auto).toBe(true);
+		expect(list_query_schema.safeParse({ hide_auto: 'yes' }).success).toBe(false);
 		expect(list_query_schema.parse({ kind: 'AUTO_MERGE', page: '2', limit: '100', sort: 'age' })).toMatchObject({ kind: 'AUTO_MERGE', page: 2, limit: 100, sort: 'age' });
 		expect(list_query_schema.safeParse({ limit: '500' }).success).toBe(false);
 		expect(list_query_schema.safeParse({ kind: 'NOPE' }).success).toBe(false);

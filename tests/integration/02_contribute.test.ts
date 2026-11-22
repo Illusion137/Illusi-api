@@ -69,6 +69,42 @@ describe('global contributions (§9)', () => {
 		expect(by_name.body.refs.b).toBe(created.body.refs.al);
 	});
 
+	it('settles video titles and album disagreements by rule instead of review', async () => {
+		const [a, b] = await Promise.all([create_user('rule-a'), create_user('rule-b')]);
+		const artist = unique('Rule Artist');
+		const reviews = (id: string) => query(`select field from review_items_table where entity_id = $1`, [id]);
+
+		// A stored video title gives way to the clean one.
+		const graph = mock_album({ artist, album: unique('Rule Album'), n: 1 });
+		const track_id = (await contribute(a, graph)).body.refs.t0;
+		await query(`update tracks_table set title = $2 where id = $1`, [track_id, `${artist} - ${graph.tracks[0].title}`]);
+		await contribute(b, graph);
+		expect(await query(`select title from tracks_table where id = $1`, [track_id])).toEqual([{ title: graph.tracks[0].title }]);
+
+		// And a video title coming in is matched and stored by the song's title alone.
+		const video = structuredClone(graph);
+		video.tracks[0].title = `${artist} - ${graph.tracks[0].title}`;
+		await contribute(b, video);
+		expect(await query(`select title from tracks_table where id = $1`, [track_id])).toEqual([{ title: graph.tracks[0].title }]);
+		const fresh = mock_album({ artist: unique('Video Artist'), album: unique('Video Album'), n: 1 });
+		fresh.tracks[0].title = `${fresh.artists[0].name} - Clean Name`;
+		const fresh_id = (await contribute(a, fresh)).body.refs.t0;
+		expect(await query(`select title from tracks_table where id = $1`, [fresh_id])).toEqual([{ title: 'Clean Name' }]);
+
+		// The single and the album: linked to both, the album becomes the primary one.
+		const single = mock_album({ artist, album: unique('Rule Single'), album_type: 'SINGLE', n: 1 });
+		const created = await contribute(a, single);
+		const [song, single_id] = [created.body.refs.t0, created.body.refs.al];
+		const on_album = structuredClone(single);
+		on_album.albums[0] = { ...on_album.albums[0], name: unique('Rule LP'), album_type: 'ALBUM', service_ids: { spotify_id: `lp${unique('x')}`.padEnd(22, '0').slice(0, 22) } };
+		const album_id = (await contribute(b, on_album)).body.refs.al;
+		expect(album_id).not.toBe(single_id);
+		expect(await query(`select album_id from tracks_table where id = $1`, [song])).toEqual([{ album_id }]);
+		expect((await query<{ album_id: string }>(`select album_id from album_tracks_table where track_id = $1`, [song])).map(r => r.album_id).sort()).toEqual([album_id, single_id].sort());
+
+		expect([...await reviews(track_id), ...await reviews(song)]).toEqual([]);
+	});
+
 	it('first write wins on shared fields and conflicting values go to admin review (§9.3, §11.2)', async () => {
 		const a = await create_user('writer-a');
 		const b = await create_user('writer-b');
@@ -80,15 +116,38 @@ describe('global contributions (§9)', () => {
 
 		// Empty field: filled by the first writer.
 		await contribute(b, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit: true }] });
-		// Different value from two users: not applied, one deduped review item with both reporters.
-		await contribute(b, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit: false }] });
-		await contribute(c, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit: false }] });
+		// Clean from a service that marks clean versions, from two users: not applied, one deduped review item with both reporters.
+		await contribute(b, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit: false, source: 'Deezer' }] });
+		await contribute(c, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit: false, source: 'Deezer' }] });
 
 		expect(await query(`select explicit from tracks_table where id = $1`, [track_id])).toEqual([{ explicit: true }]);
 		const items = await query(`select kind, field, status, occurrences, source_user_ids from review_items_table where entity_id = $1 and field = 'explicit'`, [track_id]);
 		expect(items).toHaveLength(1);
 		expect(items[0]).toMatchObject({ kind: 'FIELD_CONFLICT', status: 'OPEN', occurrences: 2 });
 		expect([...items[0].source_user_ids].sort()).toEqual([b.id, c.id].sort());
+	});
+
+	it('weighs a track\'s explicit by the service it came from', async () => {
+		const [a, b] = await Promise.all([create_user('explicit-a'), create_user('explicit-b')]);
+		const graph = mock_album({ artist: unique('Explicit Artist'), album: unique('Explicit Album'), n: 1 });
+		const track_id = (await contribute(a, graph)).body.refs.t0;
+		const send = (explicit: boolean, source?: string) => contribute(b, { tracks: [{ ref: track_id, title: graph.tracks[0].title, explicit, ...(source ? { source } : {}) }] });
+		const explicit = async () => (await query<{ explicit: boolean | null }>(`select explicit from tracks_table where id = $1`, [track_id]))[0].explicit;
+
+		await send(true, 'YouTube');
+		expect(await explicit()).toBeNull();
+		await send(false, 'Spotify');
+		expect(await explicit()).toBe(false);
+		await send(true, 'SoundCloud');
+		expect(await explicit()).toBe(true);
+		await send(false);
+		await send(false, 'Spotify');
+		await send(false, 'YouTube');
+		expect(await explicit()).toBe(true);
+		await send(false, 'YouTube Music');
+		expect(await explicit()).toBe(false);
+		expect(await query(`select 1 from review_items_table where entity_id = $1`, [track_id])).toHaveLength(0);
+		expect((await contribute(b, { tracks: [{ ref: track_id, title: graph.tracks[0].title, source: 'Napster' }] })).body.rejected).toEqual([]);
 	});
 
 	it('records a service id conflict when one id is already taken by another entity (§4.4)', async () => {

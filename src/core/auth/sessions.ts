@@ -3,7 +3,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import { config } from '../../config';
 import { db } from '../../db';
 import type { Executor } from '../../db';
-import { sessions_table, users_table } from '../../db/schema';
+import { sessions_table, track_downloads_table, users_table } from '../../db/schema';
 import { logger } from '../log';
 import { hash_token, new_refresh_token, sign_access_token } from './tokens';
 import type { AuthUser } from './tokens';
@@ -40,6 +40,7 @@ export async function rotate_refresh_token(refresh_token: string): Promise<Refre
 			if (row.replaced_by) {
 				await tx.update(sessions_table).set({ revoked_at: new Date() })
 					.where(and(eq(sessions_table.family_id, row.family_id), isNull(sessions_table.revoked_at)));
+				await tx.delete(track_downloads_table).where(eq(track_downloads_table.session_family_id, row.family_id));
 				log.warn(`refresh token reuse detected; revoked session family ${row.family_id}`, { user_id: row.user_id });
 				return { ok: false, reason: 'reused' } as const;
 			}
@@ -67,12 +68,19 @@ export async function rotate_refresh_token(refresh_token: string): Promise<Refre
 	});
 }
 
+/** A logged-out device can't upload anything, so its downloads are forgotten with it. */
 export async function revoke_family(family_id: string) {
-	await db.update(sessions_table).set({ revoked_at: new Date() }).where(and(eq(sessions_table.family_id, family_id), isNull(sessions_table.revoked_at)));
+	await db.transaction(async (tx) => {
+		await tx.update(sessions_table).set({ revoked_at: new Date() }).where(and(eq(sessions_table.family_id, family_id), isNull(sessions_table.revoked_at)));
+		await tx.delete(track_downloads_table).where(eq(track_downloads_table.session_family_id, family_id));
+	});
 }
 
 export async function revoke_all_for_user(user_id: string) {
-	await db.update(sessions_table).set({ revoked_at: new Date() }).where(and(eq(sessions_table.user_id, user_id), isNull(sessions_table.revoked_at)));
+	await db.transaction(async (tx) => {
+		await tx.update(sessions_table).set({ revoked_at: new Date() }).where(and(eq(sessions_table.user_id, user_id), isNull(sessions_table.revoked_at)));
+		await tx.delete(track_downloads_table).where(eq(track_downloads_table.user_id, user_id));
+	});
 }
 
 /** A session family is live while it has an unrevoked, unexpired row. Used to invalidate action tokens. */

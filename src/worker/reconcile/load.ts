@@ -9,6 +9,7 @@ import {
 import {
 	normalize_applemusic_id, normalize_soundcloud_permalink, normalize_spotify_id, normalize_youtube_id, SERVICE_ID_COLUMNS
 } from '../../core/service_ids';
+import { normalize_name } from '../../core/normalize';
 import type { ServiceIdColumn } from '../../core/service_ids';
 import type { ConflictInfo, EntityKind, Facet, ReconcileNode } from './types';
 
@@ -89,6 +90,14 @@ export async function load_nodes(ex: Executor, ids: readonly string[] | null): P
 	for (const r of await in_chunks(track_ids, c => ex.select({ track_id: album_tracks_table.track_id, track_number: album_tracks_table.track_number })
 		.from(album_tracks_table).where(inArray(album_tracks_table.track_id, c)))) {
 		if (r.track_number != null && !track_number.has(r.track_id)) track_number.set(r.track_id, r.track_number);
+	}
+	const album_tracks = new Map<string, string[]>();
+	for (const r of await in_chunks(albums.map(a => a.id), c => ex.select({ album_id: album_tracks_table.album_id, title: tracks_table.title })
+		.from(album_tracks_table).innerJoin(tracks_table, eq(tracks_table.id, album_tracks_table.track_id))
+		.where(inArray(album_tracks_table.album_id, c)))) {
+		const list = album_tracks.get(r.album_id);
+		if (list) list.push(normalize_name(r.title));
+		else album_tracks.set(r.album_id, [normalize_name(r.title)]);
 	}
 	const artist_names = new Map((await in_chunks(defined(albums.map(a => a.artist_id)), c => ex.select({ id: artists_table.id, name: artists_table.name })
 		.from(artists_table).where(inArray(artists_table.id, c)))).map(a => [a.id, a.name]));
@@ -183,7 +192,7 @@ export async function load_nodes(ex: Executor, ids: readonly string[] | null): P
 			}
 		} else if (kind === 'album') {
 			const a = album_by_id.get(row.illusi_id)!;
-			meta = { source: 'entity', columns: [], title: a.name, artist: a.artist_id ? artist_names.get(a.artist_id) ?? null : null, explicit: a.explicit, release_year: year_of(a.release_date) };
+			meta = { source: 'entity', columns: [], title: a.name, artist: a.artist_id ? artist_names.get(a.artist_id) ?? null : null, explicit: a.explicit, release_year: year_of(a.release_date), tracks: album_tracks.get(a.id) ?? [] };
 			entity_filled = count_filled(a);
 			const ic = node_ids.applemusic_id ? itunes_albums.get(node_ids.applemusic_id) : undefined;
 			if (ic) {

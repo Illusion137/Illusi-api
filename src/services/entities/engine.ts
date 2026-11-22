@@ -4,9 +4,9 @@
  * their own transaction; it never commits and never emits events itself (see `flush_engine_events`).
  */
 import { randomUUID } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '../../db';
-import { album_tracks_table, artist_albums_table, service_ids_table, similar_artists_table, tracks_artists_table } from '../../db/schema';
+import { album_tracks_table, albums_table, artist_albums_table, service_ids_table, similar_artists_table, tracks_artists_table, tracks_table } from '../../db/schema';
 import { enrich_service_ids } from '../../core/enrich';
 import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
@@ -14,8 +14,8 @@ import type { ProvenanceLog, TouchedEntity } from '../../core/provenance';
 import { add_review_item } from '../../core/review';
 import { upsert_thumbnails } from '../../core/thumbnails';
 import { truncate_to_columns } from '../../core/truncate';
-import { resolve_shared_fields } from './fields';
-import type { FieldSpec } from './fields';
+import { explicit_rule, resolve_shared_fields, strip_artist_prefix, values_equal } from './fields';
+import type { FieldConflict, FieldSpec } from './fields';
 import { ENTITY_TABLE_NAMES, ENTITY_TABLES, match_by_service_ids, match_entity, record_link_conflict, record_service_id_others, resolve_existing_ref } from './match';
 import type { MatchInput } from './match';
 import type { IdCandidate } from './matching';
@@ -111,6 +111,17 @@ export function graph_links(graph: Graph): Links {
 	return links;
 }
 
+function track_artist_names(graph: Graph, links: Links, track_ref: string): string[] {
+	const names = new Map(graph.artists.map(a => [a.ref, a.name]));
+	return (links.artists_of_track.get(track_ref) ?? []).map(r => names.get(r)).filter((n): n is string => n != null);
+}
+
+/** A video's `Artist - Title` names the song by its title alone, for matching and storing alike. */
+function with_song_titles(graph: Graph): Graph {
+	const links = graph_links(graph);
+	return { ...graph, tracks: graph.tracks.map(t => ({ ...t, title: strip_artist_prefix(t.title, track_artist_names(graph, links, t.ref)) })) };
+}
+
 class Engine {
 	readonly result: EngineResult = { refs: {}, created: [], matched: [], conflicts: [], rejected: [], relations_added: 0, events: [] };
 	private readonly payload_refs = new Map<string, AnyInput>();
@@ -121,6 +132,40 @@ class Engine {
 	constructor(private tx: Tx, private graph: Graph, private ctx: EngineContext) {
 		for (const e of [...graph.artists, ...graph.albums, ...graph.tracks]) this.payload_refs.set(e.ref, e);
 		this.links = graph_links(graph);
+	}
+
+	/**
+	 * Settles track disagreements that have a rule instead of a reviewer. `explicit` follows `explicit_rule`. A stored
+	 * `Artist - Title` gives way to the clean title. A different album links the track to both, and a full album becomes the primary one over a single
+	 * or EP. Returns the conflicts left for review.
+	 */
+	private async settle_track_conflicts(sp: Tx, id: string, input: TrackInput, differing: FieldConflict[]): Promise<FieldConflict[]> {
+		const left: FieldConflict[] = [];
+		const artists = track_artist_names(this.graph, this.links, input.ref);
+		for (const c of differing) {
+			if (c.field === 'title' && values_equal('name', strip_artist_prefix(String(c.current), artists), c.proposed)) {
+				await sp.update(tracks_table).set({ title: String(c.proposed) }).where(eq(tracks_table.id, id));
+				continue;
+			}
+			if (c.field === 'explicit') {
+				const rule = explicit_rule(input.source, Boolean(c.proposed));
+				if (rule === 'apply') await sp.update(tracks_table).set({ explicit: Boolean(c.proposed) }).where(eq(tracks_table.id, id));
+				if (rule === 'review') left.push(c);
+				continue;
+			}
+			if (c.field === 'album_id') {
+				const [current, proposed] = [String(c.current), String(c.proposed)];
+				await sp.insert(album_tracks_table).values([{ album_id: current, track_id: id }, { album_id: proposed, track_id: id }]).onConflictDoNothing();
+				const types = new Map((await sp.select({ id: albums_table.id, album_type: albums_table.album_type }).from(albums_table)
+					.where(inArray(albums_table.id, [current, proposed]))).map(r => [r.id, r.album_type]));
+				if (types.get(proposed) === 'ALBUM' && (types.get(current) === 'SINGLE' || types.get(current) === 'EP')) {
+					await sp.update(tracks_table).set({ album_id: proposed }).where(eq(tracks_table.id, id));
+				}
+				continue;
+			}
+			left.push(c);
+		}
+		return left;
 	}
 
 	/** A ref's `illusi_id`: an applied payload entity, or an existing id not defined in the payload. */
@@ -195,7 +240,7 @@ class Engine {
 			return { name: a.name, artist_id: a.artist_ref ? await this.resolve(a.artist_ref, 'artist') : undefined, album_type: a.album_type, release_date: a.release_date, track_count: a.track_count, explicit: a.explicit };
 		}
 		const t = input as TrackInput;
-		return { title: t.title, album_id: t.album_ref ? await this.resolve(t.album_ref, 'album') : undefined, duration_ms: t.duration_ms, explicit: t.explicit };
+		return { title: t.title, album_id: t.album_ref ? await this.resolve(t.album_ref, 'album') : undefined, duration_ms: t.duration_ms, explicit: t.source === 'YouTube' ? undefined : t.explicit };
 	}
 
 	/**
@@ -226,7 +271,9 @@ class Engine {
 				if (match.kind === 'match') {
 					id = match.illusi_id;
 					const [current] = await sp.select().from(table).where(eq(table.id, id)).for('update');
-					const { fill, conflicts: differing } = resolve_shared_fields(FIELD_SPECS[type], current as Record<string, unknown>, values);
+					const resolved = resolve_shared_fields(FIELD_SPECS[type], current as Record<string, unknown>, values);
+					const { fill } = resolved;
+					const differing = type === 'track' ? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts) : resolved.conflicts;
 					if (Object.keys(fill).length > 0) {
 						await sp.update(table).set(fill).where(eq(table.id, id));
 						touched.push({ table: table_name, id, filled: Object.keys(fill) });
@@ -378,7 +425,8 @@ class Engine {
  * service-id enrichment and thumbnails) → relations. A failing entity is rejected on its own (savepoint)
  * and the relations that need it are rejected with it.
  */
-export async function apply_graph(tx: Tx, graph: Graph, ctx: EngineContext): Promise<EngineResult> {
+export async function apply_graph(tx: Tx, raw: Graph, ctx: EngineContext): Promise<EngineResult> {
+	const graph = with_song_titles(raw);
 	const engine = new Engine(tx, graph, ctx);
 	for (const [index, a] of graph.artists.entries()) await engine.apply_entity('artist', a, index);
 	for (const [index, a] of graph.albums.entries()) await engine.apply_entity('album', a, index);

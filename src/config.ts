@@ -130,7 +130,8 @@ const schema = z.object({
 	/** Pairs at or above this confidence (without hard evidence) become admin review items; below are dismissed. */
 	RECONCILE_REVIEW_MIN_CONFIDENCE: num(0.5),
 	RECONCILE_MAX_GROUP_SIZE: num(50),
-	RECONCILE_SPLIT_DURATION_GAP_MS: num(10_000),
+	/** Recordings further apart than this are different recordings (the same as the duration tolerance: past it, two files aren't the same audio). */
+	RECONCILE_SPLIT_DURATION_GAP_MS: num(3_000),
 	/** Cosine distances between feature vectors counted as "same audio" / "different audio". */
 	RECONCILE_AUDIO_MATCH_DISTANCE: num(0.02),
 	RECONCILE_AUDIO_CONTRADICTION_DISTANCE: num(0.25)

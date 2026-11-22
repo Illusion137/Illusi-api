@@ -106,11 +106,11 @@ describe('rotate_refresh_token', () => {
 });
 
 describe('revocation and liveness', () => {
-	it('revoke_family and revoke_all_for_user issue an update', async () => {
-		setup([undefined, undefined]);
+	it('revoke_family and revoke_all_for_user revoke and forget the devices\' downloads', async () => {
+		setup([undefined, undefined, undefined, undefined]);
 		await revoke_family('fam-1');
 		await revoke_all_for_user('u1');
-		expect(t.calls.map(c => c.op)).toEqual(['update', 'update']);
+		expect(t.calls.map(c => c.op)).toEqual(['update', 'delete', 'update', 'delete']);
 		expect(t.arg(t.calls[0], 'set')).toHaveProperty('revoked_at');
 	});
 

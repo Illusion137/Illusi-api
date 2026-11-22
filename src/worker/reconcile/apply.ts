@@ -182,7 +182,8 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 			tables: undo_tables
 		}
 	});
-	if (ctx.actor === 'reconcile') {
+	// A merge on hard evidence (a shared unique id) needs nobody's eyes; one only implied through others gets a look.
+	if (ctx.actor === 'reconcile' && step.reasons.includes('transitive')) {
 		await add_review_item(tx, {
 			kind: 'AUTO_MERGE',
 			entity_table,
@@ -259,6 +260,19 @@ async function settle_column_conflicts(tx: Tx, illusi_id: string, columns: reado
 	));
 }
 
+/**
+ * A split-off track is another recording of the same song: it keeps the performers, appears on the same albums (not as
+ * their primary album, and without a track number) and shares the unsynced lyrics. Synced lyrics stay, their timing
+ * is the other recording's. Undoing the split deletes the new track, and these rows with it.
+ */
+async function inherit_track_metadata(tx: Tx, from: string, new_id: string) {
+	await run(tx, sql`insert into tracks_artists_table (artist_id, track_id) select artist_id, ${new_id} from tracks_artists_table where track_id = ${from} on conflict do nothing`);
+	await run(tx, sql`insert into album_tracks_table (album_id, track_id) select album_id, ${new_id} from album_tracks_table where track_id = ${from} on conflict do nothing`);
+	await run(tx, sql`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash)
+		select ${new_id}, service, sync_type, format, raw_content, content_hash from track_lyrics_table where track_id = ${from} and sync_type = 'NONE'
+		on conflict do nothing`);
+}
+
 /** Creates a new entity for misattributed external ids and moves them (and their service data) onto it. */
 export async function apply_split(tx: Tx, step: SplitStep, ctx: ApplyContext): Promise<StepResult> {
 	const from = await resolve_redirects(tx, [step.from]).then(m => m.get(step.from)!);
@@ -275,11 +289,16 @@ export async function apply_split(tx: Tx, step: SplitStep, ctx: ApplyContext): P
 	const [created] = await tx.insert(service_ids_table).values(to_column_values(values)).returning({ illusi_id: service_ids_table.illusi_id });
 	const new_id = created.illusi_id;
 	const title = step.new_entity.title;
-	if (kind === 'track') await run(tx, sql`insert into tracks_table (id, title, duration_ms, explicit) values (${new_id}, ${title.slice(0, 256)}, ${step.new_entity.duration_ms}, ${step.new_entity.explicit})`);
-	else await run(tx, sql`insert into ${id(ENTITY_TABLES[kind])} (id, name) values (${new_id}, ${title.slice(0, 256)})`);
+	if (kind === 'track') {
+		await run(tx, sql`insert into tracks_table (id, title, duration_ms, explicit) values (${new_id}, ${title.slice(0, 256)}, ${step.new_entity.duration_ms}, ${step.new_entity.explicit})`);
+	} else {
+		await run(tx, sql`insert into ${id(ENTITY_TABLES[kind])} (id, name) values (${new_id}, ${title.slice(0, 256)})`);
+	}
 	await run(tx, sql`update ${id(ENTITY_TABLES[kind])} set modified_at = ${now} where id = ${from}`);
 
 	const moved = await move_service_data(tx, kind, from, new_id, step.facet_source, step.thumbnails);
+	// After the move: the moved service's own lyrics are already the new track's.
+	if (kind === 'track') await inherit_track_metadata(tx, from, new_id);
 	await settle_column_conflicts(tx, from, columns);
 
 	const entity_table = ENTITY_TABLES[kind];

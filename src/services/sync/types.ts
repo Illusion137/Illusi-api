@@ -107,6 +107,8 @@ export const push_row_schemas = {
 		artists: z.array(override_ref).min(1).max(32).nullish(),
 		album: override_ref.nullish(),
 		downloaded_at: nullable_time.optional(),
+		/** Whether the pushing device has the file now; older clients send only `downloaded_at` */
+		downloaded: z.boolean().optional(),
 		start_at: z.number().int().nullish(),
 		end_at: z.number().int().nullish(),
 		deleted: z.boolean().optional(),

@@ -30,6 +30,29 @@ function replace(el, ...children) {
 	append(el, children);
 }
 
+/**
+ * Swaps `el`'s content for fresher content of the same kind (after an action or a reload) without losing the place:
+ * the page's scroll position and the sideways scroll of each table in it are put back.
+ */
+function rerender(el, ...children) {
+	const { scrollX, scrollY } = window;
+	const wraps = [...el.querySelectorAll('.table-wrap')].map(w => [w.scrollLeft, w.scrollTop]);
+	replace(el, ...children);
+	el.querySelectorAll('.table-wrap').forEach((w, i) => { if (wraps[i]) [w.scrollLeft, w.scrollTop] = wraps[i]; });
+	window.scrollTo(scrollX, scrollY);
+}
+
+/** A placeholder while the first load runs; a reload keeps the old content on screen until the new one arrives. */
+function loading(el, placeholder) {
+	if (el.childElementCount === 0) replace(el, placeholder);
+}
+
+/** Pager clicks start the new page at its top. */
+const to_top = go => (page) => {
+	go(page);
+	window.scrollTo(0, 0);
+};
+
 function toast(message, kind = '') {
 	const el = h('div', { class: `toast ${kind}` }, message);
 	document.body.append(el);
@@ -229,6 +252,7 @@ let nav_counts = {};
 async function render() {
 	cleanup?.();
 	cleanup = null;
+	hide_fk_preview();
 	if (!auth.access && !auth.refresh) {
 		me = null;
 		replace(app, login_view());
@@ -611,8 +635,10 @@ function entity_link(context) {
 		context?.redirected_to ? h('span', { class: 'muted small' }, ` (merged from ${short_id(context.entity_id)})`) : null);
 }
 
+const REVIEW_SORTS = [['newest', 'Newest first', 'age', 'desc'], ['oldest', 'Oldest first', 'age', 'asc'], ['occurrences', 'Most reported', 'occurrences', undefined]];
+
 function review_view(main) {
-	const f = { status: 'OPEN', kind: '', sort: 'occurrences', page: 1 };
+	const f = { status: 'OPEN', kind: '', sort: 'newest', hide_auto: true, page: 1 };
 	const list = h('div', { class: 'stack' });
 	const controls = h('div', { class: 'toolbar' });
 	const count = h('span', { class: 'muted small' });
@@ -620,19 +646,23 @@ function review_view(main) {
 	const draw_controls = () => replace(controls,
 		select([['OPEN', 'Open'], ['APPLIED', 'Applied'], ['DISMISSED', 'Dismissed']], f.status, (v) => { f.status = v; f.page = 1; void load(); }),
 		select([['', 'All kinds'], ...REVIEW_KINDS], f.kind, (v) => { f.kind = v; f.page = 1; void load(); }),
-		select([['occurrences', 'Most reported'], ['age', 'Oldest first']], f.sort, (v) => { f.sort = v; f.page = 1; void load(); }),
+		select(REVIEW_SORTS.map(([v, label]) => [v, label]), f.sort, (v) => { f.sort = v; f.page = 1; void load(); }),
+		h('label', { class: 'check', title: 'Merges and splits reconciliation already made on its own only need acknowledging' },
+			h('input', { type: 'checkbox', checked: f.hide_auto, disabled: Boolean(f.kind), onchange: (e) => { f.hide_auto = e.target.checked; f.page = 1; void load(); } }),
+			'Hide automatic merges & splits'),
 		h('button', { onclick: () => void load() }, 'Reload'));
 
 	async function load() {
 		draw_controls();
-		replace(list, h('div', { class: 'empty' }, 'Loading…'));
+		loading(list, h('div', { class: 'empty' }, 'Loading…'));
+		const [, , sort, order] = REVIEW_SORTS.find(([v]) => v === f.sort);
 		try {
-			const data = await api('GET', `/admin/review${qs({ status: f.status, kind: f.kind, sort: f.sort, page: f.page })}`);
+			const data = await api('GET', `/admin/review${qs({ status: f.status, kind: f.kind, sort, order, hide_auto: f.hide_auto && !f.kind ? 'true' : undefined, page: f.page })}`);
 			replace(count, `${data.total} items`);
-			if (f.status === 'OPEN') nav_counts.review = f.kind ? nav_counts.review : data.total;
-			replace(list,
+			if (f.status === 'OPEN' && !f.kind && !f.hide_auto) nav_counts.review = data.total;
+			rerender(list,
 				data.items.length === 0 ? h('div', { class: 'card empty' }, 'Nothing to review.') : data.items.map(item => review_card(item, load)),
-				pager(data, f.page, (p) => { f.page = p; void load(); }));
+				pager(data, f.page, to_top((p) => { f.page = p; void load(); })));
 		} catch (err) {
 			replace(list, error_view(err));
 		}
@@ -751,11 +781,11 @@ function backpack_view(main) {
 
 	async function load() {
 		draw_controls();
-		replace(body, h('div', { class: 'empty' }, 'Loading…'));
+		loading(body, h('div', { class: 'empty' }, 'Loading…'));
 		try {
 			const data = await api('GET', `/admin/backpack${qs({ sort: f.sort, exhausted: f.exhausted ? 'true' : undefined, page: f.page })}`);
 			replace(count, `${data.total} tracks`);
-			replace(body,
+			rerender(body,
 				h('div', { class: 'table-wrap' }, h('table', null,
 					h('thead', null, h('tr', null,
 						h('th', null, 'Track'), h('th', { class: 'num' }, 'Reports'), h('th', { class: 'num' }, 'Users'), h('th', null, 'Reported on'),
@@ -763,7 +793,7 @@ function backpack_view(main) {
 					h('tbody', null, data.items.length === 0
 						? h('tr', null, h('td', { colspan: 8, class: 'empty' }, 'No backpacked tracks.'))
 						: data.items.map(t => backpack_row(t, load))))),
-				pager(data, f.page, (p) => { f.page = p; void load(); }));
+				pager(data, f.page, to_top((p) => { f.page = p; void load(); })));
 		} catch (err) {
 			replace(body, error_view(err));
 		}
@@ -845,7 +875,7 @@ function track_detail_view(main, id) {
 		try {
 			const d = await api('GET', `/admin/tracks/${encodeURIComponent(id)}`);
 			if (d.redirected_from) history.replaceState(null, '', `#/tracks/${d.track.id}`);
-			replace(body, track_sections(d, load));
+			rerender(body, track_sections(d, load));
 		} catch (err) {
 			replace(body, error_view(err));
 		}
@@ -947,15 +977,15 @@ function users_view(main) {
 	const count = h('span', { class: 'muted small' });
 
 	async function load() {
-		replace(body, h('div', { class: 'empty' }, 'Loading…'));
+		loading(body, h('div', { class: 'empty' }, 'Loading…'));
 		try {
 			const data = await api('GET', `/admin/users${qs(f)}`);
 			replace(count, `${data.total} users`);
-			replace(body,
+			rerender(body,
 				h('div', { class: 'table-wrap' }, h('table', null,
 					h('thead', null, h('tr', null, h('th', null, 'User'), h('th', null, 'Role'), h('th', null, 'Email'), h('th', { class: 'num' }, 'Sessions'), h('th', null, 'Last seen'), h('th', null, 'Joined'), h('th', null, 'Actions'))),
 					h('tbody', null, data.items.length === 0 ? h('tr', null, h('td', { colspan: 7, class: 'empty' }, 'No users found.')) : data.items.map(u => user_row(u, load))))),
-				pager(data, f.page, (p) => { f.page = p; void load(); }));
+				pager(data, f.page, to_top((p) => { f.page = p; void load(); })));
 		} catch (err) {
 			replace(body, error_view(err));
 		}
@@ -1016,7 +1046,7 @@ const FILTER_OPS = [['eq', '='], ['neq', '≠'], ['gt', '>'], ['gte', '≥'], ['
 const SCALAR_KINDS = ['text', 'uuid', 'enum', 'boolean', 'integer', 'number', 'timestamp', 'date'];
 let table_list = null;
 
-function tables_view(main, [name]) {
+function tables_view(main, [name, column, value]) {
 	const list = h('div', { class: 'db-list' }, h('div', { class: 'empty' }, 'Loading…'));
 	const content = h('div', { class: 'db-content' });
 	let q = '';
@@ -1041,9 +1071,78 @@ function tables_view(main, [name]) {
 			replace(content, h('div', { class: 'card empty' }, name ? `No table named ${name}.` : `Pick one of ${table_list.length} tables.`));
 			return;
 		}
-		close_drawer = table_grid(content, table);
+		close_drawer = table_grid(content, table, column && value !== undefined ? { column, value } : null);
 	})();
 	return () => close_drawer?.();
+}
+
+// Foreign keys: a link to the row it points at (`#/tables/<table>/<column>/<value>`), with a preview card on hover.
+
+const preview_cache = new Map();
+let hover_card = null;
+
+function fk_href(ref, value) {
+	return `#/tables/${ref.table}/${encodeURIComponent(ref.column)}/${encodeURIComponent(String(value))}`;
+}
+
+/** The value as the target key column expects it: a URL or a cell gives text, integer keys need a number. */
+function key_value(table_name, column, raw) {
+	const c = table_list?.find(t => t.name === table_name)?.columns.find(x => x.name === column);
+	return c && (c.kind === 'integer' || c.kind === 'number') ? Number(raw) : raw;
+}
+
+function fk_link(ref, value, text) {
+	let timer = null;
+	const a = h('a', {
+		href: fk_href(ref, value),
+		class: 'fk',
+		onclick: e => e.stopPropagation(),
+		onmouseenter: () => { timer = setTimeout(() => void show_fk_preview(a, ref, value), 250); },
+		onmouseleave: () => {
+			clearTimeout(timer);
+			hide_fk_preview();
+		}
+	}, text);
+	return a;
+}
+
+function hide_fk_preview() {
+	hover_card?.remove();
+	hover_card = null;
+}
+
+function place_card(card, anchor) {
+	const r = anchor.getBoundingClientRect();
+	const below = r.bottom + 6 + card.offsetHeight <= window.innerHeight;
+	card.style.top = `${below ? r.bottom + 6 : Math.max(8, r.top - 6 - card.offsetHeight)}px`;
+	card.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - card.offsetWidth - 8))}px`;
+}
+
+async function show_fk_preview(anchor, ref, value) {
+	hide_fk_preview();
+	const card = h('div', { class: 'fk-preview' }, h('div', { class: 'muted small' }, 'Loading…'));
+	hover_card = card;
+	document.body.append(card);
+	place_card(card, anchor);
+	const id = `${ref.table}:${value}`;
+	let data = preview_cache.get(id);
+	if (!data) {
+		try {
+			data = await api('POST', `/admin/tables/${encodeURIComponent(ref.table)}/preview`, { key: { [ref.column]: key_value(ref.table, ref.column, value) } });
+			preview_cache.set(id, data);
+		} catch (err) {
+			if (hover_card === card) replace(card, h('div', { class: 'error small' }, err.status === 404 ? 'That row no longer exists.' : err.message));
+			return;
+		}
+	}
+	if (hover_card !== card) return;
+	replace(card,
+		h('div', { class: 'spread' },
+			h('strong', { class: 'ellipsis' }, data.label ?? String(value)),
+			h('span', { class: 'row' }, data.entity ? badge(data.entity.kind) : null, h('span', { class: 'muted small' }, ref.table.replace(/_table$/u, '')))),
+		h('dl', { class: 'kv' }, data.fields.map(([k, v]) => [h('dt', { class: 'mono' }, k), h('dd', { class: 'mono' }, preview(v))])),
+		h('div', { class: 'muted small' }, 'Click to open'));
+	place_card(card, anchor);
 }
 
 function compact(n) {
@@ -1058,8 +1157,10 @@ function cell_text(value) {
 	return String(value);
 }
 
-function table_grid(content, table) {
-	const f = { page: 1, limit: 50, sort: '', dir: 'asc', filters: [] };
+/** `focus`: a `{ column, value }` the grid opens filtered on; when that's the key, the row's drawer opens too. */
+function table_grid(content, table, focus) {
+	const f = { page: 1, limit: 50, sort: '', dir: 'asc', filters: focus ? [{ column: focus.column, op: 'eq', value: focus.value }] : [] };
+	let open_focused = Boolean(focus && table.primary_key.length === 1 && table.primary_key[0] === focus.column);
 	let rows = [];
 	let has_more = false;
 	let drawer = null;
@@ -1101,6 +1202,7 @@ function table_grid(content, table) {
 		if (c.redacted) return h('td', { class: 'cell muted' }, 'hidden');
 		const text = cell_text(row[c.name]);
 		if (text === null) return h('td', { class: 'cell null' }, 'NULL');
+		if (c.references) return h('td', { class: 'cell' }, fk_link(c.references, row[c.name], text));
 		return h('td', { class: `cell ${c.kind === 'integer' || c.kind === 'number' ? 'num' : ''}`, title: text.length > 60 ? text.slice(0, 2000) : null }, text);
 	};
 
@@ -1121,16 +1223,16 @@ function table_grid(content, table) {
 		document.body.append(drawer);
 	};
 
-	const draw = () => replace(body,
+	const draw = () => rerender(body,
 		h('div', { class: 'table-wrap db-grid' }, h('table', null,
 			h('thead', null, header()),
 			h('tbody', null, rows.length === 0
 				? h('tr', null, h('td', { colspan: table.columns.length, class: 'empty' }, f.filters.length ? 'No rows match these filters.' : 'This table is empty.'))
 				: rows.map(r => h('tr', { class: 'clickable', onclick: () => open_row(r) }, table.columns.map(c => cell(c, r))))))),
 		h('div', { class: 'row', style: 'margin-top:12px' },
-			h('button', { class: 'small', disabled: f.page <= 1, onclick: () => { f.page--; void load(); } }, '← Prev'),
+			h('button', { class: 'small', disabled: f.page <= 1, onclick: () => { f.page--; void load(); window.scrollTo(0, 0); } }, '← Prev'),
 			h('span', { class: 'muted small' }, `Page ${f.page} · rows ${rows.length ? (f.page - 1) * f.limit + 1 : 0}–${(f.page - 1) * f.limit + rows.length}`),
-			h('button', { class: 'small', disabled: !has_more, onclick: () => { f.page++; void load(); } }, 'Next →'),
+			h('button', { class: 'small', disabled: !has_more, onclick: () => { f.page++; void load(); window.scrollTo(0, 0); } }, 'Next →'),
 			select([['25', '25 rows'], ['50', '50 rows'], ['100', '100 rows'], ['200', '200 rows']], String(f.limit), (v) => { f.limit = Number(v); f.page = 1; void load(); })));
 
 	async function load() {
@@ -1142,6 +1244,8 @@ function table_grid(content, table) {
 			rows = data.items;
 			has_more = data.has_more;
 			draw();
+			if (open_focused && rows.length === 1) open_row(rows[0]);
+			open_focused = false;
 		} catch (err) {
 			replace(body, error_view(err));
 		}
@@ -1321,7 +1425,8 @@ function field_editor(c, original, mode) {
 		h('span', { class: 'mono' }, c.name), ' ',
 		h('span', { class: 'muted small' }, c.sql_type, c.nullable ? '' : ' · not null'),
 		c.primary_key ? badge('key') : null,
-		!inserting && !c.editable && !c.redacted ? badge('read-only') : null);
+		!inserting && !c.editable && !c.redacted ? badge('read-only') : null,
+		!inserting && c.references && original != null ? [' ', fk_link(c.references, original, `open in ${c.references.table.replace(/_table$/u, '')} ↗`)] : null);
 	if (c.redacted) return { column: c, el: h('div', { class: 'field' }, label, h('div', { class: 'muted' }, 'Hidden: never sent to the dashboard.')), changed: () => false };
 	if (!inserting && !c.editable) {
 		const text = field_text(c, original);

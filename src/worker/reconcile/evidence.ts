@@ -113,6 +113,17 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		else if (Math.abs(ay - by) > 1) weak('release_year_differs', { a: ay, b: by });
 	}
 
+	// The same release twice (or the standard edition and its deluxe): at least half of the shorter track list is on the other.
+	const atr = a.meta.tracks;
+	const btr = b.meta.tracks;
+	let tracks_agree = false;
+	if (atr?.length && btr?.length) {
+		const other = new Set(btr);
+		const shared = new Set(atr.filter(x => other.has(x))).size;
+		tracks_agree = shared * 2 >= Math.min(new Set(atr).size, other.size);
+		if (tracks_agree) signals.push({ name: 'album_tracks', weight: w.album_tracks, detail: shared });
+	}
+
 	if (a.vector && b.vector) {
 		const d = cosine_distance(a.vector, b.vector);
 		if (d != null) {
@@ -127,6 +138,9 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		if (cross_service) hard = 'cross_service_id';
 		else if (same_isrc && durations_close) hard = 'isrc_duration';
 		else if (shared_unique && contradictions.length === 0) hard = 'shared_unique_id';
+		// Same name and artist with agreeing tracks; a different release year (a reissue?) is left for review.
+		else if (a.kind === 'album' && tracks_agree && contradictions.length === 0 && (ay == null || by == null || ay === by)
+			&& signals.some(s => s.name === 'title') && signals.some(s => s.name === 'artist')) hard = 'album_tracks';
 	}
 	const score = signals.reduce((s, x) => s + x.weight, 0) - contradictions.reduce((s, x) => s + x.weight, 0);
 	return { a: a.illusi_id, b: b.illusi_id, signals, contradictions, confidence: clamp01(score), hard };

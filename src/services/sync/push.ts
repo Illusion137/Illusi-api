@@ -9,7 +9,7 @@ import { db } from '../../db';
 import type { Tx } from '../../db';
 import {
 	linked_playlists_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, playlist_tracks_table, playlists_table,
-	sync_pushes_table, track_plays_table, tracks_artists_table, user_recent_searches, user_tracks_table, users_table
+	sync_pushes_table, track_downloads_table, track_plays_table, tracks_artists_table, user_recent_searches, user_tracks_table, users_table
 } from '../../db/schema';
 import type { AuthUser } from '../../core/auth/tokens';
 import { PendingEvents } from '../../core/events';
@@ -75,7 +75,7 @@ class PushApplier {
 	private readonly track_cache = new Map<string, string | null>();
 	private readonly owned = new Map<string, boolean>();
 
-	constructor(private tx: Tx, private user_id: string, private now: Date, private refs: Record<string, string>, readonly overrides: OverrideResolver) {}
+	constructor(private tx: Tx, private user_id: string, private session_family_id: string, private now: Date, private refs: Record<string, string>, readonly overrides: OverrideResolver) {}
 
 	private count(table: PushTable | 'profile') { this.applied[table] = (this.applied[table] ?? 0) + 1; }
 	private reject(table: PushTable | 'profile', index: number, reason: string) { this.rejected.push({ table, index, reason }); }
@@ -113,6 +113,7 @@ class PushApplier {
 	async user_track({ row: r, index }: { row: PushRow<'user_tracks'>; index: number }) {
 		const track_id = await this.track(r.track_id);
 		if (!track_id) return this.reject('user_tracks', index, 'unknown track');
+		await this.device_download(track_id, r);
 		const t = user_tracks_table;
 		const edited_at = this.edited(r.edited_at);
 		const [cur] = await this.tx.select({ edited_at: t.edited_at }).from(t).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id))).for('update');
@@ -132,6 +133,22 @@ class PushApplier {
 			return;
 		}
 		this.count('user_tracks');
+	}
+
+	/**
+	 * Whether this device holds the file is a fact about the device, not a user edit, so it skips last-write-wins.
+	 * A client without `downloaded` only reports downloads it has.
+	 */
+	private async device_download(track_id: string, r: PushRow<'user_tracks'>) {
+		const has = r.downloaded ?? (r.downloaded_at != null ? true : undefined);
+		const d = track_downloads_table;
+		if (has === false) {
+			await this.tx.delete(d).where(and(eq(d.session_family_id, this.session_family_id), eq(d.track_id, track_id)));
+		} else if (has === true) {
+			const downloaded_at = r.downloaded_at ?? this.now;
+			await this.tx.insert(d).values({ session_family_id: this.session_family_id, user_id: this.user_id, track_id, downloaded_at })
+				.onConflictDoUpdate({ target: [d.session_family_id, d.track_id], set: { downloaded_at, modified_at: this.now } });
+		}
 	}
 
 	/** The row's own credits as ids; undefined fields keep the stored ones, null if a name can't be resolved */
@@ -376,7 +393,7 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 			const [{ now }] = await tx.execute<{ now: string }>(sql`select now()::text as now`, 'objects');
 			const provenance = new ProvenanceLog('sync_push', user.id);
 			const engine = await apply_graph(tx, graph, { user_id: user.id, source: 'sync_push', provenance });
-			const applier = new PushApplier(tx, user.id, new Date(now), engine.refs, new OverrideResolver(tx, user.id, provenance));
+			const applier = new PushApplier(tx, user.id, user.sid, new Date(now), engine.refs, new OverrideResolver(tx, user.id, provenance));
 
 			if (profile) await applier.profile(profile);
 			for (const r of rows.user_tracks) await applier.user_track(r);

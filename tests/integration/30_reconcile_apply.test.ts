@@ -73,7 +73,7 @@ describe('apply_merge', () => {
 		await query(`insert into user_tracks_table (user_id, track_id) values ($1, $3), ($1, $4), ($2, $4)`, [u1.id, u2.id, a, b]);
 		const c = await conflict(b, 'spotify_id', a);
 
-		const res = await in_tx(tx => apply_merge(tx, merge_step(a, b), reconcile));
+		const res = await in_tx(tx => apply_merge(tx, merge_step(a, b, { reasons: ['transitive'] }), reconcile));
 		expect(res.applied).toBe(true);
 
 		expect(await query(`select id from tracks_table where id in ($1, $2)`, [a, b])).toEqual([{ id: a }]);
@@ -90,8 +90,16 @@ describe('apply_merge', () => {
 		expect(audit.actor).toBe('reconcile');
 		expect(audit.details).toMatchObject({ survivor: a, loser: b, kind: 'track' });
 		expect(audit.undo.tables.user_tracks_table).toBeDefined();
+		// Only implied through other tracks, so a reviewer gets to look.
 		const reviews = await query(`select kind from review_items_table where entity_id = $1`, [a]);
 		expect(reviews).toEqual([{ kind: 'AUTO_MERGE' }]);
+	});
+
+	it('raises no review item for a merge on hard evidence', async () => {
+		const a = await track({ isrc: isrc() }, { title: 'Hard', duration_ms: 200_000 });
+		const b = await track({ isrc: isrc() }, { title: 'Hard', duration_ms: 200_000 });
+		expect((await in_tx(tx => apply_merge(tx, merge_step(a, b, { reasons: ['shared_unique_id'] }), reconcile))).applied).toBe(true);
+		expect(await query(`select 1 from review_items_table where entity_id = $1`, [a])).toHaveLength(0);
 	});
 
 	it('skips merges that are already done or whose rows are gone', async () => {
@@ -165,13 +173,24 @@ describe('apply_split', () => {
 		const sc = sc_id();
 		const sp = unique('sp');
 		const t = await track({ spotify_id: sp, soundcloud_id: sc });
+		const [artist, al] = [await service_ids(), await album()];
+		await query(`insert into artists_table (id, name) values ($1, 'Performer')`, [artist]);
+		await query(`insert into tracks_artists_table (artist_id, track_id) values ($1, $2)`, [artist, t]);
+		await query(`insert into album_tracks_table (album_id, track_id, track_number) values ($1, $2, 4)`, [al, t]);
+		await query(`update tracks_table set album_id = $1 where id = $2`, [al, t]);
+		await query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'LRCLIB', 'NONE', 'PLAIN', 'words', $2), ($1, 'LRCLIB', 'LINE', 'LRC', '[00:01.00]words', $3)`, [t, unique('h'), unique('h')]);
 		const c = await conflict(t, 'soundcloud_id');
 		const res = await in_tx(tx => apply_split(tx, split_step(t, { soundcloud_id: String(sc) }), reconcile));
 		expect(res.applied).toBe(true);
 		const new_id = res.new_id!;
 		expect(await query(`select spotify_id, soundcloud_id from service_ids_table where illusi_id = $1`, [t])).toEqual([{ spotify_id: sp, soundcloud_id: null }]);
 		expect(await query(`select soundcloud_id from service_ids_table where illusi_id = $1`, [new_id])).toEqual([{ soundcloud_id: String(sc) }]);
-		expect(await query(`select title, duration_ms, explicit from tracks_table where id = $1`, [new_id])).toEqual([{ title: 'Split Off', duration_ms: '123000', explicit: false }]);
+		expect(await query(`select title, duration_ms, explicit, album_id from tracks_table where id = $1`, [new_id])).toEqual([{ title: 'Split Off', duration_ms: '123000', explicit: false, album_id: null }]);
+		// Another recording of the same song: same performers and albums, the unsynced lyrics but not the synced ones.
+		expect(await query(`select artist_id from tracks_artists_table where track_id = $1`, [new_id])).toEqual([{ artist_id: artist }]);
+		expect(await query(`select album_id, track_number from album_tracks_table where track_id = $1`, [new_id])).toEqual([{ album_id: al, track_number: null }]);
+		expect(await query(`select sync_type from track_lyrics_table where track_id = $1`, [new_id])).toEqual([{ sync_type: 'NONE' }]);
+		expect(await query(`select count(*)::int as n from track_lyrics_table where track_id = $1`, [t])).toEqual([{ n: 2 }]);
 		expect(await conflict_status(c)).toBe('split');
 		expect(await query(`select action from audit_log_table where entity_id = $1`, [t])).toEqual([{ action: 'split' }]);
 		expect(await query(`select kind from review_items_table where entity_id = $1`, [t])).toEqual([{ kind: 'AUTO_SPLIT' }]);
@@ -190,7 +209,8 @@ describe('apply_split', () => {
 
 		const res = await in_tx(tx => apply_split(tx, split_step(t, { genius_id: String(genius) }, { facet_source: 'genius', thumbnails: [url] }), reconcile));
 		const n = res.new_id!;
-		expect(await query(`select service from track_lyrics_table where track_id = $1`, [n])).toEqual([{ service: 'GENIUS' }]);
+		// Genius's own lyrics move; the other plain lyrics stay and are shared with the new recording.
+		expect(await query(`select service from track_lyrics_table where track_id = $1 order by service`, [n])).toEqual([{ service: 'GENIUS' }, { service: 'KUGOU' }]);
 		expect(await query(`select service from track_lyrics_table where track_id = $1`, [t])).toEqual([{ service: 'KUGOU' }]);
 		expect(await query(`select 1 from track_lyrics_lookups_table where track_id = $1 and service = 'GENIUS'`, [n])).toHaveLength(1);
 		expect(await query(`select 1 from track_lyrics_lookups_table where track_id = $1`, [t])).toHaveLength(0);

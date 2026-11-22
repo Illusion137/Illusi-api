@@ -277,3 +277,19 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 	.db-side { position: static; max-height: 240px; }
 }
 .drawer-actions .grow { flex: 1; }
+
+/* Foreign keys: link to the referenced row, preview card on hover. */
+.db-grid td.cell a.fk { color: var(--accent); text-decoration: underline dotted; text-underline-offset: 2px; }
+.fk-preview {
+	position: fixed;
+	z-index: 50;
+	width: min(380px, calc(100vw - 16px));
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+	padding: 10px 12px;
+	pointer-events: none;
+}
+.fk-preview .kv { margin: 8px 0; font-size: 12px; }
+.fk-preview .ellipsis { max-width: 240px; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolve_shared_fields } from './fields';
+import { explicit_rule, resolve_shared_fields, strip_artist_prefix } from './fields';
 import { other_artists, prepare_similar_pairs } from './similar';
 
 const spec = { title: 'name', duration_ms: 'duration', explicit: 'bool', release_date: 'date', album_id: 'id' } as const;
@@ -39,5 +39,35 @@ describe('similar artists', () => {
 		expect(other_artists(one, 'b')).toEqual(['a']);
 		expect(other_artists(two, 'a')).toEqual(['b']);
 		expect(other_artists(two, 'b')).toEqual(['a']);
+	});
+});
+
+describe('strip_artist_prefix', () => {
+	it('drops a leading "Artist - " made of the track\'s artists', () => {
+		expect(strip_artist_prefix('Lil Poppa - Russian Roulette', ['Lil Poppa'])).toBe('Russian Roulette');
+		expect(strip_artist_prefix('lil poppa – Russian Roulette', ['Lil Poppa'])).toBe('Russian Roulette');
+		expect(strip_artist_prefix('A & B - Song', ['A', 'B'])).toBe('Song');
+		expect(strip_artist_prefix('Simon & Garfunkel - The Boxer', ['Simon & Garfunkel'])).toBe('The Boxer');
+		expect(strip_artist_prefix('playboi carti - molly (not real) (og version)', ['Playboi Carti'])).toBe('molly (not real) (og version)');
+	});
+
+	it('leaves other dashes and unknown prefixes alone', () => {
+		expect(strip_artist_prefix('Song - Live', ['Artist'])).toBe('Song - Live');
+		expect(strip_artist_prefix('Someone Else - Song', ['Artist'])).toBe('Someone Else - Song');
+		expect(strip_artist_prefix('A & Stranger - Song', ['A'])).toBe('A & Stranger - Song');
+		expect(strip_artist_prefix('Artist - Song', [])).toBe('Artist - Song');
+		expect(strip_artist_prefix('Artist-Song', ['Artist'])).toBe('Artist-Song');
+	});
+});
+
+describe('explicit_rule', () => {
+	it('weighs explicit by source', () => {
+		expect(explicit_rule('YouTube', true)).toBe('ignore');
+		expect(explicit_rule('YouTube Music', false)).toBe('apply');
+		expect(explicit_rule('SoundCloud', true)).toBe('apply');
+		expect(explicit_rule('SoundCloud', false)).toBe('ignore');
+		expect(explicit_rule(null, false)).toBe('ignore');
+		expect(explicit_rule('Spotify', false)).toBe('ignore');
+		expect(explicit_rule('Apple Music', false)).toBe('review');
 	});
 });

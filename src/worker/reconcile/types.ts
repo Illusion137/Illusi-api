@@ -18,6 +18,8 @@ export interface Facet {
 	explicit?: boolean | null;
 	track_number?: number | null;
 	release_year?: number | null;
+	/** An album's normalized track titles (the entity facet only). */
+	tracks?: string[];
 	/** Other external ids this service reports for the entity (Genius `appleMusicId`, `soundcloudUrl`, ...), normalized. */
 	reported?: Partial<Record<ServiceIdColumn, string>>;
 	/** Thumbnail URLs that came from this service, moved along on a split. */
@@ -80,7 +82,7 @@ export interface PairEvidence {
 	contradictions: (Signal & { strong: boolean })[];
 	confidence: number;
 	/** Which hard-evidence rule applies, if any. */
-	hard: 'cross_service_id' | 'isrc_duration' | 'shared_unique_id' | null;
+	hard: 'cross_service_id' | 'isrc_duration' | 'shared_unique_id' | 'album_tracks' | null;
 }
 
 export type PairDecision = 'merge' | 'review' | 'dismiss';

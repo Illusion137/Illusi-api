@@ -35,6 +35,8 @@ export interface ColumnInfo {
 	generated: boolean;
 	/** Never sent: shown as hidden, not filterable or sortable. */
 	redacted: boolean;
+	/** The row this value points at, for single-column foreign keys onto another table's primary key. */
+	references: { table: string; column: string } | null;
 }
 
 interface TableMeta {
@@ -112,9 +114,22 @@ function value_schema(c: Column, kind: ColumnKind): z.ZodType {
 	return c.notNull ? base : base.nullable();
 }
 
+function primary_key_of(table: PgTable): string[] {
+	const config = getTableConfig(table);
+	return config.primaryKeys[0]?.columns.map(c => c.name) ?? config.columns.filter(c => c.primary).map(c => c.name);
+}
+
 function describe_table(table: PgTable): TableMeta {
 	const config = getTableConfig(table);
-	const primary_key = config.primaryKeys[0]?.columns.map(c => c.name) ?? config.columns.filter(c => c.primary).map(c => c.name);
+	const primary_key = primary_key_of(table);
+	const references = new Map<string, { table: string; column: string }>();
+	for (const fk of config.foreignKeys) {
+		const ref = fk.reference();
+		const target_key = primary_key_of(ref.foreignTable);
+		if (ref.columns.length === 1 && target_key.length === 1 && target_key[0] === ref.foreignColumns[0].name) {
+			references.set(ref.columns[0].name, { table: getTableConfig(ref.foreignTable).name, column: target_key[0] });
+		}
+	}
 	const editable = !READ_ONLY_TABLES.has(config.name);
 	const keys = new Map(Object.entries(getTableColumns(table)).map(([key, c]) => [c.name, key]));
 	const refs = new Map<string, Column>();
@@ -138,7 +153,8 @@ function describe_table(table: PgTable): TableMeta {
 			editable: writable && !primary_key.includes(c.name),
 			insertable: writable,
 			generated,
-			redacted
+			redacted,
+			references: references.get(c.name) ?? null
 		};
 	});
 	const required = columns.find(c => !c.insertable && !c.nullable && !c.has_default && !c.generated);
@@ -307,6 +323,46 @@ export async function get_row(name: string, raw_key: unknown) {
 	const [row] = await db.select().from(meta.table).where(key_where(meta, key)) as Record<string, unknown>[];
 	if (!row) throw new HttpError(404, 'row not found');
 	return serialize_row(meta, row, false);
+}
+
+/** Columns that name a row, best first: the preview's heading. */
+const LABEL_COLUMNS = ['title', 'name', 'full_title', 'username', 'display_name', 'email', 'permalink'];
+const PREVIEW_FIELDS = 10;
+const PREVIEW_TEXT = 120;
+
+/**
+ * A short summary of one row for the hover card on a foreign key: a label and the first few set, readable columns.
+ * A service ids row also names the track, album or artist it identifies.
+ */
+export async function preview_row(name: string, raw_key: unknown) {
+	const meta = table_meta(name);
+	const key = parse_key(meta, raw_key);
+	const [row] = await db.select().from(meta.table).where(key_where(meta, key)) as Record<string, unknown>[];
+	if (!row) throw new HttpError(404, 'row not found');
+	const out = serialize_row(meta, row, false);
+	const label_column = LABEL_COLUMNS.find(c => typeof out[c] === 'string' && meta.columns.some(x => x.name === c && !x.redacted));
+	let label = label_column ? String(out[label_column]) : null;
+	let entity: { kind: string; table: string } | null = null;
+	if (name === 'service_ids_table') {
+		const id = String(out.illusi_id);
+		for (const [kind, table, column] of [['track', schema.tracks_table, 'title'], ['album', schema.albums_table, 'name'], ['artist', schema.artists_table, 'name']] as const) {
+			const [hit] = await db.select().from(table).where(eq(table.id, id)) as Record<string, unknown>[];
+			if (hit) {
+				label = typeof hit[column] === 'string' ? hit[column] : null;
+				entity = { kind, table: getTableConfig(table).name };
+				break;
+			}
+		}
+	}
+	const fields: [string, unknown][] = [];
+	for (const c of meta.columns) {
+		if (fields.length >= PREVIEW_FIELDS) break;
+		const v = out[c.name];
+		if (v == null || c.redacted || c.generated || c.name === label_column || (!SCALAR_KINDS.has(c.kind) && c.kind !== 'array')) continue;
+		const text = typeof v === 'string' ? v : JSON.stringify(v);
+		fields.push([c.name, text.length > PREVIEW_TEXT ? `${text.slice(0, PREVIEW_TEXT)}…` : v]);
+	}
+	return { table: name, key, label, entity, fields };
 }
 
 export const row_patch_schema = z.object({

@@ -43,3 +43,34 @@ export function resolve_shared_fields<T extends Record<string, unknown>>(spec: F
 	}
 	return { fill, conflicts };
 }
+
+const ARTIST_SEPARATOR_RE = /\s*(?:,|\band\b|\bx\b|\bvs\b)\s*/u;
+
+/**
+ * `Artist - Title`, the way video titles name songs, becomes `Title` when everything before the dash is the track's
+ * artists (`A & B - Title` too). Anything else is left as it is.
+ */
+export function strip_artist_prefix(title: string, artists: readonly string[]): string {
+	const m = /^(.+?)\s+[-\u2013\u2014]\s+(.+)$/u.exec(title);
+	if (!m || artists.length === 0) return title;
+	const known = new Set(artists.map(normalize_name));
+	const prefix = normalize_name(m[1]);
+	const named = prefix.split(ARTIST_SEPARATOR_RE).filter(Boolean);
+	return known.has(prefix) || (named.length > 0 && named.every(n => known.has(n))) ? m[2].trim() : title;
+}
+
+/** Services whose catalogs mark clean and explicit versions apart, so a `false` from them is a claim, not a default. */
+const EXPLICIT_REPORTING_SOURCES: ReadonlySet<string> = new Set(['Apple Music', 'Deezer', 'Tidal', 'Audiomack']);
+
+/**
+ * What a track contribution's `explicit` does, by where the track came from:
+ * - YouTube video: nothing. A video says nothing about the song; it is explicit when another source says so.
+ * - YouTube Music: its value wins either way.
+ * - Anything else: explicit wins over clean. A clean claim against a stored explicit is ignored, unless the source
+ *   marks clean versions (then it may be the clean recording, which a reviewer splits off).
+ */
+export function explicit_rule(source: string | null | undefined, proposed: boolean): 'ignore' | 'apply' | 'review' {
+	if (source === 'YouTube') return 'ignore';
+	if (proposed || source === 'YouTube Music') return 'apply';
+	return source != null && EXPLICIT_REPORTING_SOURCES.has(source) ? 'review' : 'ignore';
+}

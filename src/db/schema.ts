@@ -764,6 +764,22 @@ export const user_tracks_table = pgTable('user_tracks_table', {
 	index('user_tracks_track_id_idx').on(table.track_id),
 	index('user_tracks_user_id_modified_at_idx').on(table.user_id, table.modified_at)
 ]);
+/**
+ * Which device has which track downloaded. A device is a login (the session family, `sid` on its tokens), so only it
+ * is asked to upload the file; logging out forgets its rows. `user_tracks_table.downloaded_at` stays the user-wide
+ * "downloaded on some device" date the library shows.
+ */
+export const track_downloads_table = pgTable('track_downloads_table', {
+	session_family_id: uuid().notNull(),
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	downloaded_at: timestamptz().notNull(),
+	...timestamps
+}, table => [
+	primaryKey({ columns: [table.session_family_id, table.track_id] }),
+	index('track_downloads_track_id_idx').on(table.track_id),
+	index('track_downloads_user_id_idx').on(table.user_id)
+]);
 export const user_recent_searches = pgTable('user_recent_searches', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),
 	user_id: uuid().references(() => users_table.id, { onDelete: 'cascade' }),

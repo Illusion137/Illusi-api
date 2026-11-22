@@ -141,6 +141,19 @@ describe('pair_evidence release years', () => {
 		expect(JSON.stringify(evidence(a, b))).toContain('release_year_differs');
 		expect(JSON.stringify(evidence(a, node('C', { meta: { release_year: 2001 } })))).not.toContain('release_year_differs');
 	});
+
+	it('merges duplicate albums whose track lists agree, unless their release years differ', () => {
+		const album = (id: string, tracks: string[], release_year: number | null = 2020) =>
+			node(id, { kind: 'album', meta: { title: 'Record', artist: 'Artist', duration_ms: null, release_year, tracks } });
+		const standard = album('A', ['one', 'two', 'three']);
+		expect(evidence(standard, album('B', ['one', 'two', 'three'])).hard).toBe('album_tracks');
+		expect(evidence(standard, album('C', ['one', 'two', 'three', 'bonus', 'demo'])).hard).toBe('album_tracks');
+		expect(evidence(standard, album('D', ['one', 'two', 'three'], null)).hard).toBe('album_tracks');
+		expect(evidence(standard, album('E', ['one', 'other', 'else'])).hard).toBeNull();
+		expect(evidence(standard, album('F', [])).hard).toBeNull();
+		expect(evidence(standard, album('G', ['one', 'two', 'three'], 2021)).hard).toBeNull();
+		expect(evidence(album('H', ['one', 'two'], 2020), node('I', { kind: 'album', meta: { title: 'Other Record', artist: 'Artist', duration_ms: null, tracks: ['one', 'two'] } })).hard).toBeNull();
+	});
 });
 
 describe('pair_evidence artists', () => {

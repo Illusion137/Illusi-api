@@ -1224,6 +1224,7 @@ Every list and detail endpoint returns these shapes:
   - `service_ids`, `thumbnails[]`, `itunes` (§8.1 `ItunesFields`, or `null`), `sample_data` (or `null`);
   - `producers: { id, name }[]`;
   - `has_media` and `has_lyrics` flags;
+  - `resource_id`: the newest `media_table` row's resource id (§13.3), or `null` when the track has no media;
   - `user`: the caller's own overlay, or `null` when the track isn't in their library: `{ title, downloaded_at, start_at, end_at, added_at, plays, last_played_at }`.
 - `AlbumView`: the `albums_table` row, plus `artist: ArtistRef | null`, `artists: ArtistRef[]` (every `artist_albums_table` credit), `service_ids`, `thumbnails[]`, `itunes`.
 - `ArtistView`: the `artists_table` row, plus `service_ids`, `thumbnails[]`, `itunes`, `album_count`, `track_count`, and `in_library` (the caller has a library track crediting this artist).

@@ -57,13 +57,21 @@ export const album_schema = z.object({
 	track_count: z.number().int().min(0).max(100_000).nullish(),
 	explicit: z.boolean().nullish()
 });
+/** The service a contributed track came from (lib-origin's `MusicServiceType`); it decides how much its `explicit` counts. */
+export const CONTRIBUTION_SOURCES = [
+	'Illusi', 'Musi', 'YouTube', 'YouTube Music', 'Spotify', 'Amazon Music', 'Apple Music', 'SoundCloud', 'BandLab', 'Audiomack', 'Deezer', 'Tidal', 'Pandora', 'API'
+] as const;
+export type ContributionSource = typeof CONTRIBUTION_SOURCES[number];
+
 export const track_schema = z.object({
 	...common,
 	title: z.string().trim().min(1).max(4096),
 	album_ref: ref_schema.nullish(),
 	duration_ms: z.number().int().min(0).max(7 * 24 * 3_600_000).nullish(),
 	explicit: z.boolean().nullish(),
-	imported: z.boolean().nullish()
+	imported: z.boolean().nullish(),
+	// A service this server doesn't know yet counts as unknown rather than rejecting the track.
+	source: z.enum(CONTRIBUTION_SOURCES).nullish().catch(null)
 });
 
 const position_schema = z.number().int().min(0).max(1_000_000).nullish();

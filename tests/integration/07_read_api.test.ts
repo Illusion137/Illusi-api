@@ -152,7 +152,7 @@ describe('read API: catalog', () => {
 
 		const track = await api('GET', `/tracks/${track_ids[0]}`, { token: user.access_token });
 		expect(track.status).toBe(200);
-		expect(track.body).toMatchObject({ id: track_ids[0], has_media: false, has_lyrics: false, user: null });
+		expect(track.body).toMatchObject({ id: track_ids[0], has_media: false, resource_id: null, has_lyrics: false, user: null });
 		expect(track.body.redirected_from).toBeUndefined();
 
 		const old_id = uuid();

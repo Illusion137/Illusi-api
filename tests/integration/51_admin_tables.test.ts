@@ -5,6 +5,8 @@ import type { TestUser } from './helpers';
 let admin: TestUser;
 let user: TestUser;
 let track_id: string;
+/** Left alone by the delete tests. */
+let kept_track_id: string;
 
 const get = (path: string) => api('GET', path, { token: admin.access_token });
 const rows = (table: string, params: Record<string, string> = {}) => get(`/admin/tables/${table}/rows?${new URLSearchParams(params).toString()}`);
@@ -15,6 +17,7 @@ beforeAll(async () => {
 	user = await create_user('tbl-user');
 	const created = await contribute(user, mock_album({ artist: unique('Tbl Artist'), album: unique('Tbl Album'), n: 2 }));
 	track_id = created.body.refs.t0;
+	kept_track_id = created.body.refs.t1;
 });
 
 describe('admin table browser', () => {
@@ -158,5 +161,39 @@ describe('admin table browser: insert and delete', () => {
 		expect((await preview('tracks_table', { id: track_id })).status).toBe(404);
 		expect((await remove('users_table', { id: user.id })).status).toBe(403);
 		expect((await remove('audit_log_table', { id: 1 })).status).toBe(403);
+	});
+
+	it('marks foreign keys and previews the row they point at', async () => {
+		const tables = new Map<string, any>((await get('/admin/tables')).body.tables.map((t: any) => [t.name, t]));
+		const col = (table: string, name: string) => tables.get(table).columns.find((c: any) => c.name === name);
+		expect(col('tracks_table', 'album_id').references).toEqual({ table: 'albums_table', column: 'id' });
+		expect(col('tracks_table', 'id').references).toEqual({ table: 'service_ids_table', column: 'illusi_id' });
+		expect(col('tracks_table', 'title').references).toBeNull();
+
+		const preview = (table: string, key: unknown) => api('POST', `/admin/tables/${table}/preview`, { token: admin.access_token, body: { key } });
+		const [track] = await query<{ title: string }>('select title from tracks_table where id = $1', [kept_track_id]);
+		const res = await preview('tracks_table', { id: kept_track_id });
+		expect(res.status).toBe(200);
+		expect(res.body).toMatchObject({ table: 'tracks_table', label: track.title, entity: null });
+		expect(res.body.fields.map(([k]: [string]) => k)).not.toContain('search_title');
+		// Service ids name the entity they identify.
+		expect((await preview('service_ids_table', { illusi_id: kept_track_id })).body).toMatchObject({ label: track.title, entity: { kind: 'track', table: 'tracks_table' } });
+		// Secrets stay out of previews too.
+		const user_preview = await preview('users_table', { id: user.id });
+		expect(user_preview.body.fields.map(([k]: [string]) => k)).not.toContain('password_hash');
+		expect((await preview('tracks_table', { id: '00000000-0000-4000-8000-000000000000' })).status).toBe(404);
+		expect((await preview('tracks_table', { title: 'x' })).status).toBe(400);
+		expect((await api('POST', '/admin/tables/tracks_table/preview', { token: user.access_token, body: { key: { id: kept_track_id } } })).status).toBe(403);
+	});
+
+	it('hides the merges and splits reconciliation made on its own when asked', async () => {
+		const entity = kept_track_id;
+		await query(`insert into review_items_table (kind, entity_table, entity_id, dedupe_key) values ('AUTO_MERGE', 'tracks_table', $1, $2), ('LYRICS_PARSE_FAILURE', 'tracks_table', $1, $3)`, [entity, unique('auto'), unique('lyr')]);
+		const kinds = async (params: string) => ((await get(`/admin/review?limit=100&sort=age&order=desc&${params}`)).body.items as { kind: string; entity_id: string }[])
+			.filter(i => i.entity_id === entity).map(i => i.kind);
+		expect(await kinds('')).toEqual(['AUTO_MERGE', 'LYRICS_PARSE_FAILURE']);
+		expect(await kinds('hide_auto=true')).toEqual(['LYRICS_PARSE_FAILURE']);
+		// An explicit kind wins over the toggle.
+		expect(await kinds('hide_auto=true&kind=AUTO_MERGE')).toEqual(['AUTO_MERGE']);
 	});
 });

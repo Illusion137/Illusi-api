@@ -28,6 +28,8 @@ export interface Thresholds {
 		duration: number;
 		explicit: number;
 		release_year: number;
+		/** Two albums whose track lists mostly agree. */
+		album_tracks: number;
 		audio: number;
 		weak_contradiction: number;
 		strong_contradiction: number;
@@ -38,7 +40,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
 	name_match: DEFAULT_SIMILARITY_THRESHOLD,
 	name_contradiction: 0.5,
 	duration_tolerance_ms: DURATION_TOLERANCE_MS,
-	split_duration_gap_ms: 10_000,
+	split_duration_gap_ms: DURATION_TOLERANCE_MS,
 	audio_match_distance: 0.02,
 	audio_contradiction_distance: 0.25,
 	review_min_confidence: 0.5,
@@ -55,6 +57,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
 		duration: 0.15,
 		explicit: 0.03,
 		release_year: 0.03,
+		album_tracks: 0.2,
 		audio: 0.15,
 		weak_contradiction: 0.15,
 		strong_contradiction: 0.5

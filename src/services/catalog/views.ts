@@ -1,5 +1,5 @@
 /** The view shapes of the read API, built in batches. Every builder drops ids that don't exist. */
-import { and, asc, count, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, max, sql } from 'drizzle-orm';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
 import type {
@@ -45,6 +45,8 @@ export interface TrackView extends TrackRow {
 	sample_data: SampleRow | null;
 	producers: { id: number; name: string | null }[];
 	has_media: boolean;
+	/** The track's newest media, streamable through `GET /media/:resource_id` */
+	resource_id: string | null;
 	has_lyrics: boolean;
 	user: UserTrackOverlay | null;
 	redirected_from?: string;
@@ -139,7 +141,8 @@ export async function track_views(ex: Executor, user_id: string, track_ids: read
 			.from(track_plays_table)
 			.where(and(eq(track_plays_table.user_id, user_id), inArray(track_plays_table.track_id, ids)))
 			.groupBy(track_plays_table.track_id),
-		ex.selectDistinct({ track_id: media_table.track_id }).from(media_table).where(inArray(media_table.track_id, ids)),
+		ex.select({ track_id: media_table.track_id, resource_id: media_table.resource_id }).from(media_table)
+			.where(inArray(media_table.track_id, ids)).orderBy(desc(media_table.created_at), desc(media_table.id)),
 		ex.selectDistinct({ track_id: track_lyrics_table.track_id }).from(track_lyrics_table).where(inArray(track_lyrics_table.track_id, ids))
 	]);
 
@@ -154,7 +157,8 @@ export async function track_views(ex: Executor, user_id: string, track_ids: read
 	const samples = new Map(rows.sample_data.map(r => [r.id, r]));
 	const overlay_by_track = new Map(overlay.map(r => [r.track_id, r]));
 	const plays_by_track = new Map(plays.map(r => [r.track_id, r]));
-	const with_media = new Set(media.map(r => r.track_id));
+	const media_by_track = new Map<string, string>();
+	for (const row of media) if (!media_by_track.has(row.track_id)) media_by_track.set(row.track_id, row.resource_id);
 	const with_lyrics = new Set(lyrics.map(r => r.track_id));
 
 	for (const track of rows.tracks) {
@@ -169,7 +173,8 @@ export async function track_views(ex: Executor, user_id: string, track_ids: read
 			...parts(track.id),
 			sample_data: samples.get(track.id) ?? null,
 			producers: (producers.get(track.id) ?? []).map(p => ({ id: p.producer_id, name: p.name })),
-			has_media: with_media.has(track.id),
+			has_media: media_by_track.has(track.id),
+			resource_id: media_by_track.get(track.id) ?? null,
 			has_lyrics: with_lyrics.has(track.id),
 			user: library
 				? {

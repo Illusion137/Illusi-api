@@ -10,6 +10,33 @@ function upload(user: TestUser, track_id: string, file: Buffer, fields: Record<s
 }
 
 describe('media uploads (§13)', () => {
+	it('asks only the device that has the file, and forgets removed downloads and logged-out devices', async () => {
+		const phone = await create_user('devices');
+		const laptop = { ...phone, access_token: (await api('POST', '/auth/login', { ip: phone.ip, body: { email: phone.email, password: phone.password } })).body.access_token };
+		const created = await contribute(phone, mock_album({ artist: unique('Device Artist'), album: unique('Device Album'), n: 2, imported: true }));
+		const [t0, t1] = [created.body.refs.t0, created.body.refs.t1];
+		const asked = async (device: typeof phone) => (await api('GET', '/media/requests', { token: device.access_token })).body.actions.map((a: { track_id: string }) => a.track_id).sort();
+		const devices = (track_id: string) => query(`select count(*)::int as n from track_downloads_table where track_id = $1`, [track_id]);
+
+		await add_to_library(phone, [t0, t1], { downloaded_at: new Date().toISOString(), downloaded: true });
+		await add_to_library(laptop, [t1], { downloaded: true });
+		expect(await asked(phone)).toEqual([t0, t1].sort());
+		expect(await asked(laptop)).toEqual([t1]);
+
+		// Removed on the phone: no longer asked there, even though the library still shows it as downloaded.
+		await add_to_library(phone, [t0], { downloaded: false });
+		expect(await asked(phone)).toEqual([t1]);
+		expect(await query(`select downloaded_at is not null as d from user_tracks_table where user_id = $1 and track_id = $2`, [phone.id, t0])).toEqual([{ d: true }]);
+
+		// A stale push losing last-write-wins still updates what the device holds.
+		await add_to_library(laptop, [t0], { downloaded: true, edited_at: new Date(0).toISOString() });
+		expect(await asked(laptop)).toEqual([t0, t1].sort());
+
+		expect((await api('POST', '/auth/logout', { token: laptop.access_token })).status).toBe(204);
+		expect(await devices(t0)).toEqual([{ n: 0 }]);
+		expect(await devices(t1)).toEqual([{ n: 1 }]);
+	});
+
 	it('asks for downloaded imported tracks, accepts the upload with the token, dedupes, and streams with ranges', async () => {
 		const user = await create_user('media');
 		const created = await contribute(user, mock_album({ artist: unique('Media Artist'), album: unique('Media Album'), n: 2, imported: true }));
