@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db';
-import { tracks_table } from '../../db/schema';
+import { lyrics_sync_type, tracks_table } from '../../db/schema';
 import { issue_actions, with_actions } from '../../core/actions';
 import type { ActionBody, ActionType } from '../../core/actions';
 import type { AuthUser } from '../../core/auth/tokens';
@@ -17,12 +17,13 @@ import { genius_instrumental_tracks, has_lyrics_rows, load_lookups, load_track_c
 import type { BestRow, LookupMap } from './store';
 import type { ClientService, ParsedLyrics } from './types';
 import { ingest_youtube_music } from './youtube_music';
+import { upsert_user_lyrics } from './user_lyrics';
 
 export { rank_lyrics, set_lyrics_ranker } from './rank';
 export type { LyricsRanker } from './rank';
 export type { LyricsLine, LyricsSegment, ParsedLyrics } from './types';
 
-/** Mounted after `require_auth`: `GET /tracks/:id/lyrics`, `POST /ingest/genius`, `POST /ingest/youtube_music_lyrics`. */
+/** Mounted after `require_auth`: `GET /tracks/:id/lyrics`, `PUT /tracks/:id/lyrics/user`, `POST /ingest/genius`, `POST /ingest/youtube_music_lyrics`. */
 export const lyrics_router = Router();
 
 /** What clients receive: parsed lyrics, never raw content. */
@@ -131,6 +132,25 @@ lyrics_router.get('/tracks/:id/lyrics', rate_limit_user('lyrics_get', 120, 60_00
 	const user = require_user(req);
 	const id = parse_body(uuid_schema, req.params.id);
 	res.json(await get_track_lyrics(user, id));
+});
+
+const user_lyrics_schema = z.object({
+	format: z.enum(['LRC', 'ELRC', 'PLAIN', 'TTML']),
+	sync_type: z.enum(lyrics_sync_type.enumValues),
+	raw_content: z.string().min(1).max(512_000)
+});
+
+lyrics_router.put('/tracks/:id/lyrics/user', rate_limit_user('lyrics_user', 30, 60_000), json_body('1mb'), async (req, res) => {
+	const user = require_user(req);
+	const id = parse_body(uuid_schema, req.params.id);
+	const body = parse_body(user_lyrics_schema, req.body);
+	const track_id = await resolve_redirect(db, id);
+	const [track] = await db.select({ id: tracks_table.id }).from(tracks_table).where(eq(tracks_table.id, track_id));
+	if (!track) throw new HttpError(404, 'track not found');
+	const events = new PendingEvents();
+	await db.transaction(async tx => upsert_user_lyrics(tx, user.id, track_id, body, events));
+	events.flush();
+	res.json(respond(track_id, await current_state(track_id)) ?? { track_id, lyrics: null });
 });
 
 const token_schema = z.string().min(1).max(4096);

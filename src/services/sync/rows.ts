@@ -115,6 +115,16 @@ export async function load_artist_bundles(ex: Executor, artist_ids: readonly str
 	await common_rows(ex, ids, into);
 }
 
+/** Artists and albums users credit their tracks with in place of the catalog's, unless the rows already hold them */
+export async function load_override_bundles(ex: Executor, user_tracks: readonly { artist_ids: string[] | null; album_id: string | null }[], into: SyncRows) {
+	const have_artists = new Set(into.artists.map(a => a.id));
+	const have_albums = new Set(into.albums.map(a => a.id));
+	const artist_ids = [...new Set(user_tracks.flatMap(r => r.artist_ids ?? []))].filter(id => !have_artists.has(id));
+	const album_ids = [...new Set(user_tracks.flatMap(r => (r.album_id === null ? [] : [r.album_id])))].filter(id => !have_albums.has(id));
+	await load_artist_bundles(ex, artist_ids, into);
+	await load_album_bundles(ex, album_ids, into);
+}
+
 /** `col = any(ids)` that is false (not a SQL error) for an empty list. */
 export function in_ids(column: Parameters<typeof inArray>[0], ids: readonly string[]): SQL {
 	return ids.length === 0 ? sql`false` : inArray(column, [...ids]);

@@ -5,7 +5,7 @@ import { bigint, boolean, bytea, check, date, doublePrecision, index, integer, j
 const ITUNES_EXPLICITNESS = ['explicit', 'cleaned', 'notExplicit'] as const;
 export const itunes_explicitness = pgEnum('itunes_explicitness', ITUNES_EXPLICITNESS);
 
-const LYRICS_SERVICES = ['BINILYRICS', 'LRCLIB', 'YOUTUBE_MUSIC', 'GENIUS', 'UNISON', 'QQMUSIC', 'KUGOU', 'LRCRED'] as const;
+const LYRICS_SERVICES = ['BINILYRICS', 'LRCLIB', 'YOUTUBE_MUSIC', 'GENIUS', 'UNISON', 'QQMUSIC', 'KUGOU', 'LRCRED', 'USER'] as const;
 export const lyrics_services = pgEnum('lyrics_services', LYRICS_SERVICES);
 
 const ALBUM_TYPES = ['SINGLE', 'ALBUM', 'EP'] as const;
@@ -750,6 +750,9 @@ export const user_tracks_table = pgTable('user_tracks_table', {
 	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
 	title: varchar({ length: 256 }),
+	/** The user's own credits for the track in place of the catalog's; null keeps the catalog's */
+	artist_ids: uuid().array(),
+	album_id: uuid().references(() => albums_table.id, { onDelete: 'set null' }),
 	downloaded_at: timestamptz(),
 	start_at: bigint({ mode: 'number' }),
 	end_at: bigint({ mode: 'number' }),

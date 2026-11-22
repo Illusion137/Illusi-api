@@ -22,7 +22,7 @@ import { pending_upload_actions } from '../media';
 import { resolve_playlist_track_ids } from '../playlists';
 import { encode_cursor, in_progress, next_cursor } from './cursor';
 import type { Cursor } from './cursor';
-import { load_album_bundles, load_artist_bundles, load_track_bundles, load_user } from './rows';
+import { load_album_bundles, load_artist_bundles, load_override_bundles, load_track_bundles, load_user } from './rows';
 import { empty_rows } from './types';
 import type { SyncPullResponse, SyncRows } from './types';
 
@@ -240,6 +240,7 @@ const PHASES: Phase[] = [
 				.where(and(eq(t.user_id, ctx.user.id), win_col(ctx, t.modified_at), after ? gt(t.track_id, after) : undefined))
 				.orderBy(t.track_id).limit(limit);
 			ctx.rows.user_tracks.push(...rows);
+			await load_override_bundles(ctx.tx, rows, ctx.rows);
 			return { n: rows.length, last: last_of(rows, r => r.track_id) };
 		}
 	},

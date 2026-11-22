@@ -1,0 +1,155 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "2a138779-3c7d-44ab-98dc-fc46c59de00f",
+  "prevIds": [
+    "4bf9b2ce-8238-48f1-8e7b-0c425222b8a6"
+  ],
+  "footprints": [
+    {
+      "statementType": "alter_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "lyrics_services"
+      ],
+      "writes": [
+        "s|enum|public.lyrics_services"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "user_tracks_table",
+        "artist_ids"
+      ],
+      "writes": [
+        "s|col|public.user_tracks_table.artist_ids",
+        "n|col|public.user_tracks_table.artist_ids",
+        "e|col|public.user_tracks_table.artist_ids"
+      ],
+      "reads": [
+        "n|tbl|public.user_tracks_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "user_tracks_table",
+        "album_id"
+      ],
+      "writes": [
+        "s|col|public.user_tracks_table.album_id",
+        "n|col|public.user_tracks_table.album_id",
+        "e|col|public.user_tracks_table.album_id"
+      ],
+      "reads": [
+        "n|tbl|public.user_tracks_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "user_tracks_table"
+      ],
+      "writes": [
+        "s|fk|public.user_tracks_table.user_tracks_table_album_id_albums_table_id_fkey",
+        "n|fk|public.user_tracks_table.user_tracks_table_album_id_albums_table_id_fkey",
+        "e|fk|public.user_tracks_table.user_tracks_table_album_id_albums_table_id_fkey",
+        "n|con|public.user_tracks_table.user_tracks_table_album_id_albums_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.user_tracks_table",
+        "n|sch|public",
+        "n|tbl|public.albums_table",
+        "n|sch|public",
+        "n|col|public.user_tracks_table.album_id",
+        "n|col|public.albums_table.id",
+        "e|uniqueness|public.albums_table.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_tracks_table",
+        "name": "artist_ids",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_tracks_table",
+        "name": "album_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "user_tracks_table",
+        "name": "user_tracks_table_album_id_albums_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "album_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "albums_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "enums\u0000[\"public\",\"lyrics_services\"]",
+      "set": {
+        "values": [
+          "BINILYRICS",
+          "LRCLIB",
+          "YOUTUBE_MUSIC",
+          "GENIUS",
+          "UNISON",
+          "QQMUSIC",
+          "KUGOU",
+          "LRCRED",
+          "USER"
+        ]
+      }
+    }
+  ]
+}

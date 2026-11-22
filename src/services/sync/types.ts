@@ -95,11 +95,17 @@ const time = z.union([z.string().max(64), z.number()]).transform((v, ctx) => {
 });
 const nullable_time = z.union([time, z.null()]);
 
+/** An artist or album a user credits a track with: an existing id, or a name to link or create */
+const override_ref = z.object({ id: z.uuid().optional(), name: z.string().trim().min(1).max(256) });
+
 /** User-owned rows: each carries the client's `edited_at`. Omitted fields keep the stored value. */
 export const push_row_schemas = {
 	user_tracks: z.object({
 		track_id: ref,
 		title: z.string().max(4096).nullish(),
+		/** null goes back to the catalog's credits */
+		artists: z.array(override_ref).min(1).max(32).nullish(),
+		album: override_ref.nullish(),
 		downloaded_at: nullable_time.optional(),
 		start_at: z.number().int().nullish(),
 		end_at: z.number().int().nullish(),

@@ -9,7 +9,7 @@ import { db } from '../../db';
 import type { Tx } from '../../db';
 import {
 	linked_playlists_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, playlist_tracks_table, playlists_table,
-	sync_pushes_table, track_plays_table, user_recent_searches, user_tracks_table, users_table
+	sync_pushes_table, track_plays_table, tracks_artists_table, user_recent_searches, user_tracks_table, users_table
 } from '../../db/schema';
 import type { AuthUser } from '../../core/auth/tokens';
 import { PendingEvents } from '../../core/events';
@@ -20,9 +20,10 @@ import { truncate_to_columns } from '../../core/truncate';
 import { apply_graph, flush_engine_events, graph_counts, validate_graph } from '../entities';
 import type { EngineResult } from '../entities';
 import { resolve_existing_ref } from '../entities/match';
+import { OverrideResolver } from './overrides';
 import { assert_inheritance_allowed } from '../playlists';
 import { clamp_edited_at, lww_update, lww_wins } from './lww';
-import { load_album_bundles, load_artist_bundles, load_track_bundles, load_user } from './rows';
+import { load_album_bundles, load_artist_bundles, load_override_bundles, load_track_bundles, load_user } from './rows';
 import { empty_rows, profile_schema, PUSH_TABLES, push_row_schemas } from './types';
 import type { PushBody, PushRejection, PushRow, PushTable, SyncPushResponse, SyncRows } from './types';
 import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
@@ -74,7 +75,7 @@ class PushApplier {
 	private readonly track_cache = new Map<string, string | null>();
 	private readonly owned = new Map<string, boolean>();
 
-	constructor(private tx: Tx, private user_id: string, private now: Date, private refs: Record<string, string>) {}
+	constructor(private tx: Tx, private user_id: string, private now: Date, private refs: Record<string, string>, readonly overrides: OverrideResolver) {}
 
 	private count(table: PushTable | 'profile') { this.applied[table] = (this.applied[table] ?? 0) + 1; }
 	private reject(table: PushTable | 'profile', index: number, reason: string) { this.rejected.push({ table, index, reason }); }
@@ -114,17 +115,62 @@ class PushApplier {
 		if (!track_id) return this.reject('user_tracks', index, 'unknown track');
 		const t = user_tracks_table;
 		const edited_at = this.edited(r.edited_at);
-		const values = truncate_to_columns(t, defined({ title: r.title, downloaded_at: r.downloaded_at, start_at: r.start_at, end_at: r.end_at, deleted: r.deleted }), 'sync user_tracks');
 		const [cur] = await this.tx.select({ edited_at: t.edited_at }).from(t).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id))).for('update');
+		if (cur && !lww_wins(cur.edited_at, edited_at)) {
+			this.touched.user_tracks.add(track_id);
+			return;
+		}
+		const credits = await this.credits(r);
+		if (credits === null) return this.reject('user_tracks', index, 'unresolvable artist or album');
+		const values = truncate_to_columns(t, defined({ title: r.title, ...credits, downloaded_at: r.downloaded_at, start_at: r.start_at, end_at: r.end_at, deleted: r.deleted }), 'sync user_tracks');
 		this.touched.user_tracks.add(track_id);
 		if (!cur) {
 			await this.tx.insert(t).values({ ...values, user_id: this.user_id, track_id, edited_at });
 		} else if (lww_wins(cur.edited_at, edited_at)) {
-			await this.tx.update(t).set(lww_update(['title', 'downloaded_at', 'start_at', 'end_at', 'deleted'], values, edited_at)).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id)));
+			await this.tx.update(t).set(lww_update(['title', 'artist_ids', 'album_id', 'downloaded_at', 'start_at', 'end_at', 'deleted'], values, edited_at)).where(and(eq(t.user_id, this.user_id), eq(t.track_id, track_id)));
 		} else {
 			return;
 		}
 		this.count('user_tracks');
+	}
+
+	/** The row's own credits as ids; undefined fields keep the stored ones, null if a name can't be resolved */
+	private async credits(r: PushRow<'user_tracks'>): Promise<{ artist_ids?: string[] | null; album_id?: string | null } | null> {
+		const out: { artist_ids?: string[] | null; album_id?: string | null } = {};
+		if (r.artists !== undefined) {
+			if (r.artists === null) {
+				out.artist_ids = null;
+			} else {
+				const ids: string[] = [];
+				for (const artist of r.artists) {
+					const id = await this.overrides.artist(artist);
+					if (id === null) return null;
+					if (!ids.includes(id)) ids.push(id);
+				}
+				out.artist_ids = ids;
+			}
+		}
+		if (r.album !== undefined) {
+			if (r.album === null) {
+				out.album_id = null;
+			} else {
+				const artist_ids = out.artist_ids ?? (await this.stored_artist_ids(r.track_id));
+				const id = await this.overrides.album(r.album, artist_ids);
+				if (id === null) return null;
+				out.album_id = id;
+			}
+		}
+		return out;
+	}
+
+	/** The user's credited artists for the track, else the catalog's */
+	private async stored_artist_ids(ref: string): Promise<string[]> {
+		const track_id = await this.track(ref);
+		if (!track_id) return [];
+		const [own] = await this.tx.select({ artist_ids: user_tracks_table.artist_ids }).from(user_tracks_table).where(and(eq(user_tracks_table.user_id, this.user_id), eq(user_tracks_table.track_id, track_id)));
+		if (own?.artist_ids) return own.artist_ids;
+		const rows = await this.tx.select({ id: tracks_artists_table.artist_id }).from(tracks_artists_table).where(eq(tracks_artists_table.track_id, track_id));
+		return rows.map(row => row.id);
 	}
 
 	async playlist({ row: r, index }: { row: PushRow<'playlists'>; index: number }) {
@@ -269,6 +315,7 @@ class PushApplier {
 		const touched = this.touched;
 		if (touched.profile) rows.user = await load_user(tx, u);
 		if (touched.user_tracks.size > 0) rows.user_tracks = await tx.select().from(user_tracks_table).where(and(eq(user_tracks_table.user_id, u), inArray(user_tracks_table.track_id, [...touched.user_tracks])));
+		await load_override_bundles(tx, rows.user_tracks, rows);
 		if (touched.playlists.size > 0) rows.playlists = await tx.select().from(playlists_table).where(and(eq(playlists_table.user_id, u), inArray(playlists_table.id, [...touched.playlists])));
 		if (touched.playlist_tracks.size > 0) {
 			const pairs = [...touched.playlist_tracks].map(k => k.split('|'));
@@ -329,7 +376,7 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 			const [{ now }] = await tx.execute<{ now: string }>(sql`select now()::text as now`, 'objects');
 			const provenance = new ProvenanceLog('sync_push', user.id);
 			const engine = await apply_graph(tx, graph, { user_id: user.id, source: 'sync_push', provenance });
-			const applier = new PushApplier(tx, user.id, new Date(now), engine.refs);
+			const applier = new PushApplier(tx, user.id, new Date(now), engine.refs, new OverrideResolver(tx, user.id, provenance));
 
 			if (profile) await applier.profile(profile);
 			for (const r of rows.user_tracks) await applier.user_track(r);
@@ -364,7 +411,7 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 			// Round-trip through JSON so the stored replay and the first response are identical.
 			const json = JSON.parse(JSON.stringify(response)) as SyncPushResponse;
 			await tx.insert(sync_pushes_table).values({ push_id: body.push_id, user_id: user.id, response: json });
-			return { response: json, engine, library_changed: applier.library_changed };
+			return { response: json, engine, overrides: applier.overrides.results, library_changed: applier.library_changed };
 		});
 	} catch (err) {
 		if (is_unique_violation(err)) {
@@ -375,6 +422,7 @@ export async function push(user: AuthUser, body: PushBody): Promise<SyncPushResp
 	}
 
 	flush_engine_events(outcome.engine);
+	for (const result of outcome.overrides) flush_engine_events(result);
 	if (outcome.library_changed) {
 		const events = new PendingEvents();
 		events.push('user_library_changed', { user_id: user.id });
