@@ -1,6 +1,7 @@
 /**
- * Joint credits sent as one artist (`StanWill & NASAAN`, `A, B, and C`), the way some services list a collaboration,
- * become each of their artists on the same tracks before anything is matched. Otherwise the joint name matches the
+ * Separators sent as artists (`&`, `,`) are dropped, and joint credits sent as one artist (`StanWill & NASAAN`,
+ * `A, B, and C`), the way some services list a collaboration, become each of their artists on the same tracks before
+ * anything is matched. Otherwise the joint name matches the
  * artist whose account id it carries and the others are lost, or it becomes an artist of its own.
  */
 import { eq, or, sql } from 'drizzle-orm';
@@ -54,7 +55,30 @@ async function split_of(tx: Tx, artist: ArtistInput, in_payload: ReadonlySet<str
 	return (parts.length === 2 ? hits === 2 : hits >= 2) ? { parts, owner: null } : null;
 }
 
+/** `&`, `,`, ` and `, an invisible mark: what some services put between artists, sent as an artist of its own. */
+const SEPARATOR_RE = /^(?:[\s\p{Cf},&+/|·•\-\u2013\u2014]|\b(?:and|x|featuring|feat|ft|with)\b\.?)*$/iu;
+export const is_separator_name = (name: string) => SEPARATOR_RE.test(name);
+
+/** The graph without separator artists and everything that links to them. */
+function without_separators(graph: Graph): Graph {
+	const gone = new Set(graph.artists.filter(a => is_separator_name(a.name)).map(a => a.ref));
+	if (gone.size === 0) return graph;
+	const r = graph.relations;
+	return {
+		artists: graph.artists.filter(a => !gone.has(a.ref)),
+		albums: graph.albums.map(a => (a.artist_ref != null && gone.has(a.artist_ref) ? { ...a, artist_ref: null } : a)),
+		tracks: graph.tracks,
+		relations: {
+			tracks_artists: r.tracks_artists.filter(x => !gone.has(x.artist_ref)),
+			album_tracks: r.album_tracks,
+			artist_albums: r.artist_albums.filter(x => !gone.has(x.artist_ref)),
+			similar_artists: r.similar_artists.filter(x => !gone.has(x.artist_ref) && !gone.has(x.similar_artist_ref))
+		}
+	};
+}
+
 export async function split_joint_credits(tx: Tx, graph: Graph): Promise<Graph> {
+	graph = without_separators(graph);
 	const splits = new Map<string, string[]>();
 	const artists: ArtistInput[] = [];
 	const added: ArtistInput[] = [];

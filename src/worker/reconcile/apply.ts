@@ -134,6 +134,16 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 		}
 	}
 
+	// Users' own credits for their tracks name artists in an array, out of reach of foreign keys
+	let credit_overrides: { user_id: string; track_id: string; artist_ids: string[] }[] = [];
+	if (kind === 'artist') {
+		credit_overrides = await tx.execute<{ user_id: string; track_id: string; artist_ids: string[] }>(sql`
+			select user_id, track_id, artist_ids from user_tracks_table where ${loser}::uuid = any(artist_ids)`, 'objects');
+		await run(tx, sql`update user_tracks_table set modified_at = ${now},
+			artist_ids = (select array_agg(x order by o) from (select distinct on (x) x, o from unnest(array_replace(artist_ids, ${loser}::uuid, ${survivor}::uuid)) with ordinality u(x, o) order by x, o) d)
+			where ${loser}::uuid = any(artist_ids)`);
+	}
+
 	// Conflict records follow the entity; the ones now linking the survivor to itself are settled.
 	await tx.update(service_id_conflicts_table).set({ illusi_id: survivor }).where(eq(service_id_conflicts_table.illusi_id, loser));
 	await tx.update(service_id_conflicts_table).set({ other_illusi_id: survivor }).where(eq(service_id_conflicts_table.other_illusi_id, loser));
@@ -181,7 +191,8 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 			survivor_entity_before: entity_before,
 			redirects_rewritten: rewritten.map(r => r.old_id),
 			redirect_added: loser,
-			tables: undo_tables
+			tables: undo_tables,
+			credit_overrides
 		}
 	});
 	// A merge on hard evidence (a shared unique id) needs nobody's eyes; one only implied through others gets a look.

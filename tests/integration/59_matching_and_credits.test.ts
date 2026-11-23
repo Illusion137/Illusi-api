@@ -71,6 +71,17 @@ describe('joint credits sent as one artist', () => {
 		expect(await query('select 1 from artists_table a join service_ids_table s on s.illusi_id = a.id where s.soundcloud_permalink = $1', [sc])).toHaveLength(1);
 	});
 
+	it('drop separators sent as artists', async () => {
+		const [a, b] = [unique('waera'), unique('imnotvrycreative')];
+		const res = await contribute(user, {
+			artists: [{ ref: 'a', name: a }, { ref: 'sep', name: ' & ' }, { ref: 'mark', name: '\u200e' }, { ref: 'b', name: b }],
+			tracks: [{ ref: 't', title: unique('MALCOLM'), duration_ms: 150_000 }],
+			relations: { tracks_artists: ['a', 'sep', 'mark', 'b'].map(artist_ref => ({ track_ref: 't', artist_ref })) }
+		});
+		expect(res.status).toBe(200);
+		expect(await credits(res.body.refs.t)).toEqual([a, b].sort());
+	});
+
 	it('split when the parts are already artists, and kept whole otherwise', async () => {
 		const [a, b, c] = [unique('Shitty'), unique('Tron'), unique('Trdee')];
 		const known = await contribute(user, { artists: [{ ref: 'a', name: a }, { ref: 'b', name: b }] });

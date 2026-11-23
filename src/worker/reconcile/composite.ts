@@ -148,6 +148,7 @@ export const REF_TABLES: Record<Exclude<EntityKind, 'unknown'>, RefTableSpec[]> 
 		{ table: 'album_tracks_table', ref_col: 'track_id', pk: ['album_id', 'track_id'], unique_keys: [['album_id']], merge: fill_nulls(['track_number']), has_modified_at: true },
 		{ table: 'tracks_artists_table', ref_col: 'track_id', pk: ['artist_id', 'track_id'], unique_keys: [['artist_id']], has_modified_at: true },
 		{ table: 'tracks_producers_table', ref_col: 'track_id', pk: ['producer_id', 'track_id'], unique_keys: [['producer_id']], has_modified_at: true },
+		{ table: 'service_tracks_table', ref_col: 'illusi_id', pk: ['service', 'external_id'], unique_keys: [], has_modified_at: true },
 		itunes_lookups,
 		thumbnails
 	],
@@ -155,6 +156,9 @@ export const REF_TABLES: Record<Exclude<EntityKind, 'unknown'>, RefTableSpec[]> 
 		{ table: 'tracks_table', ref_col: 'album_id', pk: ['id'], unique_keys: [], has_modified_at: true },
 		{ table: 'album_tracks_table', ref_col: 'album_id', pk: ['album_id', 'track_id'], unique_keys: [['track_id']], merge: fill_nulls(['track_number']), has_modified_at: true },
 		{ table: 'artist_albums_table', ref_col: 'album_id', pk: ['artist_id', 'album_id'], unique_keys: [['artist_id']], merge: fill_nulls(['position']), has_modified_at: true },
+		// A user's own album for a track (its foreign key would otherwise null it when the loser goes)
+		{ table: 'user_tracks_table', ref_col: 'album_id', pk: ['user_id', 'track_id'], unique_keys: [], has_modified_at: true },
+		{ table: 'service_albums_table', ref_col: 'illusi_id', pk: ['service', 'external_id'], unique_keys: [], has_modified_at: true },
 		itunes_lookups,
 		thumbnails
 	],
@@ -164,6 +168,8 @@ export const REF_TABLES: Record<Exclude<EntityKind, 'unknown'>, RefTableSpec[]> 
 		{ table: 'artist_albums_table', ref_col: 'artist_id', pk: ['artist_id', 'album_id'], unique_keys: [['album_id']], merge: fill_nulls(['position']), has_modified_at: true },
 		{ table: 'similar_artists_table', ref_col: 'artist_id', pk: ['artist_id', 'similar_artist_id'], unique_keys: [['similar_artist_id']], distinct_from: 'similar_artist_id', has_modified_at: true },
 		{ table: 'similar_artists_table', ref_col: 'similar_artist_id', pk: ['artist_id', 'similar_artist_id'], unique_keys: [['artist_id']], distinct_from: 'artist_id', has_modified_at: true },
+		{ table: 'artist_release_checks_table', ref_col: 'artist_id', pk: ['artist_id', 'service'], unique_keys: [['service']], merge: keep_survivor, has_modified_at: true },
+		{ table: 'service_artists_table', ref_col: 'illusi_id', pk: ['service', 'external_id'], unique_keys: [], has_modified_at: true },
 		itunes_lookups,
 		thumbnails
 	]

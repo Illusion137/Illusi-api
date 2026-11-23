@@ -157,6 +157,31 @@ describe('apply_merge', () => {
 		expect(await query(`select 1 from similar_artists_table where artist_id = $1 or similar_artist_id = $1`, [ar_a])).toHaveLength(0);
 	});
 
+	it('carries users\' own credits, release checks and service catalog links over to the survivor', async () => {
+		const user = await create_user('merge-overrides');
+		const t = await track();
+		const [ar_a, ar_b, ar_c] = [await artist(), await artist(), await artist()];
+		const [al_a, al_b] = [await album(), await album()];
+		await query(`insert into user_tracks_table (user_id, track_id, artist_ids, album_id) values ($1, $2, $3, $4)`, [user.id, t, [ar_b, ar_c, ar_a], al_b]);
+		await query(`insert into artist_release_checks_table (artist_id, service) values ($1, 'applemusic'), ($2, 'applemusic'), ($2, 'spotify')`, [ar_a, ar_b]);
+		const ext = unique('ext');
+		await query(`insert into service_artists_table (service, external_id, name, illusi_id) values ('spotify', $1, 'X', $2)`, [ext, ar_b]);
+		await query(`insert into service_albums_table (service, external_id, title, illusi_id) values ('spotify', $1, 'X', $2)`, [ext, al_b]);
+		const before = (await query(`select modified_at from user_tracks_table where user_id = $1`, [user.id]))[0].modified_at;
+
+		expect((await in_tx(tx => apply_merge(tx, merge_step(ar_a, ar_b, { kind: 'artist' }), reconcile))).applied).toBe(true);
+		expect((await in_tx(tx => apply_merge(tx, merge_step(al_a, al_b, { kind: 'album' }), reconcile))).applied).toBe(true);
+		const [row] = await query(`select artist_ids, album_id, modified_at from user_tracks_table where user_id = $1`, [user.id]);
+		// The survivor takes the loser's place once, in order
+		expect(row).toMatchObject({ artist_ids: [ar_a, ar_c], album_id: al_a });
+		expect(row.modified_at.getTime()).toBeGreaterThan(before.getTime());
+		expect(await query(`select service from artist_release_checks_table where artist_id = $1 order by service`, [ar_a])).toEqual([{ service: 'applemusic' }, { service: 'spotify' }]);
+		expect(await query(`select illusi_id from service_artists_table where external_id = $1`, [ext])).toEqual([{ illusi_id: ar_a }]);
+		expect(await query(`select illusi_id from service_albums_table where external_id = $1`, [ext])).toEqual([{ illusi_id: al_a }]);
+		const [audit] = await query(`select undo from audit_log_table where action = 'merge' and entity_id = $1 order by id desc limit 1`, [ar_a]);
+		expect(audit.undo.credit_overrides).toEqual([{ user_id: user.id, track_id: t, artist_ids: [ar_b, ar_c, ar_a] }]);
+	});
+
 	it('follows redirects of the planned ids', async () => {
 		const a = await track();
 		const b = await track();
