@@ -1,0 +1,145 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d9d30409-c086-41e9-80a5-e8f4a6c437cf",
+  "prevIds": [
+    "38c3768c-bbda-4e0a-9af4-b3cd38bb9d06"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_links_locks_table"
+      ],
+      "writes": [
+        "s|tbl|public.service_links_locks_table",
+        "n|tbl|public.service_links_locks_table",
+        "e|tbl|public.service_links_locks_table",
+        "n|rel|public.service_links_locks_table",
+        "n|type|public.service_links_locks_table",
+        "n|rel|public.service_links_locks_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "service_links_locks_table"
+      ],
+      "writes": [
+        "s|fk|public.service_links_locks_table.service_links_locks_table_vYPjwPbSFsQl_fkey",
+        "n|fk|public.service_links_locks_table.service_links_locks_table_vYPjwPbSFsQl_fkey",
+        "e|fk|public.service_links_locks_table.service_links_locks_table_vYPjwPbSFsQl_fkey",
+        "n|con|public.service_links_locks_table.service_links_locks_table_vYPjwPbSFsQl_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.service_links_locks_table",
+        "n|sch|public",
+        "n|tbl|public.service_ids_table",
+        "n|sch|public",
+        "n|col|public.service_links_locks_table.illusi_id",
+        "n|col|public.service_ids_table.illusi_id",
+        "e|uniqueness|public.service_ids_table.illusi_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "service_links_locks_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_links_locks_table",
+        "name": "illusi_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_links_locks_table",
+        "name": "reason",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_links_locks_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_links_locks_table",
+        "name": "service_links_locks_table_vYPjwPbSFsQl_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "illusi_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "service_ids_table",
+        "columnsTo": [
+          "illusi_id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "service_links_locks_table",
+        "name": "service_links_locks_table_pkey",
+        "columns": [
+          "illusi_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

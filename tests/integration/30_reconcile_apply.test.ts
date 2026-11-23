@@ -363,6 +363,35 @@ describe('apply_move', () => {
 	});
 });
 
+describe('service link locks', () => {
+	const lock = (id: string) => query(`insert into service_links_locks_table (illusi_id) values ($1)`, [id]);
+
+	it('merges into a locked survivor without taking ids, and leaves a loser known elsewhere to an admin', async () => {
+		const survivor = await artist();
+		await lock(survivor);
+		const bare = await artist();
+		expect((await in_tx(tx => apply_merge(tx, merge_step(survivor, bare, { kind: 'artist' }), reconcile))).applied).toBe(true);
+
+		const linked = await artist({ spotify_id: unique('sp') });
+		expect(await in_tx(tx => apply_merge(tx, merge_step(survivor, linked, { kind: 'artist' }), reconcile))).toMatchObject({ applied: false, skipped: 'links_locked' });
+		expect((await in_tx(tx => apply_merge(tx, merge_step(survivor, linked, { kind: 'artist' }), admin))).applied).toBe(true);
+		const [ids] = await query<{ spotify_id: string | null }>(`select spotify_id from service_ids_table where illusi_id = $1`, [survivor]);
+		expect(ids.spotify_id).toBeNull();
+		expect(await query(`select 1 from service_links_locks_table where illusi_id = $1`, [survivor])).toHaveLength(1);
+	});
+
+	it('never merges a locked entity away or moves ids onto it', async () => {
+		const locked = await artist();
+		await lock(locked);
+		const other = await artist();
+		expect(await in_tx(tx => apply_merge(tx, merge_step(other, locked, { kind: 'artist' }), admin))).toMatchObject({ applied: false, skipped: 'links_locked' });
+
+		const sc = sc_id();
+		const from = await artist({ soundcloud_id: sc });
+		expect(await in_tx(tx => apply_move(tx, move_step(from, locked, { soundcloud_id: String(sc) }), admin))).toMatchObject({ applied: false, skipped: 'links_locked' });
+	});
+});
+
 describe('apply plumbing', () => {
 	it('dispatches steps and puts merges last', async () => {
 		const sc = sc_id();

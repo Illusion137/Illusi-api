@@ -1,6 +1,6 @@
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, ne, sql } from 'drizzle-orm';
 import type { Tx } from '../db';
-import { service_id_conflicts_table, service_ids_table } from '../db/schema';
+import { service_id_conflicts_table, service_ids_table, service_links_locks_table } from '../db/schema';
 import type { PendingEvents } from './events';
 import { logger } from './log';
 import { normalize_service_ids, SERVICE_ID_COLUMNS } from './service_ids';
@@ -66,11 +66,16 @@ export async function enrich_service_ids(tx: Tx, illusi_id: string, ids: Service
 	const result: EnrichResult = { filled: [], conflicts: [], rejected };
 	if (Object.keys(normalized).length === 0) return result;
 
-	const [row] = await tx.select().from(service_ids_table).where(eq(service_ids_table.illusi_id, illusi_id)).for('update');
+	const [row] = await tx.select({
+		...getTableColumns(service_ids_table),
+		locked: sql<boolean>`exists (select 1 from ${service_links_locks_table} where ${service_links_locks_table.illusi_id} = ${service_ids_table.illusi_id})`
+	}).from(service_ids_table).where(eq(service_ids_table.illusi_id, illusi_id)).for('update', { of: service_ids_table });
 	if (!row) {
 		log.warn(`enrich on unknown illusi_id ${illusi_id}`, { source: ctx.source });
 		return result;
 	}
+	// Kept off other services on purpose: neither a fill nor a conflict to review.
+	if (row.locked) return result;
 
 	for (const column of SERVICE_ID_COLUMNS) {
 		const incoming = normalized[column];
@@ -113,6 +118,14 @@ export async function enrich_service_ids(tx: Tx, illusi_id: string, ids: Service
 		if (result.filled.includes('applemusic_id')) ctx.events.push('applemusic_id_filled', { illusi_id, applemusic_id: String(normalized.applemusic_id) });
 	}
 	return result;
+}
+
+/** Which of these entities are kept off other services (`service_links_locks_table`). */
+export async function locked_service_links(tx: Tx, illusi_ids: readonly string[]): Promise<Set<string>> {
+	if (illusi_ids.length === 0) return new Set();
+	const rows = await tx.select({ illusi_id: service_links_locks_table.illusi_id }).from(service_links_locks_table)
+		.where(inArray(service_links_locks_table.illusi_id, [...illusi_ids]));
+	return new Set(rows.map(r => r.illusi_id));
 }
 
 /** Looks up the `illusi_id` already holding any of these ids. Returns every distinct match. */

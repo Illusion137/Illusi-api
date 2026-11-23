@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { add_to_library, api, contribute, create_user, mock_album, unique } from './helpers';
+import { add_to_library, api, contribute, create_user, mock_album, query, unique } from './helpers';
 import type { TestUser } from './helpers';
 
 const CHANNEL = () => `UC${crypto.randomUUID().replace(/-/g, '').slice(0, 22)}`;
@@ -34,6 +34,18 @@ describe('artist service links', () => {
 		const again = await api('POST', '/artists/service_ids', { token: user.access_token, body: { items: [{ artist_id, service_ids: { youtube_id: CHANNEL() } }] } });
 		expect(again.body).toEqual({ filled: 0 });
 		expect((await api('GET', `/artists/${artist_id}`, { token: user.access_token })).body.service_ids.youtube_id).toBe(channel);
+	});
+
+	it('fills nothing on a locked artist, and records no conflicts', async () => {
+		const user = await create_user('artist-links-locked');
+		const { artist_id, track_ids } = await seed(user, mock_album({ artist: unique('Locked Artist'), album: unique('Locked Album'), n: 1 }));
+		await add_to_library(user, track_ids);
+		await query(`insert into service_links_locks_table (illusi_id) values ($1)`, [artist_id]);
+
+		const sent = await api('POST', '/artists/service_ids', { token: user.access_token, body: { items: [{ artist_id, service_ids: { youtube_id: CHANNEL() } }] } });
+		expect(sent.body).toEqual({ filled: 0 });
+		expect((await api('GET', `/artists/${artist_id}`, { token: user.access_token })).body.service_ids.youtube_id ?? null).toBeNull();
+		expect(await query(`select 1 from service_id_conflicts_table where illusi_id = $1`, [artist_id])).toHaveLength(0);
 	});
 
 	it('rejects unknown columns', async () => {

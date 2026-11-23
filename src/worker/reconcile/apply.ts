@@ -5,6 +5,7 @@ import {
 	illusi_id_redirects_table, review_items_table, service_id_conflicts_table, service_ids_table
 } from '../../db/schema';
 import { write_audit } from '../../core/audit';
+import { locked_service_links } from '../../core/enrich';
 import { logger } from '../../core/log';
 import { resolve_redirects } from '../../core/redirects';
 import { add_review_item } from '../../core/review';
@@ -101,6 +102,12 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 	const loser_kind = await entity_kind(tx, loser);
 	if (kind !== loser_kind) return { step, applied: false, skipped: `kind_mismatch:${kind}/${loser_kind}` };
 
+	// The lock lives on the survivor's row only: merging a locked entity away would lose it.
+	const link_locks = await locked_service_links(tx, [survivor, loser]);
+	if (link_locks.has(loser) && !link_locks.has(survivor)) return { step, applied: false, skipped: 'links_locked' };
+	// A locked survivor takes none of the loser's ids, so a loser known elsewhere is likely someone else: an admin decides.
+	if (link_locks.has(survivor) && ctx.actor === 'reconcile' && UNIQUE_SERVICE_ID_COLUMNS.some(c => l_ids[c] != null)) return { step, applied: false, skipped: 'links_locked' };
+
 	const dropped: Partial<Record<ServiceIdColumn, string>> = {};
 	for (const c of UNIQUE_SERVICE_ID_COLUMNS) {
 		if (s_ids[c] != null && l_ids[c] != null && String(s_ids[c]) !== String(l_ids[c])) dropped[c] = String(l_ids[c]);
@@ -170,7 +177,7 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 
 	const fill: Partial<Record<ServiceIdColumn, string>> = {};
 	const loser_values = id_values(l_ids);
-	for (const [c, v] of Object.entries(loser_values) as [ServiceIdColumn, string][]) if (s_ids[c] == null) fill[c] = v;
+	if (!link_locks.has(survivor)) for (const [c, v] of Object.entries(loser_values) as [ServiceIdColumn, string][]) if (s_ids[c] == null) fill[c] = v;
 	await tx.delete(service_ids_table).where(eq(service_ids_table.illusi_id, loser));
 	await tx.update(service_ids_table).set({ ...to_column_values(fill), modified_at: now }).where(eq(service_ids_table.illusi_id, survivor));
 	await tx.insert(illusi_id_redirects_table).values({ old_id: loser, new_id: survivor })
@@ -348,6 +355,7 @@ export async function apply_move(tx: Tx, step: MoveStep, ctx: ApplyContext): Pro
 	const from_row = locked.get(from);
 	const to_row = locked.get(to);
 	if (!from_row || !to_row) return { step, applied: false, skipped: 'missing_row' };
+	if ((await locked_service_links(tx, [to])).has(to)) return { step, applied: false, skipped: 'links_locked' };
 	const values = current_values(from_row, step.values);
 	const columns = (Object.keys(values) as ServiceIdColumn[]).filter(c => to_row[c] == null);
 	if (columns.length === 0) return { step, applied: false, skipped: 'ids_changed' };

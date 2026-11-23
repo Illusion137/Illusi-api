@@ -395,6 +395,17 @@ export const service_ids_table = pgTable('service_ids_table', {
 	index('service_ids_modified_at_idx').on(table.modified_at)
 ]);
 
+/**
+ * Entities kept off every other service: enrichment never fills their ids, and reconcile neither fills them in a merge,
+ * moves ids onto them, nor merges them into an unlocked entity. Set by hand; an artist whose name collides with others'
+ * is the usual reason.
+ */
+export const service_links_locks_table = pgTable('service_links_locks_table', {
+	illusi_id: uuid().primaryKey().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
+	reason: text(),
+	created_at: timestamptz().notNull().defaultNow()
+});
+
 export const illusi_id_redirects_table = pgTable('illusi_id_redirects_table', {
 	old_id: uuid().primaryKey(),
 	new_id: uuid().notNull().references(() => service_ids_table.illusi_id, { onDelete: 'cascade' }),
