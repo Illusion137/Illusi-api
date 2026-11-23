@@ -40,6 +40,8 @@ describe('settle_artist_name', () => {
 	});
 	it('splits joint credits only', () => {
 		expect(credit_parts('A, B & C')).toEqual(['A', 'B', 'C']);
+		expect(credit_parts('A, B, and C')).toEqual(['A', 'B', 'C']);
+		expect(credit_parts('A, B, & C')).toEqual(['A', 'B', 'C']);
 		expect(credit_parts('Tyler, The Creator')).toBeNull();
 	});
 });

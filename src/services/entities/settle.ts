@@ -67,7 +67,7 @@ export function clean_artist_name(name: string): { text: string; removed: number
 /** A joint credit (`A & B`, `A, B & C`, `A x B`, `A feat. B`, `A with B`) as its artists; null for one artist. */
 export function credit_parts(name: string): string[] | null {
 	if (!/\s(?:&|x|feat\.?|ft\.?|featuring|with)\s|,.*\sand\s/iu.test(name)) return null;
-	const parts = name.split(/\s*(?:,|\s&\s|\sx\s|\sfeat\.?\s|\sft\.?\s|\sfeaturing\s|\swith\s|\sand\s)\s*/iu).map(p => p.trim()).filter(Boolean);
+	const parts = name.split(/\s*(?:,\s*(?:&|and)\s+|,|\s&\s|\sx\s|\sfeat\.?\s|\sft\.?\s|\sfeaturing\s|\swith\s|\sand\s)\s*/iu).map(p => p.trim()).filter(Boolean);
 	return parts.length >= 2 ? parts : null;
 }
 

@@ -25,6 +25,7 @@ import type { IdCandidate } from './matching';
 import { service_ids_of, thumbnails_of } from './payload';
 import type { AlbumInput, ArtistInput, EntityType, Graph, Rejection, RelationKind, TrackInput } from './payload';
 import { prepare_similar_pairs } from './similar';
+import { split_joint_credits } from './split';
 import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
 
 const log = logger('entities');
@@ -454,12 +455,12 @@ class Engine {
 }
 
 /**
- * Applies a validated graph inside `tx` in foreign-key order: artists → albums → tracks (each with its
+ * Applies a validated graph inside `tx` (joint credits split first) in foreign-key order: artists → albums → tracks (each with its
  * service-id enrichment and thumbnails) → relations. A failing entity is rejected on its own (savepoint)
  * and the relations that need it are rejected with it.
  */
 export async function apply_graph(tx: Tx, raw: Graph, ctx: EngineContext): Promise<EngineResult> {
-	const graph = with_song_titles(raw);
+	const graph = with_song_titles(await split_joint_credits(tx, raw));
 	const engine = new Engine(tx, graph, ctx);
 	for (const [index, a] of graph.artists.entries()) await engine.apply_entity('artist', a, index);
 	for (const [index, a] of graph.albums.entries()) await engine.apply_entity('album', a, index);

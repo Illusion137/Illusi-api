@@ -47,6 +47,51 @@ describe('artists matched by name', () => {
 	});
 });
 
+describe('joint credits sent as one artist', () => {
+	const credits = async (track_id: string) => (await query<{ name: string }>(
+		'select a.name from tracks_artists_table ta join artists_table a on a.id = ta.artist_id where ta.track_id = $1', [track_id])).map(r => r.name).sort();
+	const permalink = () => unique('sc').toLowerCase();
+
+	it('split into each artist when the account belongs to one of them', async () => {
+		const owner = unique('StanWill');
+		const sc = permalink();
+		const first = await push({ name: owner, service_ids: { soundcloud_permalink: sc } }, [song('a', unique('Solo'), 'ar').graph]);
+		const guest = unique('NASAAN');
+		const joint = await push({ name: `${owner} & ${guest}`, service_ids: { soundcloud_permalink: sc } }, [song('b', unique('Lime Light'), 'ar').graph]);
+		expect(joint.refs.ar).toBe(first.refs.ar);
+		expect(await credits(joint.refs.b)).toEqual([guest, owner].sort());
+		expect((await query('select name from artists_table where id = $1', [first.refs.ar]))[0].name).toBe(owner);
+		expect(await query('select 1 from review_items_table where entity_id = $1', [first.refs.ar])).toEqual([]);
+
+		// The owner needn't be named first; the account stays with its owner either way.
+		const other = unique('Guest');
+		const flipped = await push({ name: `${other}, and ${owner}`, service_ids: { soundcloud_permalink: sc } }, [song('c', unique('Flipped'), 'ar').graph]);
+		expect(flipped.refs.ar).toBe(first.refs.ar);
+		expect(await credits(flipped.refs.c)).toEqual([other, owner].sort());
+		expect(await query('select 1 from artists_table a join service_ids_table s on s.illusi_id = a.id where s.soundcloud_permalink = $1', [sc])).toHaveLength(1);
+	});
+
+	it('split when the parts are already artists, and kept whole otherwise', async () => {
+		const [a, b, c] = [unique('Shitty'), unique('Tron'), unique('Trdee')];
+		const known = await contribute(user, { artists: [{ ref: 'a', name: a }, { ref: 'b', name: b }] });
+		expect(known.status).toBe(200);
+		const list = await push({ name: `${a}, ${b}, and ${c}` }, [song('t', unique('Five Guys'), 'ar').graph]);
+		expect(await credits(list.refs.t)).toEqual([a, b, c].sort());
+		expect(await query('select 1 from artists_table where name = $1', [`${a}, ${b}, and ${c}`])).toEqual([]);
+
+		// A duo nobody knows apart, an artist whose name has a comma, and a service's own joint artist stay as they are.
+		const duo = unique('Joey Valence & Brae');
+		const kept = await push({ name: duo }, [song('d', unique('Punk Tactics'), 'ar').graph]);
+		expect(await credits(kept.refs.d)).toEqual([duo]);
+		const comma = `${unique('Tyler')}, The Creator`;
+		await push({ name: comma }, [song('e', unique('Noid'), 'ar').graph]);
+		const again = await push({ name: comma }, [song('f', unique('She'), 'ar').graph]);
+		expect(await credits(again.refs.f)).toEqual([comma]);
+		const catalog = await push({ name: `${a} & ${b}`, service_ids: { applemusic_id: '9100000777' } }, [song('g', unique('Collab'), 'ar').graph]);
+		expect(await credits(catalog.refs.g)).toEqual([`${a} & ${b}`]);
+	});
+});
+
 describe('albums whose numbers differ', () => {
 	it('are created apart instead of matched', async () => {
 		const artist = unique('Lil Boat Artist');
