@@ -9,6 +9,7 @@ import {
 	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, users_table, sort_type, album_type
 } from '../../db/schema';
 import { unflatten_segments } from '../analyzer/contract';
+import { complete_album } from './album_fill';
 import { emit, PendingEvents } from '../../core/events';
 import { enrich_service_ids } from '../../core/enrich';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
@@ -383,6 +384,9 @@ catalog_router.get('/tracks/:id/alignment', read_limit, async (req, res) => {
 
 catalog_router.get('/albums/:id', read_limit, async (req, res) => {
 	const user = require_user(req);
+	// Before the validator, so tracks the fill adds change the response
+	const requested = uuid_schema.safeParse(req.params.id);
+	if (requested.success) await complete_album(await resolve_redirect(db, requested.data));
 	if (await answer_not_modified(req, res, { user_id: user.id })) return;
 	const { id, redirected_from } = await follow(req.params.id, 'album');
 	const album = (await album_views(db, [id])).get(id);

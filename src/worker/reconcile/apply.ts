@@ -6,12 +6,14 @@ import {
 } from '../../db/schema';
 import { write_audit } from '../../core/audit';
 import { locked_service_links } from '../../core/enrich';
+import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
 import { resolve_redirects } from '../../core/redirects';
 import { add_review_item } from '../../core/review';
 import type { ProposedValue } from '../../core/review';
 import { SERVICE_ID_COLUMNS, UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
+import { attach_itunes_album } from '../../services/itunes/album_link';
 import { merge_entity_row, plan_ref_merge, REF_TABLES } from './composite';
 import type { Row } from './composite';
 import { plan_signature, review_steps } from './resolve';
@@ -29,6 +31,8 @@ export interface ApplyContext {
 	actor: 'reconcile' | 'admin';
 	actor_user_id?: string | null;
 	review_item_id?: number | null;
+	/** Follow-up events to flush after commit; without them, ids filled by a step raise none. */
+	events?: PendingEvents;
 }
 
 export interface StepResult {
@@ -319,6 +323,10 @@ export async function apply_split(tx: Tx, step: SplitStep, ctx: ApplyContext): P
 	const moved = await move_service_data(tx, kind, from, new_id, step.facet_source, step.thumbnails);
 	// After the move: the moved service's own lyrics are already the new track's.
 	if (kind === 'track') await inherit_track_metadata(tx, from, new_id);
+	// A track made from an iTunes song goes on that song's album
+	if (kind === 'track' && values.applemusic_id != null && /^\d+$/u.test(values.applemusic_id)) {
+		await attach_itunes_album(tx, new_id, Number(values.applemusic_id), ctx.events ?? new PendingEvents());
+	}
 	await settle_column_conflicts(tx, from, columns);
 
 	const entity_table = ENTITY_TABLES[kind];

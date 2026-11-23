@@ -24,10 +24,21 @@ export function collection_album(name: string, track_count: number | null): { na
 	return { name: clean, album_type: track_count === 1 ? 'SINGLE' : 'ALBUM' };
 }
 
+/** `Song (feat. X)`, `Song [with X]`, `Song ft. X`: the featured artists, which iTunes and uploads write differently. */
+const FEATURE_RE = /\s*(?:[([]\s*(?:feat|ft|featuring|with)\.?\s[^)\]]*[)\]]|\s(?:feat|ft|featuring)\.?\s.*$)/giu;
+const without_features = (title: string) => title.replace(FEATURE_RE, '').trim() || title;
+
+/** The same song title, featured artists aside. */
+function same_title(title: string, song: string | null): boolean {
+	if (!song) return false;
+	return name_similarity(title, song) === 1 || name_similarity(without_features(title), without_features(song)) === 1;
+}
+
 /**
  * Puts a track with no album on the album of the iTunes song it was linked to, only when the song is surely the
- * track: the same title, the same primary artist and a duration within tolerance. Reuses the catalog's album for
- * that collection (by Apple Music id, else by name under the artist) before creating one. Returns the album id.
+ * track: the same title (featured artists aside), the song's artist among the track's credits, and a duration within
+ * tolerance. Reuses the catalog's album for that collection (by Apple Music id, else by name under
+ * the artist) before creating one. Returns the album id.
  */
 export async function attach_itunes_album(tx: Tx, track_id: string, itunes_track_id: number, events: PendingEvents): Promise<string | null> {
 	const [track] = await tx.select({ title: tracks_table.title, duration_ms: tracks_table.duration_ms, album_id: tracks_table.album_id })
@@ -40,16 +51,17 @@ export async function attach_itunes_album(tx: Tx, track_id: string, itunes_track
 		.leftJoin(itunes_artists_table, eq(itunes_artists_table.id, itunes_tracks_table.artist_id))
 		.where(eq(itunes_tracks_table.id, itunes_track_id));
 	if (!song?.artist_name || song.t.collection_id === null) return null;
-	const [primary] = await tx.select({ id: artists_table.id, name: artists_table.name }).from(tracks_artists_table)
+	const credited = await tx.select({ id: artists_table.id, name: artists_table.name }).from(tracks_artists_table)
 		.innerJoin(artists_table, eq(artists_table.id, tracks_artists_table.artist_id))
-		.where(eq(tracks_artists_table.track_id, track_id)).orderBy(asc(tracks_artists_table.created_at), asc(artists_table.id)).limit(1);
-	if (!primary) return null;
-	const title_score = Math.max(name_similarity(track.title, song.t.name), song.t.censored_name ? name_similarity(track.title, song.t.censored_name) : 0);
-	if (title_score < 1 || !durations_match(track.duration_ms, song.t.track_time_millis) || !names_match(primary.name, song.artist_name)) return null;
+		.where(eq(tracks_artists_table.track_id, track_id)).orderBy(asc(tracks_artists_table.created_at), asc(artists_table.id));
+	const artist = credited.find(a => names_match(a.name, song.artist_name!));
+	if (!artist) return null;
+	if (!same_title(track.title, song.t.name) && !same_title(track.title, song.t.censored_name)) return null;
+	if (!durations_match(track.duration_ms, song.t.track_time_millis)) return null;
 
 	const [collection] = await tx.select().from(itunes_collections_table).where(eq(itunes_collections_table.id, song.t.collection_id));
 	if (!collection) return null;
-	const album_id = await album_for_collection(tx, collection, primary.id, events);
+	const album_id = await album_for_collection(tx, collection, artist.id, events);
 
 	await tx.update(tracks_table).set({ album_id }).where(and(eq(tracks_table.id, track_id), isNull(tracks_table.album_id)));
 	await tx.insert(album_tracks_table).values({ album_id, track_id, track_number: song.t.track_number }).onConflictDoNothing();

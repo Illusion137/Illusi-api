@@ -155,7 +155,7 @@ export async function apply_review(id: number, body: z.infer<typeof apply_body_s
 		if (item.kind === 'SERVICE_ID_CONFLICT') {
 			const plan = proposals[index]?.plan as ReviewPlan | undefined;
 			if (!plan?.steps.length) throw new HttpError(400, 'review item has no plan to apply');
-			const steps = await apply_review_plan(tx, plan, { actor: 'admin', actor_user_id: admin_id, review_item_id: item.id });
+			const steps = await apply_review_plan(tx, plan, { actor: 'admin', actor_user_id: admin_id, review_item_id: item.id, events });
 			for (const { step, applied } of steps) {
 				if (!applied || step.type !== 'move') continue;
 				const to = (await resolve_redirects(tx, [step.to])).get(step.to)!;
