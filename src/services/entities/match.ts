@@ -97,7 +97,7 @@ export async function match_entity(tx: Tx, type: EntityType, input: MatchInput):
 	return match_by_metadata(tx, type, input);
 }
 
-export interface ConflictSource { source: string; user_id: string }
+export interface ConflictSource { source: string; user_id: string | null }
 
 /**
  * Records a possible duplicate (`other_illusi_id`) for the reconciliation job: a conflict record

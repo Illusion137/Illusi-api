@@ -1,7 +1,7 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
-import { artist_release_checks_table, service_ids_table } from '../../db/schema';
+import { albums_table, artist_release_checks_table, service_ids_table } from '../../db/schema';
 import { RELEASE_SERVICES } from './logic';
 import type { AlbumRow, CheckCandidate, ReleaseService, ReleaseWindow } from './logic';
 
@@ -130,7 +130,8 @@ export async function mark_requested(ex: Executor, checks: readonly Pick<CheckCa
 		});
 }
 
-export async function mark_checked(ex: Executor, artist_id: string, service: ReleaseService, user_id: string, now: Date) {
+/** `user_id` is null when the server checked itself. */
+export async function mark_checked(ex: Executor, artist_id: string, service: ReleaseService, user_id: string | null, now: Date) {
 	await ex.insert(artist_release_checks_table)
 		.values({ artist_id, service, checked_at: now, checked_by: user_id })
 		.onConflictDoUpdate({
@@ -147,4 +148,25 @@ export async function artist_service_id(ex: Executor, artist_id: string, service
 		.where(and(eq(service_ids_table.illusi_id, artist_id), sql`exists (select 1 from artists_table where id = ${artist_id})`))
 		.limit(1);
 	return row?.value ?? null;
+}
+
+/** Artists in anyone's library with an Apple Music id whose Apple Music check is older than `checked_before`, oldest first. */
+export async function due_applemusic_artists(ex: Executor, checked_before: Date, limit: number): Promise<{ artist_id: string; applemusic_id: string }[]> {
+	return ex.execute<{ artist_id: string; applemusic_id: string }>(sql`
+		select lib.artist_id, si.applemusic_id
+		from (select distinct ta.artist_id from user_tracks_table ut join tracks_artists_table ta on ta.track_id = ut.track_id where not ut.deleted) lib
+		join service_ids_table si on si.illusi_id = lib.artist_id
+		left join artist_release_checks_table c on c.artist_id = lib.artist_id and c.service = 'applemusic'
+		where si.applemusic_id is not null and (c.checked_at is null or c.checked_at < ${checked_before})
+		order by c.checked_at asc nulls first, lib.artist_id
+		limit ${limit}`, 'objects');
+}
+
+/** Which of these Apple Music ids an album already has. */
+export async function linked_applemusic_albums(ex: Executor, applemusic_ids: readonly string[]): Promise<Set<string>> {
+	if (applemusic_ids.length === 0) return new Set();
+	const rows = await ex.select({ id: service_ids_table.applemusic_id }).from(service_ids_table)
+		.innerJoin(albums_table, eq(albums_table.id, service_ids_table.illusi_id))
+		.where(inArray(service_ids_table.applemusic_id, [...applemusic_ids]));
+	return new Set(rows.map(r => r.id).filter((id): id is string => id !== null));
 }

@@ -250,6 +250,31 @@ export async function persist_artist(tx: Tx, artist: ITunesArtist): Promise<void
 }
 
 /**
+ * An album's release date is untrusted when it's missing, only a year (January 1st, midnight UTC), or the moment the
+ * album was added: older lib-origin builds turned a year-only date ("2026") into the current time. Must match the
+ * repair in the `repair_album_release_dates` migration.
+ */
+const UNTRUSTED_RELEASE_DATE = sql`(
+	${albums_table.release_date} is null
+	or ${albums_table.release_date} = date_trunc('year', ${albums_table.release_date} at time zone 'UTC') at time zone 'UTC'
+	or abs(extract(epoch from ${albums_table.release_date} - ${albums_table.created_at})) < 120
+)`;
+
+/** Takes the linked collection's release date over an untrusted one from the same year (another year is likely a reissue). */
+async function take_collection_date(tx: Tx, album_id: string, collection_id: number) {
+	await tx.update(albums_table)
+		.set({ release_date: sql`(select ${itunes_collections_table.release_date} from ${itunes_collections_table} where ${itunes_collections_table.id} = ${collection_id})` })
+		.where(and(
+			eq(albums_table.id, album_id),
+			UNTRUSTED_RELEASE_DATE,
+			sql`exists (
+				select 1 from ${itunes_collections_table} where ${itunes_collections_table.id} = ${collection_id} and ${itunes_collections_table.release_date} is not null
+					and (${albums_table.release_date} is null or extract(year from ${itunes_collections_table.release_date} at time zone 'UTC') = extract(year from ${albums_table.release_date} at time zone 'UTC'))
+			)`
+		));
+}
+
+/**
  * Sets `applemusic_id` on each local entity through the enrichment rules and, for those it now points at
  * this iTunes row, attaches the artwork and queues `itunes_track_linked`. Returns the linked ids.
  */
@@ -261,6 +286,7 @@ export async function link_entities(tx: Tx, illusi_ids: readonly string[], type:
 		if (row?.applemusic_id !== String(itunes_id)) continue;
 		out.push(illusi_id);
 		if (artwork) await upsert_thumbnails(tx, illusi_id, itunes_thumbnails(artwork));
+		if (type === 'album') await take_collection_date(tx, illusi_id, itunes_id);
 		if (type === 'track' && preview_url) events.push('itunes_track_linked', { track_id: illusi_id, itunes_track_id: itunes_id, preview_url });
 	}
 	return out;

@@ -64,7 +64,7 @@ export const review_kind = pgEnum('review_kind', REVIEW_KINDS);
 export const REVIEW_STATUSES = ['OPEN', 'APPLIED', 'DISMISSED'] as const;
 export const review_status = pgEnum('review_status', REVIEW_STATUSES);
 
-export const PROVENANCE_SOURCES = ['contribute', 'sync_push', 'soundcloud', 'genius', 'youtube_music', 'media', 'research'] as const;
+export const PROVENANCE_SOURCES = ['contribute', 'sync_push', 'soundcloud', 'genius', 'youtube_music', 'media', 'research', 'itunes'] as const;
 export const provenance_source = pgEnum('provenance_source', PROVENANCE_SOURCES);
 
 const timestamptz = () => timestamp({ withTimezone: true });

@@ -35,6 +35,7 @@ vi.mock('./core/log', () => ({ logger: () => ({ info: vi.fn(), warn: vi.fn(), er
 vi.mock('./services/account/export', () => ({ start: vi.fn(), stop: vi.fn() }));
 vi.mock('./services/analyzer', () => ({ start: h.service_start, stop: h.service_stop }));
 vi.mock('./services/itunes', () => ({ start: h.service_start, stop: h.service_stop }));
+vi.mock('./services/releases/itunes_checks', () => ({ start: h.service_start, stop: h.service_stop }));
 
 describe('server entrypoint', () => {
 	beforeEach(() => {
@@ -56,11 +57,11 @@ describe('server entrypoint', () => {
 		try {
 			await import('./index.js');
 			await vi.waitFor(() => { expect(handlers.SIGTERM).toBeDefined(); }, { timeout: 5_000 });
-			expect(h.service_start).toHaveBeenCalledTimes(3);
+			expect(h.service_start).toHaveBeenCalledTimes(4);
 			handlers.SIGTERM();
 			handlers.SIGINT();
 			await vi.waitFor(() => { expect(exit).toHaveBeenCalledWith(0); });
-			expect(h.service_stop).toHaveBeenCalledTimes(3);
+			expect(h.service_stop).toHaveBeenCalledTimes(4);
 		} finally {
 			exit.mockRestore();
 			on.mockRestore();

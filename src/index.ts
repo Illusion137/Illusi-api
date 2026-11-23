@@ -15,10 +15,11 @@ import * as cleanup from './core/cleanup';
 import * as exports_runner from './services/account/export';
 import * as analyzer from './services/analyzer';
 import * as itunes from './services/itunes';
+import * as release_checks from './services/releases/itunes_checks';
 
 const log = logger('server');
 
-const services = [['itunes', itunes], ['analyzer', analyzer]] as const;
+const services = [['itunes', itunes], ['release_checks', release_checks], ['analyzer', analyzer]] as const;
 
 /** Waits for Postgres before listening, so a fresh container never takes traffic it can't serve. */
 async function wait_for_database(timeout_ms = 60_000) {

@@ -15,7 +15,7 @@ export interface TouchedEntity {
 export class ProvenanceLog {
 	readonly entities: TouchedEntity[] = [];
 
-	constructor(public source: ProvenanceSource, public user_id: string, public token_jti?: string | null, public contribution_id?: string | null) {}
+	constructor(public source: ProvenanceSource, public user_id: string | null, public token_jti?: string | null, public contribution_id?: string | null) {}
 
 	touch(table: string, id: string | number, filled: string[]) {
 		if (filled.length === 0) return;

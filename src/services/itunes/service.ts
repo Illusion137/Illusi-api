@@ -4,6 +4,7 @@ import { on, PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
 import { chunk } from './batching';
 import { ITunesClient, ITunesDropError, ITunesStoppedError } from './client';
+import type { AlbumTracks, ArtistAlbums } from './client';
 import { attach_itunes_album } from './album_link';
 import { found_from_result, resolve_request, result_for_id } from './pipeline';
 import type { Found } from './pipeline';
@@ -77,6 +78,16 @@ export class ITunesService {
 		for (const ids of chunk(illusi_ids, 1000)) {
 			for (const c of await scan_candidates(type, { ids, limit: ids.length })) this.add(c, lane);
 		}
+	}
+
+	/** An artist's albums through the shared request gate (spacing, backoff and the 10 minute cache). */
+	async artist_albums(artist_id: number): Promise<ArtistAlbums> {
+		return this.client.artist_albums(artist_id);
+	}
+
+	/** Songs of up to 200 tracks' worth of albums through the shared request gate. */
+	async album_tracks(collection_ids: readonly number[]): Promise<Map<number, AlbumTracks>> {
+		return this.client.album_tracks(collection_ids);
 	}
 
 	async enqueue_if_needed(illusi_ids: readonly string[]) {

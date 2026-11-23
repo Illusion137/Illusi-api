@@ -127,6 +127,9 @@ const schema = z.object({
 	/** A handed-out check isn't handed out again for this long, unless it gets fulfilled. */
 	NEW_RELEASES_REQUEST_COOLDOWN_MIN: num(30),
 	NEW_RELEASES_MAX_ACTIONS: num(25),
+	/** How often the server checks due library artists on Apple Music itself, and how many per pass (0 turns it off). */
+	NEW_RELEASES_SERVER_INTERVAL_MIN: num(10),
+	NEW_RELEASES_SERVER_BATCH: num(25),
 
 	/**
 	 * A backpacked track is researched on download services first. Users who downloaded it are asked for the file

@@ -27,8 +27,9 @@ import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
 const log = logger('entities');
 
 export interface EngineContext {
-	user_id: string;
-	source: 'contribute' | 'sync_push';
+	/** Null for the server's own lookups (`itunes`) */
+	user_id: string | null;
+	source: 'contribute' | 'sync_push' | 'itunes';
 	provenance: ProvenanceLog;
 }
 

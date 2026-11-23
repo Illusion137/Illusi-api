@@ -278,6 +278,31 @@ describe('iTunes store: linking and lookup records', () => {
 		expect(push).not.toHaveBeenCalledWith('itunes_track_linked', expect.anything());
 	});
 
+	it('takes the collection\'s release date over a missing, year-only or added-at one from the same year', async () => {
+		const artist = { id: itunes_id(), name: unique('Date Artist') };
+		const released = '2026-05-22T07:00:00Z';
+		const link = async (album: string, release_date: string | null, created_at: string, released_at = released) => {
+			await pool.query('update albums_table set release_date = $2, created_at = $3 where id = $1', [album, release_date, created_at]);
+			const collection = itunes_id();
+			await db.transaction(async (tx) => {
+				await persist_collection(tx, { collection: it_collection(collection, artist, 'Dated', { releaseDate: released_at }) });
+				await link_entities(tx, [album], 'album', collection, null, null, new PendingEvents());
+			});
+			const [row] = await query_one(album);
+			return row.release_date === null ? null : new Date(row.release_date).toISOString();
+		};
+		const query_one = async (id: string) => (await pool.query<{ release_date: Date | null }>('select release_date from albums_table where id = $1', [id])).rows;
+		const album = async () => seed('album', { name: unique('Dated Album') });
+
+		expect(await link(await album(), null, '2026-11-21T09:54:44Z')).toBe('2026-05-22T07:00:00.000Z');
+		// Stamped when it was added (older lib-origin builds), and year-only.
+		expect(await link(await album(), '2026-11-21T09:54:42.817Z', '2026-11-21T09:54:44Z')).toBe('2026-05-22T07:00:00.000Z');
+		expect(await link(await album(), '2026-01-01T00:00:00Z', '2026-11-21T09:54:44Z')).toBe('2026-05-22T07:00:00.000Z');
+		// A real date stays, and so does an untrusted one from another year (a reissue).
+		expect(await link(await album(), '2026-03-03T12:00:00Z', '2026-11-21T09:54:44Z')).toBe('2026-03-03T12:00:00.000Z');
+		expect(await link(await album(), '2019-01-01T00:00:00Z', '2026-11-21T09:54:44Z')).toBe('2019-01-01T00:00:00.000Z');
+	});
+
 	it('counts attempts and sets retry_after per status', async () => {
 		const id = await seed('artist', { name: unique('Rec') });
 		await record_lookup(db, [], 'artist', 'ERROR');

@@ -1,0 +1,43 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "a067a452-0734-4275-9165-fa2476bc1d81",
+  "prevIds": [
+    "c0d2c61e-d95d-430c-bd9a-c83d269aea0e"
+  ],
+  "footprints": [
+    {
+      "statementType": "alter_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "provenance_source"
+      ],
+      "writes": [
+        "s|enum|public.provenance_source"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "enums\u0000[\"public\",\"provenance_source\"]",
+      "set": {
+        "values": [
+          "contribute",
+          "sync_push",
+          "soundcloud",
+          "genius",
+          "youtube_music",
+          "media",
+          "research",
+          "itunes"
+        ]
+      }
+    }
+  ]
+}
