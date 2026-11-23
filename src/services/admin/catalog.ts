@@ -13,6 +13,7 @@ import { HttpError } from '../../core/http';
 import { logger } from '../../core/log';
 import { resolve_redirect } from '../../core/redirects';
 import { is_valid_resource_id } from '../media';
+import { track_credits } from './credits';
 import { delete_remote_media } from '../media/remote';
 
 const log = logger('admin');
@@ -98,7 +99,7 @@ export async function track_detail(raw_id: string) {
 		db.select().from(track_research_table).where(eq(track_research_table.track_id, id)).orderBy(asc(track_research_table.service)),
 		db.select().from(audit_log_table).where(eq(audit_log_table.entity_id, id)).orderBy(desc(audit_log_table.id)).limit(20)
 	]);
-	return { track, redirected_from: id === raw_id ? null : raw_id, service_ids: service_ids ?? null, media, reports, research, audit };
+	return { track, redirected_from: id === raw_id ? null : raw_id, credits: await track_credits(db, id), service_ids: service_ids ?? null, media, reports, research, audit };
 }
 
 /** Backpacked tracks with their reports and research progress: most reported first, or longest backpacked. */

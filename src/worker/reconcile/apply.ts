@@ -105,7 +105,9 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 	for (const c of UNIQUE_SERVICE_ID_COLUMNS) {
 		if (s_ids[c] != null && l_ids[c] != null && String(s_ids[c]) !== String(l_ids[c])) dropped[c] = String(l_ids[c]);
 	}
-	if (Object.keys(dropped).length > 0 && ctx.actor === 'reconcile') return { step, applied: false, skipped: 'different_ids' };
+	// An artist's YouTube id is one of their channels: two of them don't make two artists (the survivor keeps its own).
+	const identifying = Object.keys(dropped).filter(c => kind !== 'artist' || c !== 'youtube_id');
+	if (identifying.length > 0 && ctx.actor === 'reconcile') return { step, applied: false, skipped: 'different_ids' };
 
 	const undo_tables: Record<string, { repointed: Row[]; deleted: Row[]; updated: { key: Row; before: Row }[] }[]> = {};
 	const now = new Date();

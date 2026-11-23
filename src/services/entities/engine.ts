@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '../../db';
-import { album_tracks_table, albums_table, artist_albums_table, service_ids_table, similar_artists_table, tracks_artists_table, tracks_table } from '../../db/schema';
+import { album_tracks_table, albums_table, artist_albums_table, artists_table, service_ids_table, similar_artists_table, tracks_artists_table, tracks_table } from '../../db/schema';
 import { enrich_service_ids } from '../../core/enrich';
 import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
@@ -14,7 +14,10 @@ import type { ProvenanceLog, TouchedEntity } from '../../core/provenance';
 import { add_review_item } from '../../core/review';
 import { upsert_thumbnails } from '../../core/thumbnails';
 import { truncate_to_columns } from '../../core/truncate';
-import { explicit_rule, resolve_shared_fields, strip_artist_prefix, values_equal } from './fields';
+import { normalize_service_ids, UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
+import type { ServiceIdColumn, ServiceIds } from '../../core/service_ids';
+import { explicit_rule, resolve_shared_fields, strip_artist_prefix } from './fields';
+import { settle_artist_name, settle_title } from './settle';
 import type { FieldConflict, FieldSpec } from './fields';
 import { ENTITY_TABLE_NAMES, ENTITY_TABLES, match_by_service_ids, match_entity, record_link_conflict, record_service_id_others, resolve_existing_ref } from './match';
 import type { MatchInput } from './match';
@@ -112,6 +115,25 @@ export function graph_links(graph: Graph): Links {
 	return links;
 }
 
+/** The normalized unique (non-ISRC) service ids, as strings. */
+function unique_service_ids(ids: ServiceIds): Partial<Record<ServiceIdColumn, string>> {
+	const normalized = normalize_service_ids(ids).ids;
+	const out: Partial<Record<ServiceIdColumn, string>> = {};
+	for (const col of UNIQUE_SERVICE_ID_COLUMNS) if (normalized[col] != null) out[col] = String(normalized[col]);
+	return out;
+}
+
+/** Artist names written two ways where one is plainly the right one (see `settle_artist_name`); the rest is reviewed. */
+async function settle_artist_conflicts(sp: Tx, id: string, differing: FieldConflict[]): Promise<FieldConflict[]> {
+	const left: FieldConflict[] = [];
+	for (const c of differing) {
+		const settled = c.field === 'name' ? settle_artist_name(String(c.current), String(c.proposed)) : 'review';
+		if (settled === 'apply') await sp.update(artists_table).set({ name: String(c.proposed) }).where(eq(artists_table.id, id));
+		if (settled === 'review') left.push(c);
+	}
+	return left;
+}
+
 function track_artist_names(graph: Graph, links: Links, track_ref: string): string[] {
 	const names = new Map(graph.artists.map(a => [a.ref, a.name]));
 	return (links.artists_of_track.get(track_ref) ?? []).map(r => names.get(r)).filter((n): n is string => n != null);
@@ -143,9 +165,16 @@ class Engine {
 	private async settle_track_conflicts(sp: Tx, id: string, input: TrackInput, differing: FieldConflict[]): Promise<FieldConflict[]> {
 		const left: FieldConflict[] = [];
 		const artists = track_artist_names(this.graph, this.links, input.ref);
+		if (differing.some(c => c.field === 'title')) {
+			const stored = await sp.select({ name: artists_table.name }).from(tracks_artists_table)
+				.innerJoin(artists_table, eq(artists_table.id, tracks_artists_table.artist_id)).where(eq(tracks_artists_table.track_id, id));
+			artists.push(...stored.map(r => r.name));
+		}
 		for (const c of differing) {
-			if (c.field === 'title' && values_equal('name', strip_artist_prefix(String(c.current), artists), c.proposed)) {
-				await sp.update(tracks_table).set({ title: String(c.proposed) }).where(eq(tracks_table.id, id));
+			if (c.field === 'title') {
+				const settled = settle_title(String(c.current), String(c.proposed), artists);
+				if (settled === 'apply') await sp.update(tracks_table).set({ title: String(c.proposed) }).where(eq(tracks_table.id, id));
+				if (settled === 'review') left.push(c);
 				continue;
 			}
 			if (c.field === 'explicit') {
@@ -216,7 +245,8 @@ class Engine {
 					name: label_of(input),
 					work_ids,
 					album_names: album_refs.map(name_of).filter((n): n is string => n != null),
-					track_titles: track_refs.map(name_of).filter((n): n is string => n != null)
+					track_titles: track_refs.map(name_of).filter((n): n is string => n != null),
+					service_ids: unique_service_ids(base.service_ids)
 				}
 			};
 		}
@@ -274,7 +304,9 @@ class Engine {
 					const [current] = await sp.select().from(table).where(eq(table.id, id)).for('update');
 					const resolved = resolve_shared_fields(FIELD_SPECS[type], current as Record<string, unknown>, values);
 					const { fill } = resolved;
-					const differing = type === 'track' ? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts) : resolved.conflicts;
+					const differing = type === 'track'
+						? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts)
+						: type === 'artist' ? await settle_artist_conflicts(sp, id, resolved.conflicts) : resolved.conflicts;
 					if (Object.keys(fill).length > 0) {
 						await sp.update(table).set(fill).where(eq(table.id, id));
 						touched.push({ table: table_name, id, filled: Object.keys(fill) });

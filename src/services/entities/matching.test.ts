@@ -51,8 +51,27 @@ describe('evaluate_album / evaluate_artist', () => {
 		const c = { id: 'ar', name: 'The Band', work_ids: ['t1'], album_names: ['First LP'], track_titles: ['Hit'] };
 		expect(evaluate_artist({ name: 'the band', work_ids: ['t1'] }, c).strength).toBe('strong');
 		expect(evaluate_artist({ name: 'The Band', track_titles: ['Hit (Remastered)'] }, c).strength).toBe('strong');
-		expect(evaluate_artist({ name: 'The Band' }, c).strength).toBe('unclear');
 		expect(evaluate_artist({ name: 'Someone Else', work_ids: ['t1'] }, c).strength).toBe('none');
+	});
+	it('the same name without a shared work joins the artist, unless their ids on a service differ', () => {
+		const c = { id: 'ar', name: 'Lelo', work_ids: ['t1', 't2'], album_names: [], track_titles: [], service_ids: { spotify_id: 'sp1', youtube_id: 'UC1' } };
+		expect(evaluate_artist({ name: 'LELO' }, c).strength).toBe('strong');
+		expect(evaluate_artist({ name: 'Lelo', service_ids: { youtube_id: 'UC2' } }, c).strength).toBe('strong');
+		expect(evaluate_artist({ name: 'Lelo', service_ids: { spotify_id: 'sp2' } }, c).strength).toBe('unclear');
+		expect(evaluate_artist({ name: 'Lelo!!' }, c).strength).toBe('strong');
+		expect(evaluate_artist({ name: 'Lel0' }, c).strength).toBe('none');
+	});
+	it('among same-name artists, a shared work wins, then the one with the most works', () => {
+		const big = { id: 'big', name: 'Lelo', work_ids: ['a', 'b', 'c'], album_names: [], track_titles: [] };
+		const small = { id: 'small', name: 'Lelo', work_ids: ['d'], album_names: [], track_titles: [] };
+		expect(decide_metadata([evaluate_artist({ name: 'Lelo' }, small), evaluate_artist({ name: 'Lelo' }, big)])).toMatchObject({ kind: 'match', illusi_id: 'big', others: ['small'] });
+		expect(decide_metadata([evaluate_artist({ name: 'Lelo', work_ids: ['d'] }, small), evaluate_artist({ name: 'Lelo', work_ids: ['d'] }, big)])).toMatchObject({ illusi_id: 'small' });
+	});
+	it('albums whose numbers differ are different albums', () => {
+		const c = { id: 'al', name: 'Lil Boat 2', artist_ids: ['ar1'], artist_names: ['Lil Yachty'] };
+		expect(evaluate_album({ name: 'Lil Boat 3', artist_id: 'ar1' }, c).strength).toBe('none');
+		expect(evaluate_album({ name: 'Lil Boat', artist_id: 'ar1' }, c).strength).toBe('none');
+		expect(evaluate_album({ name: 'Lil Boat 2 (Deluxe)', artist_id: 'ar1' }, c).strength).toBe('strong');
 	});
 });
 

@@ -2,7 +2,9 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
-import { album_tracks_table, albums_table, artist_albums_table, artists_table, tracks_artists_table, tracks_table } from '../../db/schema';
+import { album_tracks_table, albums_table, artist_albums_table, artists_table, service_ids_table, tracks_artists_table, tracks_table } from '../../db/schema';
+import { UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
+import type { ServiceIdColumn } from '../../core/service_ids';
 import { names_match, primary_artist_name } from '../../core/normalize';
 import type { AlbumCandidate, ArtistCandidate, TrackCandidate } from './matching';
 
@@ -119,13 +121,19 @@ export async function artist_candidates(ex: Executor, name: string, work_ids: re
 	const matching = scanned.filter(r => names_match(name, r.name));
 	if (matching.length === 0) return [];
 	const ids = matching.map(r => r.id);
-	const [own_albums, linked_albums, tracks] = await all_queries(ex, [
+	const [own_albums, linked_albums, tracks, id_rows] = await all_queries(ex, [
 		ex.select({ k: albums_table.artist_id, id: albums_table.id, name: albums_table.name }).from(albums_table).where(inArray(albums_table.artist_id, ids)).limit(MAX_SCAN),
 		ex.select({ k: artist_albums_table.artist_id, id: albums_table.id, name: albums_table.name }).from(artist_albums_table)
 			.innerJoin(albums_table, eq(albums_table.id, artist_albums_table.album_id)).where(inArray(artist_albums_table.artist_id, ids)).limit(MAX_SCAN),
 		ex.select({ k: tracks_artists_table.artist_id, id: tracks_table.id, name: tracks_table.title }).from(tracks_artists_table)
-			.innerJoin(tracks_table, eq(tracks_table.id, tracks_artists_table.track_id)).where(inArray(tracks_artists_table.artist_id, ids)).limit(MAX_SCAN)
+			.innerJoin(tracks_table, eq(tracks_table.id, tracks_artists_table.track_id)).where(inArray(tracks_artists_table.artist_id, ids)).limit(MAX_SCAN),
+		ex.select().from(service_ids_table).where(inArray(service_ids_table.illusi_id, ids))
 	]);
+	const service_ids = new Map(id_rows.map((r) => {
+		const own: Partial<Record<ServiceIdColumn, string>> = {};
+		for (const col of UNIQUE_SERVICE_ID_COLUMNS) if (r[col] != null) own[col] = String(r[col]);
+		return [r.illusi_id, own];
+	}));
 	const albums = group([...own_albums, ...linked_albums].filter(r => r.k != null).map(r => ({ k: r.k!, v: r })));
 	const by_track = group(tracks.map(r => ({ k: r.k, v: r })));
 	return matching.map(a => ({
@@ -133,6 +141,7 @@ export async function artist_candidates(ex: Executor, name: string, work_ids: re
 		name: a.name,
 		work_ids: [...(albums.get(a.id) ?? []), ...(by_track.get(a.id) ?? [])].map(w => w.id),
 		album_names: [...new Set((albums.get(a.id) ?? []).map(w => w.name))],
-		track_titles: [...new Set((by_track.get(a.id) ?? []).map(w => w.name))]
+		track_titles: [...new Set((by_track.get(a.id) ?? []).map(w => w.name))],
+		service_ids: service_ids.get(a.id) ?? {}
 	}));
 }

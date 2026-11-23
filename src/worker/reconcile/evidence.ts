@@ -1,4 +1,4 @@
-import { name_similarity, primary_artist_name } from '../../core/normalize';
+import { name_similarity, normalize_name, primary_artist_name } from '../../core/normalize';
 import { UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
 import type { Thresholds } from './thresholds';
@@ -62,7 +62,9 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		}
 		const a_own = a.ids[column];
 		const b_own = b.ids[column];
-		if (a_own != null && b_own != null && a_own !== b_own) strong('different_id', { column, a: a_own, b: b_own });
+		// An artist's YouTube id is one of their channels; two of them don't make two artists.
+		const identifies = a.kind !== 'artist' || column !== 'youtube_id';
+		if (identifies && a_own != null && b_own != null && a_own !== b_own) strong('different_id', { column, a: a_own, b: b_own });
 	}
 
 	const a_isrc = new Set(a_claims.filter(c => c.column === 'isrc').map(c => c.value));
@@ -141,6 +143,10 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		// Same name and artist with agreeing tracks; a different release year (a reissue?) is left for review.
 		else if (a.kind === 'album' && tracks_agree && contradictions.length === 0 && (ay == null || by == null || ay === by)
 			&& signals.some(s => s.name === 'title') && signals.some(s => s.name === 'artist')) hard = 'album_tracks';
+		// Two artists with the same name and no service on which their ids differ: the way contributions match
+		// artists, so duplicates made before that rule (or by a race) are merged.
+		else if (a.kind === 'artist' && b.kind === 'artist' && contradictions.length === 0 && at && bt
+			&& normalize_name(at) !== '' && normalize_name(at) === normalize_name(bt)) hard = 'same_artist_name';
 	}
 	const score = signals.reduce((s, x) => s + x.weight, 0) - contradictions.reduce((s, x) => s + x.weight, 0);
 	return { a: a.illusi_id, b: b.illusi_id, signals, contradictions, confidence: clamp01(score), hard };

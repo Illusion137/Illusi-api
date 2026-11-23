@@ -41,7 +41,7 @@ const upload_fields_schema = z.object({
 	token: z.string().min(1).max(4096).optional()
 });
 
-const upload_limit = rate_limit_user('media_upload', 60, 60 * 60_000);
+const upload_limit = rate_limit_user('media_upload', config.MEDIA_UPLOADS_PER_HOUR, 60 * 60_000);
 
 /** The track's first media (the one served), if any. */
 async function existing_media(track_id: string) {

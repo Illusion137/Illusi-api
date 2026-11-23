@@ -113,6 +113,17 @@ h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: u
 }
 .card + .card { margin-top: 0; }
 .stack > * + * { margin-top: 16px; }
+.stack-tight > * + * { margin-top: 6px; }
+
+.chip-row { display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: var(--panel-2); border-radius: var(--radius); min-width: 0; }
+.chip-row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.picker { position: relative; }
+.picker-list {
+	position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow-y: auto;
+	background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.picker-option { padding: 7px 10px; cursor: pointer; overflow-wrap: anywhere; }
+.picker-option.active, .picker-option:hover { background: var(--panel-2); }
 
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
 .kv dt { color: var(--muted); }

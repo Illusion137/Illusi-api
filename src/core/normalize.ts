@@ -15,10 +15,11 @@ const VERSION_WORDS = [
 const VERSION_PAREN_RE = new RegExp(`[([]\\s*(?:${VERSION_WORDS.join('|')})\\s*[)\\]]`, 'giu');
 const VERSION_DASH_RE = new RegExp(`\\s+-\\s+(?:${VERSION_WORDS.join('|')})\\s*$`, 'giu');
 
-/** Lowercase, NFKC, strip Latin accents, `feat.` parts, version suffixes and punctuation, collapse whitespace. */
+/** Lowercase, NFKC, strip Latin accents, invisible characters, `feat.` parts, version suffixes and punctuation, collapse whitespace. */
 export function normalize_name(value: string): string {
 	// Only combining diacritics (U+0300–U+036F) are dropped, so `Beyonce` matches `Beyoncé` without touching other scripts.
-	let s = value.normalize('NFKC').normalize('NFD').replace(/[\u0300-\u036f]/gu, '').normalize('NFC').toLowerCase();
+	// Format characters (left-to-right marks, zero-width spaces) are invisible: `cade\u200e` is `cade`.
+	let s = value.replace(/\p{Cf}/gu, '').normalize('NFKC').normalize('NFD').replace(/[\u0300-\u036f]/gu, '').normalize('NFC').toLowerCase();
 	s = s.replace(FEATURE_RE, ' ');
 	for (let i = 0; i < 2; i++) s = s.replace(VERSION_PAREN_RE, ' ').replace(VERSION_DASH_RE, ' ');
 	s = s.replace(/&/gu, ' and ');
@@ -57,8 +58,65 @@ export function name_similarity(a: string, b: string): number {
 	return similarity(normalize_name(a), normalize_name(b));
 }
 
+/** Bracketed parts that describe the upload rather than the work: `(Official Video)`, `[prod. X]`, `(Full Audio)`. */
+const DECORATION_RE = /\s*[([](?:[^)\]]*\b(?:official|video|audio|lyrics?|visuali[sz]er|4k|hd|hq|mv|m\/v|unreleased|leak(?:ed)?|snippet|prod|produced)\b|\s*p\.\s)[^)\]]*[)\]]/giu;
+
+/** `title` without its decorations (see DECORATION_RE), and how many were removed. */
+export function strip_decorations(title: string): { text: string; removed: number } {
+	let removed = 0;
+	const text = title.replace(DECORATION_RE, () => {
+		removed++;
+		return '';
+	}).trim();
+	return text ? { text, removed } : { text: title, removed: 0 };
+}
+
+const ROMAN: Readonly<Record<string, string>> = {
+	ii: '2', iii: '3', iv: '4', vi: '6', vii: '7', viii: '8', ix: '9', xi: '11', xii: '12', xiii: '13', xiv: '14', xv: '15', xvi: '16', xvii: '17', xviii: '18', xix: '19', xx: '20'
+};
+
+/** The numbers a normalized name carries (`2`, `02` and `II` alike), sorted: sequels, volumes, parts and years. */
+function numbers_of(normalized: string): string {
+	const out: string[] = [];
+	for (const word of normalized.split(' ')) {
+		if (/^\d+$/u.test(word)) out.push(String(Number(word)));
+		else if (ROMAN[word]) out.push(ROMAN[word]);
+	}
+	return out.sort().join(' ');
+}
+
+/**
+ * Two words that are different words rather than one misspelt: what is left of them after their common start and
+ * end is 3 or more characters ("Otori|monogatari" / "Nise|monogatari", "Koi" / "Bake"). A typo leaves 1 or 2.
+ */
+function different_words(a: string, b: string): boolean {
+	const x = Array.from(a);
+	const y = Array.from(b);
+	let start = 0;
+	while (start < x.length && start < y.length && x[start] === y[start]) start++;
+	let end = 0;
+	while (end < x.length - start && end < y.length - start && x[x.length - 1 - end] === y[y.length - 1 - end]) end++;
+	return Math.max(x.length - start - end, y.length - start - end) >= 3;
+}
+
+/**
+ * Names that are close as strings but name different works: their numbers differ ("Lil Boat 2" / "Lil Boat 3",
+ * "Hits 2024" / "Hits 2025", "Vol. 1" / "Vol. 2", "Album" / "Album 2"), or, with as many words, one word is
+ * replaced by another ("Nisemonogatari" / "Bakemonogatari"). Decorations like `(Official Video)` are ignored.
+ */
+export function names_differ(a: string, b: string): boolean {
+	const na = normalize_name(strip_decorations(a).text);
+	const nb = normalize_name(strip_decorations(b).text);
+	if (na === nb) return false;
+	if (numbers_of(na) !== numbers_of(nb)) return true;
+	const wa = na.split(' ');
+	const wb = nb.split(' ');
+	return wa.length === wb.length && wa.some((w, i) => w !== wb[i] && different_words(w, wb[i]));
+}
+
 export function names_match(a: string, b: string, threshold = DEFAULT_SIMILARITY_THRESHOLD): boolean {
-	return name_similarity(a, b) >= threshold;
+	if (names_differ(a, b)) return false;
+	return name_similarity(a, b) >= threshold || name_similarity(strip_decorations(a).text, strip_decorations(b).text) >= threshold;
 }
 
 export function durations_match(a_ms: number | null | undefined, b_ms: number | null | undefined, tolerance_ms = DURATION_TOLERANCE_MS): boolean {

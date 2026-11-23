@@ -88,6 +88,8 @@ const schema = z.object({
 	MEDIA_S3_REGION: z.string().default('us-east-1'),
 	/** Uploads are stored as AAC `.m4a`; non-AAC input is encoded at this bitrate (ffmpeg `-b:a`). */
 	MEDIA_AAC_BITRATE: z.string().regex(/^\d+k$/u).default('256k'),
+	/** Track uploads per user and hour: a first sync uploads the whole library in one go. */
+	MEDIA_UPLOADS_PER_HOUR: num(1000),
 	MEDIA_TRANSCODE_CONCURRENCY: num(2),
 	MEDIA_TRANSCODE_TIMEOUT_MS: num(10 * 60_000),
 	/** Below this much free disk space an error goes to Sentry (time to upgrade storage). */

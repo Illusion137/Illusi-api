@@ -2,7 +2,8 @@
  * Pure matching decisions. The engine fetches candidates from the database and these
  * functions decide; nothing here touches the database.
  */
-import { DURATION_TOLERANCE_MS, durations_match, name_similarity, names_match, primary_artist_name } from '../../core/normalize';
+import { DURATION_TOLERANCE_MS, durations_match, name_similarity, names_match, normalize_name, primary_artist_name } from '../../core/normalize';
+import { UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
 
 export interface IdCandidate { illusi_id: string; columns: ServiceIdColumn[] }
@@ -128,10 +129,36 @@ export interface ArtistQuery {
 	work_ids?: readonly string[];
 	album_names?: readonly string[];
 	track_titles?: readonly string[];
+	/** The incoming artist's normalized service ids. */
+	service_ids?: Partial<Record<ServiceIdColumn, string>>;
 }
-export interface ArtistCandidate { id: string; name: string; work_ids: readonly string[]; album_names: readonly string[]; track_titles: readonly string[] }
+export interface ArtistCandidate {
+	id: string;
+	name: string;
+	work_ids: readonly string[];
+	album_names: readonly string[];
+	track_titles: readonly string[];
+	service_ids?: Partial<Record<ServiceIdColumn, string>>;
+}
 
-/** Artists: name plus a shared album or track (by id, or by name). Same name without a shared work is unclear. */
+/**
+ * Service ids that tell two same-name artists apart. Not YouTube: an artist's id there is a channel, and one artist
+ * has several (their own, an auto-generated "Topic" channel), while uploaders like Lyrical Lemonade post many artists.
+ */
+export const ARTIST_IDENTITY_COLUMNS: readonly ServiceIdColumn[] = UNIQUE_SERVICE_ID_COLUMNS.filter(c => c !== 'youtube_id');
+
+/** Both artists have an id on the same service and the ids differ: two artists who share a name. */
+export function artist_ids_differ(a: Partial<Record<ServiceIdColumn, string>> | undefined, b: Partial<Record<ServiceIdColumn, string>> | undefined): boolean {
+	if (!a || !b) return false;
+	return ARTIST_IDENTITY_COLUMNS.some(col => a[col] != null && b[col] != null && a[col] !== b[col]);
+}
+
+/**
+ * Artists: name plus a shared album or track (by id, or by name) is strong. The same name (case, accents and
+ * punctuation aside) without a shared work is strong too, unless their ids on some service differ: a new song by
+ * an artist already in the catalog joins that artist instead of creating another one. Among several, the one with
+ * a shared work wins, then the one with the most works. A merely similar name without a shared work is unclear.
+ */
 export function evaluate_artist(q: ArtistQuery, c: ArtistCandidate): Evaluation {
 	if (!names_match(q.name, c.name)) return { id: c.id, strength: 'none', score: 0 };
 	const name_sim = name_similarity(q.name, c.name);
@@ -139,6 +166,9 @@ export function evaluate_artist(q: ArtistQuery, c: ArtistCandidate): Evaluation 
 	const shared_album = (q.album_names ?? []).some(n => any_name_matches(n, c.album_names));
 	const shared_track = (q.track_titles ?? []).some(t => any_name_matches(t, c.track_titles));
 	const shared = shared_id || shared_album || shared_track;
-	const score = name_sim + (shared_id ? 1 : 0) + (shared_album || shared_track ? 0.5 : 0);
-	return { id: c.id, strength: shared ? 'strong' : 'unclear', score };
+	const different_ids = artist_ids_differ(q.service_ids, c.service_ids);
+	if (shared && !different_ids) return { id: c.id, strength: 'strong', score: name_sim + 1 + (shared_id ? 1 : 0) + (shared_album || shared_track ? 0.5 : 0) };
+	const same_name = normalize_name(q.name) === normalize_name(c.name) && normalize_name(q.name) !== '';
+	if (same_name && !different_ids) return { id: c.id, strength: 'strong', score: Math.min(c.work_ids.length, 999) / 1000 };
+	return { id: c.id, strength: 'unclear', score: name_sim + (shared ? 0.5 : 0) };
 }

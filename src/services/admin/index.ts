@@ -6,6 +6,7 @@ import { PendingEvents } from '../../core/events';
 import { HttpError, json_body, parse_body, require_user } from '../../core/http';
 import { resolve_redirect } from '../../core/redirects';
 import { audit_query_schema, backpack_overview, backpack_query_schema, list_audit, remove_media, search_tracks, track_detail, tracks_query_schema } from './catalog';
+import { credits_body_schema, entity_search_schema, search_albums, search_artists, update_track_credits } from './credits';
 import { admin_update_entity, parse_entity_patch, resolve_table } from './entities';
 import { list_log_files, logs_query_schema, read_logs } from './logs';
 import { apply_body_schema, apply_review, dismiss_review, list_query_schema, list_review } from './review';
@@ -125,6 +126,19 @@ admin_router.get('/tracks', async (req, res) => {
 
 admin_router.get('/tracks/:id', async (req, res) => {
 	res.json(await track_detail(req.params.id));
+});
+
+admin_router.put('/tracks/:id/credits', async (req, res) => {
+	const admin = require_user(req);
+	res.json(await update_track_credits(req.params.id, parse_body(credits_body_schema, req.body), admin.id));
+});
+
+admin_router.get('/search/artists', async (req, res) => {
+	res.json(await search_artists(parse_query(entity_search_schema, req.query)));
+});
+
+admin_router.get('/search/albums', async (req, res) => {
+	res.json(await search_albums(parse_query(entity_search_schema, req.query)));
 });
 
 admin_router.delete('/media/:id', async (req, res) => {

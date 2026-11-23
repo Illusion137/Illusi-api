@@ -883,6 +883,158 @@ function track_detail_view(main, id) {
 	void load();
 }
 
+/**
+ * A search box over artists or albums: typing lists matches (same name first, most credited first), Enter or a
+ * click picks one, and the last entry creates a new one with the typed name. `on_pick` gets `{ id, name }` or
+ * `{ name, create: true }`.
+ */
+function entity_picker(kind, placeholder, on_pick) {
+	const list = h('div', { class: 'picker-list', hidden: true });
+	let timer = null;
+	let seq = 0;
+	let options = [];
+	let active = 0;
+	const close = () => { list.hidden = true; options = []; };
+	const pick = (o) => {
+		input.value = '';
+		close();
+		on_pick(o);
+	};
+	const draw = () => {
+		replace(list, options.map((o, i) => h('div', {
+			class: `picker-option${i === active ? ' active' : ''}`,
+			onmousedown: (e) => { e.preventDefault(); pick(o); }
+		}, o.create
+			? [h('strong', null, `Create ${kind} “${o.name}”`)]
+			: [h('span', null, o.name), h('span', { class: 'muted small' }, ' ', o.detail)])));
+		list.hidden = options.length === 0;
+	};
+	const search = async (q) => {
+		const mine = ++seq;
+		try {
+			const data = await api('GET', `/admin/search/${kind === 'artist' ? 'artists' : 'albums'}${qs({ q })}`);
+			if (mine !== seq) return;
+			options = data.items.map(x => ({
+				id: x.id,
+				name: x.name,
+				detail: kind === 'artist'
+					? `${x.tracks} track${x.tracks === 1 ? '' : 's'} · ${short_id(x.id)}`
+					: [x.artist, x.album_type?.toLowerCase(), x.release_date?.slice(0, 4), `${x.tracks} tracks`].filter(Boolean).join(' · ')
+			}));
+			options.push({ name: q, create: true });
+			active = 0;
+			draw();
+		} catch (err) {
+			toast(err.message, 'bad');
+		}
+	};
+	const input = h('input', {
+		placeholder,
+		style: 'width:100%',
+		oninput: () => {
+			clearTimeout(timer);
+			const q = input.value.trim();
+			if (!q) return close();
+			timer = setTimeout(() => void search(q), 200);
+		},
+		onkeydown: (e) => {
+			if (list.hidden) return;
+			if (e.key === 'ArrowDown') { active = Math.min(active + 1, options.length - 1); draw(); e.preventDefault(); }
+			else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); draw(); e.preventDefault(); }
+			else if (e.key === 'Enter' && options[active]) { pick(options[active]); e.preventDefault(); }
+			else if (e.key === 'Escape') close();
+		},
+		onblur: () => setTimeout(close, 150)
+	});
+	return h('div', { class: 'picker' }, input, list);
+}
+
+/** The track's artists (in credit order) and album, edited together and saved in one request. */
+function credits_card(t, credits, reload) {
+	let artists = credits.artists.map(a => ({ id: a.id, name: a.name }));
+	const primary = credits.albums.find(a => a.primary) ?? null;
+	let album = primary ? { id: primary.id, name: primary.name, artist: primary.artist } : null;
+	let album_changed = false;
+	const track_number = h('input', { type: 'number', min: 1, value: primary?.track_number ?? '', style: 'width:90px', placeholder: '#' });
+	const unlink = new Set();
+	const artists_el = h('div', { class: 'stack-tight' });
+	const album_el = h('div');
+
+	const move = (i, by) => {
+		const j = i + by;
+		if (j < 0 || j >= artists.length) return;
+		[artists[i], artists[j]] = [artists[j], artists[i]];
+		draw_artists();
+	};
+	const artist_href = a => a.id ? fk_href({ table: 'artists_table', column: 'id' }, a.id) : null;
+	function draw_artists() {
+		replace(artists_el, artists.length === 0
+			? h('p', { class: 'muted' }, 'No artists. A track needs at least one.')
+			: artists.map((a, i) => h('div', { class: 'chip-row' },
+				h('span', { class: 'muted small', style: 'width:52px' }, i === 0 ? 'primary' : `#${i + 1}`),
+				h('span', { class: 'grow' }, a.id ? h('a', { href: artist_href(a) }, a.name) : a.name, a.id ? null : [' ', badge('new', 'info')]),
+				h('button', { class: 'small', title: 'Move up', disabled: i === 0, onclick: () => move(i, -1) }, '↑'),
+				h('button', { class: 'small', title: 'Move down', disabled: i === artists.length - 1, onclick: () => move(i, 1) }, '↓'),
+				h('button', { class: 'small danger', title: 'Remove', onclick: () => { artists.splice(i, 1); draw_artists(); } }, '✕'))));
+	}
+	function draw_album() {
+		replace(album_el,
+			h('div', { class: 'chip-row' },
+				h('span', { class: 'grow' }, album
+					? [album.id ? h('a', { href: fk_href({ table: 'albums_table', column: 'id' }, album.id) }, album.name) : album.name,
+						album.artist ? h('span', { class: 'muted' }, ` · ${album.artist}`) : null, album.id ? null : [' ', badge('new', 'info')]]
+					: h('span', { class: 'muted' }, 'No album')),
+				track_number,
+				album ? h('button', { class: 'small danger', onclick: () => { album = null; album_changed = true; draw_album(); } }, 'No album') : null),
+			credits.albums.filter(a => !a.primary).length > 0 ? [
+				h('h3', null, 'Also on'),
+				credits.albums.filter(a => !a.primary).map(a => h('label', { class: 'check', style: 'display:flex' },
+					h('input', { type: 'checkbox', checked: unlink.has(a.id), onchange: (e) => { if (e.target.checked) unlink.add(a.id); else unlink.delete(a.id); } }),
+					'Unlink ', h('a', { href: fk_href({ table: 'albums_table', column: 'id' }, a.id) }, a.name),
+					a.artist ? h('span', null, ` · ${a.artist}`) : null, a.track_number ? h('span', null, ` · #${a.track_number}`) : null))
+			] : null);
+	}
+	draw_artists();
+	draw_album();
+
+	const save = h('button', {
+		class: 'primary',
+		onclick: async () => {
+			if (artists.length === 0) return toast('Add at least one artist', 'bad');
+			const body = { artists: artists.map(a => (a.id ? { id: a.id } : { name: a.name })) };
+			if (album_changed) body.album = album ? (album.id ? { id: album.id } : { name: album.name }) : null;
+			const n = track_number.value.trim();
+			if (album && n !== String(primary?.track_number ?? '')) body.track_number = n === '' ? null : Number(n);
+			if (unlink.size > 0) body.unlink_albums = [...unlink];
+			await act(save, () => api('PUT', `/admin/tracks/${t.id}/credits`, body), 'Credits saved');
+			reload();
+		}
+	}, 'Save credits');
+
+	return h('div', { class: 'card' },
+		h('h2', null, 'Credits'),
+		h('div', { class: 'grid' },
+			h('div', null,
+				h('h3', { style: 'margin-top:0' }, 'Artists'),
+				artists_el,
+				h('div', { style: 'margin-top:8px' }, entity_picker('artist', 'Add an artist…', (a) => {
+					if (a.id && artists.some(x => x.id === a.id)) return toast('Already credited');
+					artists.push({ id: a.id ?? null, name: a.name });
+					draw_artists();
+				}))),
+			h('div', null,
+				h('h3', { style: 'margin-top:0' }, 'Album'),
+				album_el,
+				h('div', { style: 'margin-top:8px' }, entity_picker('album', 'Move to another album…', (a) => {
+					album = { id: a.id ?? null, name: a.name, artist: a.id ? null : artists[0]?.name ?? null };
+					album_changed = true;
+					draw_album();
+				})))),
+		h('div', { class: 'row', style: 'margin-top:12px' }, save,
+			h('button', { onclick: () => reload() }, 'Reset'),
+			h('span', { class: 'muted small' }, 'The first artist is the primary one. A new album is by the primary artist.')));
+}
+
 function track_sections(d, reload) {
 	const t = d.track;
 	const toggle = h('button', {
@@ -921,6 +1073,7 @@ function track_sections(d, reload) {
 				['Created', datetime(t.created_at)],
 				['Modified', datetime(t.modified_at)]
 			]))),
+		d.credits ? credits_card(t, d.credits, reload) : null,
 		h('div', { class: 'card' },
 			h('h2', null, `Media (${d.media.length})`),
 			d.media.length === 0 ? h('p', { class: 'muted' }, 'No stored media.') : h('div', { style: 'overflow-x:auto' }, h('table', null,

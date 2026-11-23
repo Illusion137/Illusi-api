@@ -74,6 +74,15 @@ describe('pair_evidence', () => {
 		expect(far.contradictions.map(s => s.name)).toContain('audio_differs');
 	});
 
+	it('merges same-name artists unless their ids on a service (other than YouTube) differ', () => {
+		const artist = (id: string, name: string, ids: ReconcileNode['ids'] = {}) => node(id, { kind: 'artist', ids, meta: { title: name, artist: null, duration_ms: null } });
+		expect(evidence(artist('A', 'Brentlafou', { soundcloud_permalink: 'brentlafou' }), artist('B', 'brentlafou')).hard).toBe('same_artist_name');
+		expect(evidence(artist('A', 'Lelo', { youtube_id: 'UC1' }), artist('B', 'Lelo', { youtube_id: 'UC2' })).hard).toBe('same_artist_name');
+		expect(evidence(artist('A', 'Lelo', { spotify_id: 'a' }), artist('B', 'Lelo', { spotify_id: 'b' })).hard).toBeNull();
+		expect(evidence(artist('A', 'Lelo'), artist('B', 'Lelo2')).hard).toBeNull();
+		expect(evidence(node('A', { kind: 'album' }), node('B', { kind: 'album' })).hard).not.toBe('same_artist_name');
+	});
+
 	it('falls back to service metadata when the entity lacks a field', () => {
 		const a = node('A', { meta: { duration_ms: null }, facets: [{ source: 'itunes', columns: ['applemusic_id'], duration_ms: 100_000 }] });
 		const b = node('B', { meta: { duration_ms: 150_000 } });
