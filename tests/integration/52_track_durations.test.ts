@@ -48,9 +48,9 @@ describe('POST /tracks/:id/duration', () => {
 	});
 
 	it('replaces the duration once enough users agree, closing the review item', async () => {
-		expect((await report(users[3], track_id, { duration_ms: 259_000, source: 'download' })).body.outcome).toBe('disputed');
+		expect((await report(users[3], track_id, { duration_ms: 259_500, source: 'download' })).body.outcome).toBe('disputed');
 		const res = await report(users[4], track_id, { duration_ms: 261_000, source: 'download' });
-		// Three agree (260.5 s, 259 s, 261 s) against two backing 200 s: the median wins.
+		// Three agree (260.5 s, 259.5 s, 261 s) against two backing 200 s: the median wins.
 		expect(res.body).toMatchObject({ duration_ms: 260_500, outcome: 'corrected' });
 		expect(Number((await query('select duration_ms from tracks_table where id = $1', [track_id]))[0].duration_ms)).toBe(260_500);
 		expect((await query(`select status from review_items_table where entity_id = $1 and field = 'duration_ms'`, [track_id]))[0].status).toBe('APPLIED');

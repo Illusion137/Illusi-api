@@ -38,10 +38,10 @@ describe('pair_evidence', () => {
 		expect(e.hard).toBeNull();
 	});
 
-	it('same ISRC plus duration within ±3 s is hard; outside the tolerance it is not', () => {
+	it('same ISRC plus duration within ±1.5 s is hard; outside the tolerance it is not', () => {
 		const a = node('A', { ids: { isrc: 'USABC1234567' }, meta: { duration_ms: 200_000 } });
-		expect(evidence(a, node('B', { ids: { isrc: 'USABC1234567' }, meta: { duration_ms: 202_500 } })).hard).toBe('isrc_duration');
-		expect(evidence(a, node('B', { ids: { isrc: 'USABC1234567' }, meta: { duration_ms: 206_000 } })).hard).toBeNull();
+		expect(evidence(a, node('B', { ids: { isrc: 'USABC1234567' }, meta: { duration_ms: 201_000 } })).hard).toBe('isrc_duration');
+		expect(evidence(a, node('B', { ids: { isrc: 'USABC1234567' }, meta: { duration_ms: 203_000 } })).hard).toBeNull();
 	});
 
 	it('a strong contradiction blocks every hard rule', () => {

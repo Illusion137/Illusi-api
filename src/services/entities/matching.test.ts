@@ -26,7 +26,7 @@ const candidate = (over: Partial<TrackCandidate> = {}): TrackCandidate => ({
 
 describe('evaluate_track', () => {
 	it('strong on title, primary artist, duration within tolerance and matching album', () => {
-		expect(evaluate_track({ title: 'Song Name (feat. X)', duration_ms: 202_000, artist_ids: ['ar1', 'ar9'], album_id: 'al1' }, candidate()).strength).toBe('strong');
+		expect(evaluate_track({ title: 'Song Name (feat. X)', duration_ms: 201_000, artist_ids: ['ar1', 'ar9'], album_id: 'al1' }, candidate()).strength).toBe('strong');
 		expect(evaluate_track({ title: 'song name', duration_ms: 199_000, artist_name: 'Artist & Other' }, candidate()).strength).toBe('strong');
 	});
 	it('unclear when the duration is missing or the album differs', () => {

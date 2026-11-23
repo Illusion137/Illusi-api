@@ -7,11 +7,21 @@ import { strip_artist_prefix } from './fields';
 
 export type Settlement = 'apply' | 'ignore' | 'review';
 
-/** `Just_Fine_prod_Quazers (1)`: a file name, never a better title. */
+const AUDIO_EXTENSION_RE = /\.(?:mp3|m4a|wav|flac|aac|ogg|opus)$/iu;
+
+/** `Just_Fine_prod_Quazers (1)`, `Bout my money (louder).mp3`: a file name, never a better title. */
 function file_name_like(title: string): boolean {
-	const base = title.replace(/\s*\(\d+\)$/u, '').replace(/\.(?:mp3|m4a|wav|flac|aac|ogg|opus)$/iu, '');
+	if (AUDIO_EXTENSION_RE.test(title.trim())) return true;
+	const base = title.replace(/\s*\(\d+\)$/u, '');
 	return base.includes('_') && !/\s/u.test(base);
 }
+
+/** Control and invisible format characters (`Trippie Redd\u007f`), which no name means to have. */
+const INVISIBLE_RE = /[\p{Cc}\p{Cf}]/gu;
+
+/** A name's letters and digits only: `PierreBourne` and `Pi'erre Bourne` are the same name spaced differently. */
+const compact = (name: string) => normalize_name(name).replace(/[^\p{L}\p{N}]/gu, '');
+const separators = (name: string) => name.replace(/[\p{L}\p{N}]/gu, '').length;
 
 /** `Chief Keef "Faneto"`: an artist named before the quoted song. */
 function strip_quoted_title(title: string, artists: readonly string[]): string {
@@ -24,6 +34,8 @@ function strip_quoted_title(title: string, artists: readonly string[]): string {
 export function clean_title(title: string, artists: readonly string[]): { text: string; removed: number } {
 	let removed = 0;
 	let text = title.trim();
+	const visible = text.replace(INVISIBLE_RE, '').trim();
+	if (visible !== text) { text = visible; removed++; }
 	const unquoted = strip_quoted_title(text, artists);
 	if (unquoted !== text) { text = unquoted; removed++; }
 	const unprefixed = strip_artist_prefix(text, artists);
@@ -57,6 +69,8 @@ const ARTIST_DECORATIONS: readonly RegExp[] = [
 export function clean_artist_name(name: string): { text: string; removed: number } {
 	let text = name.trim();
 	let removed = 0;
+	const visible = text.replace(INVISIBLE_RE, '').trim();
+	if (visible !== text && visible !== '') { text = visible; removed++; }
 	for (const re of ARTIST_DECORATIONS) {
 		const next = text.replace(re, '').trim();
 		if (next !== text && next !== '') { text = next; removed++; }
@@ -85,6 +99,8 @@ export function settle_artist_name(current: string, proposed: string): Settlemen
 	const c = clean_artist_name(current);
 	const p = clean_artist_name(proposed);
 	if (same(c.text, p.text)) return p.removed < c.removed ? 'apply' : 'ignore';
+	// Spaced or punctuated differently: the stylized way (`Pi'erre Bourne` over `PierreBourne`) is the artist's own
+	if (compact(c.text) !== '' && compact(c.text) === compact(p.text)) return separators(p.text) > separators(c.text) ? 'apply' : 'ignore';
 	const proposed_parts = credit_parts(proposed);
 	if (proposed_parts?.some(part => same(part, c.text))) return 'ignore';
 	const current_parts = credit_parts(current);

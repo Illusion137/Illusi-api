@@ -6,7 +6,7 @@ describe('consensus_duration', () => {
 		expect(consensus_duration(200_000, 260_000, [260_000], 3)).toBeNull();
 		expect(consensus_duration(200_000, 260_000, [260_000, 259_000, 261_000], 3)).toBe(260_000);
 		expect(consensus_duration(200_000, 260_000, [260_000, 259_000, 261_000, 200_000, 201_000, 199_000], 3)).toBeNull();
-		expect(consensus_duration(200_000, 260_000, [260_000, 262_500, 200_000], 2)).toBe(261_250);
+		expect(consensus_duration(200_000, 260_000, [260_000, 261_000, 200_000], 2)).toBe(260_500);
 	});
 
 	it('only counts reports within tolerance of the new value', () => {

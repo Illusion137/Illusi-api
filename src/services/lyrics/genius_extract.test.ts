@@ -143,7 +143,7 @@ describe('match_genius_song', () => {
 		expect(match_genius_song({ ...track, album: 'Different Record' }, extract())).toEqual({ matched: false, reason: 'album' });
 		const with_duration = extract({ media: [{ provider: 'youtube', url: 'https://youtu.be/aaaaaaaaaaa', duration: 210 }] });
 		expect(match_genius_song(track, with_duration)).toEqual({ matched: false, reason: 'duration' });
-		const close = extract({ media: [{ provider: 'youtube', url: 'https://youtu.be/aaaaaaaaaaa', duration: 202 }] });
+		const close = extract({ media: [{ provider: 'youtube', url: 'https://youtu.be/aaaaaaaaaaa', duration: 201 }] });
 		expect(match_genius_song(track, close)).toEqual({ matched: true, method: 'metadata' });
 	});
 

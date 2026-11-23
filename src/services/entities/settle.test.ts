@@ -12,6 +12,10 @@ describe('settle_title', () => {
 	});
 	it('never applies a file name', () => {
 		expect(settle_title('Just Fine (prod.Quazers)', 'Just_Fine_prod_Quazers (1)', [])).toBe('ignore');
+		expect(settle_title('Bout my money', 'Bout my money (louder).mp3', [])).toBe('ignore');
+	});
+	it('ignores invisible characters', () => {
+		expect(settle_title('Topanga', 'Topanga​', [])).toBe('ignore');
 	});
 	it('reviews different titles', () => {
 		expect(settle_title('What\'s What', 'Doves to Vultures (Ywn Anthem)', [])).toBe('review');
@@ -32,6 +36,12 @@ describe('settle_artist_name', () => {
 		expect(settle_artist_name('kaisani (@kaisanii)', 'kaisani')).toBe('apply');
 		expect(settle_artist_name('Lil Tony Official', 'Lil Tony')).toBe('apply');
 		expect(settle_artist_name('Your Stepdad (@a)', 'Your Stepdad (@b)')).toBe('ignore');
+		expect(settle_artist_name('Trippie Redd', 'Trippie Redd\u007f')).toBe('ignore');
+		expect(settle_artist_name('Trippie Redd\u007f', 'Trippie Redd')).toBe('apply');
+	});
+	it('prefers the stylized spelling of the same name', () => {
+		expect(settle_artist_name('PierreBourne', 'Pi\'erre Bourne')).toBe('apply');
+		expect(settle_artist_name('Pi\'erre Bourne', 'PierreBourne')).toBe('ignore');
 	});
 	it('reviews renames and different artists', () => {
 		expect(settle_artist_name('Jace!', 'Iayze')).toBe('review');

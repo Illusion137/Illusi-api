@@ -4,7 +4,7 @@
  */
 
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.9;
-export const DURATION_TOLERANCE_MS = 3_000;
+export const DURATION_TOLERANCE_MS = 1_500;
 
 const FEATURE_RE = /[([]\s*(?:feat|ft|featuring|with)\.?\s[^)\]]*[)\]]|\s+(?:feat|ft|featuring)\.?\s.*$/giu;
 const VERSION_WORDS = [
