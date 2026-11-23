@@ -20,7 +20,7 @@ import { parse_range } from './range';
 import { remote_media_url } from './remote';
 import { resource_ext, resource_path } from './resource_id';
 import { MIME_BY_EXT } from './sniff';
-import { backpacked_upload_track_ids, pending_upload_track_ids, store_upload, token_target, user_can_access_tracks } from './store';
+import { backpacked_upload_track_ids, imported_upload_track_ids, pending_upload_track_ids, store_upload, token_target, user_can_access_tracks } from './store';
 import { M4A_KIND, transcode_to_m4a } from './transcode';
 import { receive_upload } from './upload';
 
@@ -132,8 +132,9 @@ async function upload_actions(user: AuthUser, track_ids: readonly string[]): Pro
 export async function pending_upload_actions(user: AuthUser, limit: number): Promise<ActionType[]> {
 	if (limit <= 0) return [];
 	const backpacked = await backpacked_upload_track_ids(db, user, limit);
-	const rest = backpacked.length < limit ? await pending_upload_track_ids(db, user, limit) : [];
-	const ids = [...new Set([...backpacked, ...rest])].slice(0, limit);
+	const imported = backpacked.length < limit ? await imported_upload_track_ids(db, user, limit) : [];
+	const rest = backpacked.length + imported.length < limit ? await pending_upload_track_ids(db, user, limit) : [];
+	const ids = [...new Set([...backpacked, ...imported, ...rest])].slice(0, limit);
 	return upload_actions(user, ids);
 }
 

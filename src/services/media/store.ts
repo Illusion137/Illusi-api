@@ -193,3 +193,22 @@ export async function backpacked_upload_track_ids(ex: Executor, user: Pick<AuthU
 		.limit(limit);
 	return rows.map(r => r.track_id);
 }
+
+/**
+ * Like `pending_upload_track_ids`, limited to imported tracks: the device's file is the only copy anywhere, so these
+ * go ahead of tracks wanted only for lyrics syncing.
+ */
+export async function imported_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number): Promise<string[]> {
+	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+		.innerJoin(tracks_table, eq(tracks_table.id, user_tracks_table.track_id))
+		.where(and(
+			eq(user_tracks_table.user_id, user.id),
+			eq(user_tracks_table.deleted, false),
+			downloaded_on(ex, user.sid),
+			eq(tracks_table.imported, true),
+			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
+		))
+		.orderBy(asc(user_tracks_table.track_id))
+		.limit(limit);
+	return rows.map(r => r.track_id);
+}

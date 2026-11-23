@@ -207,6 +207,23 @@ describe('upload requests', () => {
 		expect(mixed).toHaveLength(2);
 		expect(await pending_upload_actions(u, 1)).toHaveLength(1);
 	});
+
+	it('asks for imported tracks before tracks wanted only for lyrics syncing', async () => {
+		const user = await create_user('media-imported-first');
+		const created = await contribute(user, mock_album({ artist: unique('Lyrics Wanted'), album: unique('Lyrics Wanted Album'), n: 6 }));
+		const wanted = Array.from({ length: 6 }, (_, i) => created.body.refs[`t${i}`] as string);
+		await add_to_library(user, wanted, downloaded());
+		for (const t of wanted) {
+			await query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'LRCLIB', 'LINE', 'PLAIN', $2, md5($2) || md5($2))`, [t, `lyrics ${t}`]);
+		}
+		const [imported] = await imported_track(user);
+		await add_to_library(user, [imported], downloaded());
+		const u = auth_user(user);
+		const asked = (await pending_upload_actions(u, 2)).map(a => a.track_id);
+		expect(asked[0]).toBe(imported);
+		expect(asked).toHaveLength(2);
+		expect(new Set((await pending_upload_actions(u, 10)).map(a => a.track_id))).toEqual(new Set([imported, ...wanted]));
+	});
 });
 
 describe('alignment requests', () => {
