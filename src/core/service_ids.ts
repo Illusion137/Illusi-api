@@ -14,10 +14,12 @@ export const UNIQUE_SERVICE_ID_COLUMNS: readonly ServiceIdColumn[] = SERVICE_ID_
 export const NUMERIC_SERVICE_ID_COLUMNS: readonly ServiceIdColumn[] = ['soundcloud_id', 'genius_id'];
 
 const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/u;
+/** Artists store their channel; tracks store their video */
+const YOUTUBE_CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/u;
 
 export function normalize_youtube_id(value: string): string | null {
 	const v = value.trim();
-	if (YOUTUBE_ID_RE.test(v)) return v;
+	if (YOUTUBE_ID_RE.test(v) || YOUTUBE_CHANNEL_RE.test(v)) return v;
 	try {
 		const url = new URL(v.includes('://') ? v : `https://${v}`);
 		const host = url.hostname.replace(/^www\.|^m\.|^music\./u, '');
@@ -25,6 +27,8 @@ export function normalize_youtube_id(value: string): string | null {
 		if (host === 'youtu.be') id = url.pathname.slice(1).split('/')[0] ?? null;
 		else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
 			id = url.searchParams.get('v');
+			const channel = /^\/channel\/([^/?#]+)/u.exec(url.pathname)?.[1];
+			if (!id && channel && YOUTUBE_CHANNEL_RE.test(channel)) return channel;
 			if (!id) {
 				const m = /^\/(?:embed|shorts|v|live)\/([^/?#]+)/u.exec(url.pathname);
 				id = m?.[1] ?? null;
@@ -36,7 +40,7 @@ export function normalize_youtube_id(value: string): string | null {
 	}
 }
 
-/** `user/track` path, lowercase, no domain or query. Accepts full URLs or bare paths. */
+/** `user/track` path (or `user` for an artist), lowercase, no domain or query. Accepts full URLs or bare paths. */
 export function normalize_soundcloud_permalink(value: string): string | null {
 	let v = value.trim();
 	if (!v) return null;
@@ -51,7 +55,7 @@ export function normalize_soundcloud_permalink(value: string): string | null {
 	}
 	v = v.split(/[?#]/u)[0].replace(/^\/+|\/+$/gu, '').toLowerCase();
 	const parts = v.split('/');
-	if (parts.length < 2 || parts.some(p => !p)) return null;
+	if (parts.some(p => !p)) return null;
 	return parts.join('/');
 }
 

@@ -1,11 +1,11 @@
 /** The view shapes of the read API, built in batches. Every builder drops ids that don't exist. */
-import { and, asc, count, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, max, or, sql } from 'drizzle-orm';
 import { all_queries } from '../../db';
 import type { Executor } from '../../db';
 import type {
 	playlists_table } from '../../db/schema';
 import {
-	albums_table, artist_albums_table, artists_table, media_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, thumbnails_table, track_lyrics_table, track_plays_table, tracks_artists_table, user_tracks_table, users_table
+	album_tracks_table, albums_table, artist_albums_table, artists_table, media_table, playlist_inherited_playlists_table, playlist_inherited_searches_table, thumbnails_table, track_lyrics_table, track_plays_table, tracks_artists_table, tracks_table, user_tracks_table, users_table
 } from '../../db/schema';
 import { SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
@@ -192,6 +192,32 @@ export async function track_views(ex: Executor, user_id: string, track_ids: read
 	return out;
 }
 
+/** For albums with no artwork of their own: the thumbnails of their earliest track that has some */
+async function album_track_artwork(ex: Executor, album_ids: readonly string[]): Promise<Map<string, ViewThumbnail[]>> {
+	if (album_ids.length === 0) return new Map();
+	const wanted = new Set(album_ids);
+	const rows = await ex.select({
+		album_id: tracks_table.album_id, listed_album_id: album_tracks_table.album_id, track_id: tracks_table.id,
+		url: thumbnails_table.url, width: thumbnails_table.width, height: thumbnails_table.height
+	})
+		.from(tracks_table)
+		.innerJoin(thumbnails_table, eq(thumbnails_table.id, tracks_table.id))
+		.leftJoin(album_tracks_table, eq(album_tracks_table.track_id, tracks_table.id))
+		.where(or(inArray(tracks_table.album_id, [...wanted]), inArray(album_tracks_table.album_id, [...wanted])))
+		.orderBy(sql`${album_tracks_table.track_number} asc nulls last`, asc(tracks_table.created_at), asc(tracks_table.id));
+	const out = new Map<string, ViewThumbnail[]>();
+	const chosen = new Map<string, string>();
+	for (const row of rows) {
+		for (const album_id of new Set([row.album_id, row.listed_album_id])) {
+			if (album_id === null || !wanted.has(album_id)) continue;
+			if (!chosen.has(album_id)) chosen.set(album_id, row.track_id);
+			if (chosen.get(album_id) !== row.track_id) continue;
+			if (!out.get(album_id)?.some(t => t.url === row.url)) out.set(album_id, [...out.get(album_id) ?? [], row]);
+		}
+	}
+	return new Map([...out].map(([id, thumbnails]) => [id, sort_thumbnails(thumbnails)]));
+}
+
 export async function album_views(ex: Executor, album_ids: readonly string[]): Promise<Map<string, AlbumView>> {
 	const out = new Map<string, AlbumView>();
 	const ids = [...new Set(album_ids)];
@@ -203,6 +229,10 @@ export async function album_views(ex: Executor, album_ids: readonly string[]): P
 		...rows.artist_albums.map(r => r.artist_id)
 	]);
 	const parts = common_parts(rows);
+	const track_artwork = await album_track_artwork(ex, rows.albums.map(a => a.id).filter((id) => {
+		const own = parts(id);
+		return own.thumbnails.length === 0 && !own.itunes?.artwork_url;
+	}));
 	const credits = group(
 		[...rows.artist_albums].sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity) || a.created_at.getTime() - b.created_at.getTime()),
 		r => r.album_id
@@ -213,7 +243,8 @@ export async function album_views(ex: Executor, album_ids: readonly string[]): P
 			...album,
 			artist: album.artist_id ? (artists.get(album.artist_id) ?? null) : null,
 			artists: [...new Set(credited)].flatMap(id => artists.get(id) ?? []),
-			...parts(album.id)
+			...parts(album.id),
+			...(track_artwork.has(album.id) ? { thumbnails: track_artwork.get(album.id)! } : {})
 		});
 	}
 	return out;

@@ -24,6 +24,9 @@ describe('normalize_youtube_id', () => {
 		['https://www.youtube-nocookie.com/live/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
 		['https://youtube.com/watch', null],
 		['https://youtube.com/watch?v=short', null],
+		['UCX6OQ3DkcsbYNE6H8uQQuVA', 'UCX6OQ3DkcsbYNE6H8uQQuVA'],
+		['https://music.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA', 'UCX6OQ3DkcsbYNE6H8uQQuVA'],
+		['https://youtube.com/channel/UCshort', null],
 		['https://vimeo.com/dQw4w9WgXcQ', null],
 		['http://[bad', null]
 	])('%s', (input, expected) => {
@@ -39,7 +42,7 @@ describe('normalize_soundcloud_permalink', () => {
 		['m.soundcloud.com/artist/track', 'artist/track'],
 		['https://evil.com/artist/track', null],
 		['https://notsoundcloud.com/a/b', null],
-		['artist', null],
+		['https://soundcloud.com/Artist', 'artist'],
 		['artist//track', null],
 		['   ', null],
 		['http://[bad', null]

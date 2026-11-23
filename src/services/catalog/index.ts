@@ -9,7 +9,8 @@ import {
 	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, users_table, sort_type, album_type
 } from '../../db/schema';
 import { unflatten_segments } from '../analyzer/contract';
-import { emit } from '../../core/events';
+import { emit, PendingEvents } from '../../core/events';
+import { enrich_service_ids } from '../../core/enrich';
 import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../../core/http';
 import { RateLimiter, rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect, resolve_redirects } from '../../core/redirects';
@@ -393,6 +394,42 @@ catalog_router.get('/albums/:id', read_limit, async (req, res) => {
 		.orderBy(sql`${album_tracks_table.track_number} asc nulls last`, asc(tracks_table.title), asc(tracks_table.id));
 	const ids = [...new Set(rows.map(r => r.id))];
 	res.json({ album: with_redirect(album, redirected_from), tracks: in_order(ids, await track_views(db, user.id, ids)) });
+});
+
+const artist_link_id = z.string().trim().min(1).max(256);
+const artist_links_schema = z.object({
+	items: z.array(z.object({
+		artist_id: uuid_schema,
+		service_ids: z.object({
+			youtube_id: artist_link_id, soundcloud_id: z.number().int().positive(), soundcloud_permalink: artist_link_id, spotify_id: artist_link_id,
+			applemusic_id: artist_link_id, deezer_id: artist_link_id, tidal_id: artist_link_id, amazonmusic_id: artist_link_id,
+			audiomack_id: artist_link_id, bandlab_id: artist_link_id, pandora_id: artist_link_id
+		}).partial().strict()
+	})).min(1).max(200)
+});
+
+/**
+ * Where the caller's library knows an artist on other services. Only artists credited on a track in their library are
+ * accepted, and only empty columns are filled; a different existing value is recorded as a conflict.
+ */
+catalog_router.post('/artists/service_ids', rate_limit_user('artist_service_ids', 30, 60_000), json_body('64kb'), async (req, res) => {
+	const user = require_user(req);
+	const body = parse_body(artist_links_schema, req.body);
+	const events = new PendingEvents();
+	const filled = await db.transaction(async (tx) => {
+		const credited = await tx.selectDistinct({ id: tracks_artists_table.artist_id }).from(tracks_artists_table)
+			.innerJoin(user_tracks_table, eq(user_tracks_table.track_id, tracks_artists_table.track_id))
+			.where(and(inArray(tracks_artists_table.artist_id, [...new Set(body.items.map(item => item.artist_id))]), eq(user_tracks_table.user_id, user.id), eq(user_tracks_table.deleted, false)));
+		const allowed = new Set(credited.map(row => row.id));
+		let count = 0;
+		for (const item of body.items) {
+			if (!allowed.has(item.artist_id)) continue;
+			count += (await enrich_service_ids(tx, item.artist_id, item.service_ids, { source: 'artist_links', user_id: user.id, events })).filled.length;
+		}
+		return count;
+	});
+	events.flush();
+	res.json({ filled });
 });
 
 catalog_router.get('/artists/:id', read_limit, async (req, res) => {
