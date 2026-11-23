@@ -479,6 +479,10 @@ export const tracks_table = pgTable('tracks_table', {
 	duration_ms: bigint({ mode: 'number' }),
 	explicit: boolean(),
 	imported: boolean().notNull().default(false),
+	/** `<uuid>.jpg` under `MEDIA_DIR/artwork/`: an imported track's custom artwork, public at `GET /track_artwork/:artwork_id`. */
+	artwork_id: varchar({ length: 64 }),
+	/** Last-write-wins clock for `artwork_id`, separate from the track's other fields. */
+	artwork_edited_at: timestamptz(),
 	/** No client could play or download it; set by an unavailable report, cleared by media or a research result. */
 	backpacked: boolean().notNull().default(false),
 	backpacked_at: timestamptz(),
@@ -487,6 +491,7 @@ export const tracks_table = pgTable('tracks_table', {
 	index('tracks_album_id_idx').on(table.album_id),
 	index('tracks_modified_at_idx').on(table.modified_at),
 	index('tracks_backpacked_at_idx').on(table.backpacked_at).where(sql`${table.backpacked}`),
+	index('tracks_artwork_id_idx').on(table.artwork_id).where(sql`${table.artwork_id} is not null`),
 	index('tracks_search_title_trgm_idx').using('gin', table.search_title.op('gin_trgm_ops'))
 ]);
 export const tracks_artists_table = pgTable('tracks_artists_table', {
@@ -707,6 +712,8 @@ export const users_table = pgTable('users_table', {
 	edited_at: timestamptz(),
 	/** `<uuid>.webp` in MEDIA_DIR/avatars, set with `PUT /me/avatar`. Null for none. */
 	avatar_id: varchar({ length: 64 }),
+	/** Whether other users can list the tracks this user imported (`GET /users/:id/imports`). */
+	public_imports: boolean().notNull().default(false),
 	/** The /24 (IPv4) or /48 (IPv6) the account signed up from; consensus counts one vote per prefix. Null for older accounts. */
 	signup_ip_prefix: varchar({ length: 64 }),
 	/** When `user_inherited_tracks_table` was last recomputed for this user. */

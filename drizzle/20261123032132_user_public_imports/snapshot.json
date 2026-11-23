@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "2109b5b4-f846-4d37-91d5-91966b1ecb88",
+  "prevIds": [
+    "45d0f271-c26f-4b19-9ee6-1e8eae27c462"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users_table",
+        "public_imports"
+      ],
+      "writes": [
+        "s|col|public.users_table.public_imports",
+        "n|col|public.users_table.public_imports",
+        "e|col|public.users_table.public_imports"
+      ],
+      "reads": [
+        "n|tbl|public.users_table",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users_table",
+        "name": "public_imports",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

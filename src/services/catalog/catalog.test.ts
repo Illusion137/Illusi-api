@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../core/http';
 import { decode_cursor, encode_cursor, page_from, slice_page } from './paging';
-import { artist_name_candidates, detect_service_id, match_score, rank_candidates, search_text, trigram_similarity } from './search';
+import { artist_name_candidates, detect_service_id, edit_distance, match_score, rank_boost, rank_candidates, search_text, search_words, trigram_similarity } from './search';
+import type { Candidate } from './search';
 import { sort_thumbnails } from './views';
 
 describe('paging', () => {
@@ -41,16 +42,68 @@ describe('search text', () => {
 		expect(trigram_similarity('', 'x')).toBe(0);
 	});
 
-	it('ranks exact over prefix over contains over fuzzy', () => {
-		const exact = match_score('hotline bling', ['Hotline Bling']);
-		const prefix = match_score('hotline', ['Hotline Bling']);
-		const contains = match_score('bling', ['Hotline Bling']);
-		const fuzzy = match_score('hotlin blng', ['Hotline Bling']);
-		expect(exact).toBe(3);
-		expect(prefix).toBe(2);
-		expect(contains).toBe(1);
+	it('splits folded words on punctuation', () => {
+		expect(search_words('...Baby One More Time')).toEqual(['baby', 'one', 'more', 'time']);
+		expect(search_words('Tyler, The Creator')).toEqual(['tyler', 'the', 'creator']);
+		expect(search_words('  ')).toEqual([]);
+	});
+
+	it('measures edits and adjacent swaps up to a limit', () => {
+		expect(edit_distance('roulette', 'rouletee', 2)).toBe(1);
+		expect(edit_distance('mobbstar', 'mobbstarr', 1)).toBe(1);
+		expect(edit_distance('form', 'from', 1)).toBe(1);
+		expect(edit_distance('abc', 'xyz', 1)).toBe(2);
+		expect(edit_distance('a', 'abcd', 1)).toBe(2);
+	});
+
+	it('scores exact over extra words over missing words over fuzzy', () => {
+		const exact = match_score('hotline bling', 'Hotline Bling');
+		const extra = match_score('hotline bling', 'Hotline Bling (Cover)');
+		const reordered = match_score('bling hotline', 'Hotline Bling');
+		const missing = match_score('hotline bling remastered', 'Hotline Bling');
+		const fuzzy = match_score('hotlin blng', 'Hotline Bling');
+		expect(exact).toBe(1);
+		expect(extra).toBeLessThan(exact);
+		expect(reordered).toBeLessThan(exact);
+		expect(reordered).toBeGreaterThan(extra);
+		expect(missing).toBeLessThan(extra);
 		expect(fuzzy).toBeGreaterThan(0);
-		expect(fuzzy).toBeLessThan(1);
+		expect(fuzzy).toBeLessThan(missing);
+	});
+
+	it('ignores punctuation and spacing', () => {
+		expect(match_score('baby one more time', '...Baby One More Time')).toBe(1);
+		expect(match_score('acdc', 'AC/DC')).toBe(1);
+		expect(match_score('Beyonce', 'Beyoncé')).toBe(1);
+	});
+
+	it('finds the artist named anywhere in the query', () => {
+		const named = match_score('drake hotline bling', 'Hotline Bling', ['Drake']);
+		expect(named).toBeGreaterThan(match_score('drake hotline bling', 'Hotline Bling', ['Someone']));
+		expect(named).toBeGreaterThan(match_score('drake hotline bling', 'Drake - Hotline Bling', ['Uploader']));
+		expect(match_score('dogtooth tyler the creator', 'DOGTOOTH', ['Tyler, The Creator'])).toBeGreaterThan(1);
+		// Only the artist: close to an exact title, under it.
+		const by_artist = match_score('lelo', 'Like Sunday', ['Lelo']);
+		expect(by_artist).toBeGreaterThan(0.9);
+		expect(by_artist).toBeLessThan(match_score('lelo', 'Lelo'));
+	});
+
+	it('takes typos in long words and the last word as typed', () => {
+		expect(match_score('russian rouletee', 'Russian Roulette')).toBeGreaterThan(0.6);
+		expect(match_score('mobbstar', 'Wave', ['MOBBSTARR'])).toBeGreaterThan(0.6);
+		expect(match_score('hotline bl', 'Hotline Bling')).toBeGreaterThan(match_score('hotline', 'Hotline Bling'));
+		// "love" is no typo of "lose", and a whole word beats a prefix.
+		expect(match_score('love', 'Lose')).toBeLessThan(0.45);
+		expect(match_score('love', 'Love Hurts')).toBeGreaterThan(match_score('love', 'Loverboy'));
+	});
+
+	it('falls back to substrings and trigrams for unspaced or garbled text', () => {
+		expect(match_score('そう', 'もうそう☆えくすぷれす')).toBeCloseTo(0.45);
+		expect(match_score('hotlinebling', 'Hotline Bling')).toBe(1);
+		const garbled = match_score('htolinne', 'Hotline');
+		expect(garbled).toBeGreaterThan(0);
+		expect(garbled).toBeLessThan(0.45);
+		expect(match_score('', 'x')).toBe(0);
 	});
 
 	it('lists runs of words as possible artist names', () => {
@@ -59,32 +112,59 @@ describe('search text', () => {
 	});
 });
 
+const candidate = (id: string, name: string, extra: Partial<Candidate> = {}): Candidate => ({
+	id, name, credits: [], popularity: 0, presence: 0, official: false, mine: false, linked: false, ...extra
+});
+
 describe('rank_candidates', () => {
-	it('puts linked results first, then score, then plays', () => {
+	it('puts linked results first, then match, then plays', () => {
 		const ranked = rank_candidates('hotline bling', [
-			{ id: 'cover', texts: ['Hotline Bling (Cover)'], plays: 100, linked: false },
-			{ id: 'orig', texts: ['Hotline Bling', 'Drake Hotline Bling'], plays: 5, linked: false },
-			{ id: 'remix', texts: ['Hotline Bling'], plays: 50, linked: false },
-			{ id: 'link', texts: ['Something Else'], plays: 0, linked: true },
-			{ id: 'none', texts: ['zzzz'], plays: 1000, linked: false }
+			candidate('cover', 'Hotline Bling (Cover)', { popularity: 3 }),
+			candidate('orig', 'Hotline Bling', { credits: ['Drake'], popularity: 5 }),
+			candidate('remix', 'Hotline Bling', { popularity: 50 }),
+			candidate('link', 'Something Else', { linked: true }),
+			candidate('none', 'zzzz', { popularity: 1000 })
 		]);
 		expect(ranked).toEqual(['link', 'remix', 'orig', 'cover']);
 	});
 
-	it('matches artist + title queries through combined texts', () => {
+	it('orders equal matches by release metadata, library and artist catalog', () => {
+		const ranked = rank_candidates('hotline bling', [
+			candidate('upload', 'hotline bling', { credits: ['BillieEilishVEVO'] }),
+			candidate('namesake', 'Hotline Bling', { credits: ['Miro Mas'], official: true, presence: 1 }),
+			candidate('drake', 'Hotline Bling', { credits: ['Drake'], official: true, presence: 40 }),
+			candidate('mine', 'Hotline Bling', { credits: ['Someone'], mine: true })
+		]);
+		expect(ranked).toEqual(['mine', 'drake', 'namesake', 'upload']);
+	});
+
+	it('lets popularity reorder close matches but not distant ones', () => {
+		expect(rank_candidates('hotline bling', [
+			candidate('exact', 'Hotline Bling'),
+			candidate('cover', 'Hotline Bling (Cover)', { popularity: 100 })
+		])).toEqual(['cover', 'exact']);
+		expect(rank_candidates('hotline bling', [
+			candidate('exact', 'Hotline Bling'),
+			candidate('other', 'Hotline', { popularity: 1_000_000, official: true, mine: true })
+		])).toEqual(['exact', 'other']);
+		expect(rank_boost(candidate('x', 'x', { popularity: 1e9, presence: 1e9, official: true, mine: true }))).toBeCloseTo(0.36);
+	});
+
+	it('matches artist + title queries through credits', () => {
 		const ranked = rank_candidates('drake hotline bling', [
-			{ id: 'other', texts: ['Hotline Bling', 'Someone Hotline Bling'], plays: 0, linked: false },
-			{ id: 'drake', texts: ['Hotline Bling', 'Drake Hotline Bling'], plays: 0, linked: false }
+			candidate('other', 'Hotline Bling', { credits: ['Someone'] }),
+			candidate('drake', 'Hotline Bling', { credits: ['Drake'] })
 		]);
 		expect(ranked[0]).toBe('drake');
 	});
 
 	it('merges duplicate candidates from different sources', () => {
 		const ranked = rank_candidates('song', [
-			{ id: 'a', texts: ['x'], plays: 0, linked: false },
-			{ id: 'a', texts: ['Song'], plays: 3, linked: false }
+			candidate('a', 'Song'),
+			candidate('a', 'Song', { linked: true }),
+			candidate('b', 'Song')
 		]);
-		expect(ranked).toEqual(['a']);
+		expect(ranked).toEqual(['a', 'b']);
 	});
 });
 

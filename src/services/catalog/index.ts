@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { all_queries, db } from '../../db';
 import {
 	album_tracks_table, albums_table, artist_albums_table, linked_playlists_table, playlists_table, read_versions_table, similar_artists_table, track_play_counts_table, track_plays_table,
-	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, sort_type, album_type
+	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, user_read_versions_table, user_recent_searches, user_tracks_table, users_table, sort_type, album_type
 } from '../../db/schema';
 import { unflatten_segments } from '../analyzer/contract';
 import { emit } from '../../core/events';
@@ -210,6 +210,48 @@ catalog_router.get('/users/:id/playlists', read_limit, async (req, res) => {
 	const query = parse_query(page_query, req);
 	const where = and(eq(playlists_table.user_id, owner_id), eq(playlists_table.deleted, false), owner_id === user.id ? undefined : eq(playlists_table.public, true));
 	res.json(await playlist_page(user.id, where, decode_cursor(query.cursor), query.limit, [desc(playlists_table.pinned), asc(playlists_table.created_at), asc(playlists_table.id)]));
+});
+
+/** The user, and whether the caller may list their imports: their own, or anyone's who made them public */
+async function profile_owner(viewer_id: string, raw_id: unknown) {
+	const owner_id = id_param(raw_id, 'user');
+	const [owner] = await db.select({ id: users_table.id, username: users_table.username, avatar_id: users_table.avatar_id, public_imports: users_table.public_imports })
+		.from(users_table).where(eq(users_table.id, owner_id));
+	if (!owner) throw new HttpError(404, 'user not found');
+	return { owner, is_self: owner_id === viewer_id, imports_visible: owner_id === viewer_id || owner.public_imports };
+}
+
+function imports_of(owner_id: string) {
+	return and(eq(user_tracks_table.user_id, owner_id), eq(user_tracks_table.deleted, false), eq(tracks_table.imported, true));
+}
+
+/** A user as an artist: their public playlists and, when visible, the tracks they imported. import_count is null when hidden. */
+catalog_router.get('/users/:id', read_limit, async (req, res) => {
+	const user = require_user(req);
+	const { owner, is_self, imports_visible } = await profile_owner(user.id, req.params.id);
+	const [[playlists], imports] = await Promise.all([
+		db.select({ n: count() }).from(playlists_table).where(and(eq(playlists_table.user_id, owner.id), eq(playlists_table.deleted, false), is_self ? undefined : eq(playlists_table.public, true))),
+		imports_visible
+			? db.select({ n: count() }).from(user_tracks_table).innerJoin(tracks_table, eq(tracks_table.id, user_tracks_table.track_id)).where(imports_of(owner.id))
+			: Promise.resolve(null)
+	]);
+	res.json({ ...owner, is_self, playlist_count: playlists.n, import_count: imports?.[0].n ?? null });
+});
+
+/** Tracks the user imported, newest first. 403 unless they're the caller's or the user made them public. */
+catalog_router.get('/users/:id/imports', read_limit, async (req, res) => {
+	const user = require_user(req);
+	const { owner, imports_visible } = await profile_owner(user.id, req.params.id);
+	if (!imports_visible) throw new HttpError(403, 'imports are private', { code: 'IMPORTS_PRIVATE' });
+	const query = parse_query(page_query, req);
+	const offset = decode_cursor(query.cursor);
+	const rows = await db.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+		.innerJoin(tracks_table, eq(tracks_table.id, user_tracks_table.track_id))
+		.where(imports_of(owner.id))
+		.orderBy(desc(user_tracks_table.created_at), asc(user_tracks_table.track_id))
+		.limit(query.limit + 1).offset(offset);
+	const page = page_from(rows.map(r => r.track_id), offset, query.limit);
+	res.json({ items: in_order(page.items, await track_views(db, user.id, page.items)), next_cursor: page.next_cursor });
 });
 
 catalog_router.get('/tracks/:id', read_limit, async (req, res) => {

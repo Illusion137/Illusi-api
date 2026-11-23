@@ -14,7 +14,7 @@ import { catalog_router } from './services/catalog';
 import { entities_router } from './services/entities';
 import { lyrics_router } from './services/lyrics';
 import { media_router, public_media_router } from './services/media';
-import { playlists_router } from './services/playlists';
+import { playlists_router, public_artwork_router } from './services/playlists';
 import { releases_router } from './services/releases';
 import { soundcloud_router } from './services/soundcloud';
 import { service_catalog_router } from './services/service_catalog';
@@ -44,6 +44,7 @@ function api_v1() {
 	api.use('/auth', auth_router);
 	// Media files are public by resource id (the id is unguessable), so players stream them without a session.
 	api.use(public_media_router);
+	api.use(public_artwork_router);
 
 	// Everything below requires a valid access token and a confirmed email address.
 	api.use(require_auth, require_verified);

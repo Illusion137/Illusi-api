@@ -24,7 +24,7 @@ import type { ExportJob } from './export';
 const log = logger('account');
 
 /**
- * Mounted after `require_auth`: data exports (`/me/export...`), the user's avatar (`PUT|DELETE /me/avatar`,
+ * Mounted after `require_auth`: data exports (`/me/export...`), settings (`PATCH /me/settings`), the user's avatar (`PUT|DELETE /me/avatar`,
  * `GET /avatars/:avatar_id`) and account deletion (`DELETE /me`).
  */
 export const account_router = Router();
@@ -137,6 +137,19 @@ account_router.delete('/me', json_body('4kb'), async (req, res) => {
 	await delete_account(user.id);
 	forget_user(user.id);
 	res.status(204).end();
+});
+
+const settings_schema = z.object({ public_imports: z.boolean() }).partial().strict();
+
+/** Account settings the user changes; returns them all */
+account_router.patch('/me/settings', json_body('4kb'), async (req, res) => {
+	const user = require_user(req);
+	const body = parse_body(settings_schema, req.body);
+	const [row] = Object.keys(body).length === 0
+		? await db.select({ public_imports: users_table.public_imports }).from(users_table).where(eq(users_table.id, user.id))
+		: await db.update(users_table).set({ ...body, modified_at: new Date() }).where(eq(users_table.id, user.id)).returning({ public_imports: users_table.public_imports });
+	if (!row) throw new HttpError(404, 'user not found');
+	res.json(row);
 });
 
 const avatar_limit = rate_limit_user('avatar', 10, 60_000);

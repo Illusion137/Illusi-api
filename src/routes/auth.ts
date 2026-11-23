@@ -136,7 +136,7 @@ auth_router.post('/logout_all', require_auth, async (req, res) => {
 
 auth_router.get('/me', require_auth, async (req, res) => {
 	const user = require_user(req);
-	const [row] = await db.select({ email: users_table.email, username: users_table.username, avatar_id: users_table.avatar_id }).from(users_table).where(eq(users_table.id, user.id));
+	const [row] = await db.select({ email: users_table.email, username: users_table.username, avatar_id: users_table.avatar_id, public_imports: users_table.public_imports }).from(users_table).where(eq(users_table.id, user.id));
 	if (!row) throw new HttpError(401, 'invalid or expired access token');
 	res.json({ id: user.id, ...row, email_verified: req.email_verified === true });
 });

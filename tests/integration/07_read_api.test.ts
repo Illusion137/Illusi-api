@@ -235,6 +235,51 @@ describe('read API: search', () => {
 		expect(by_isrc.body.tracks.items[0].id).toBe(track_ids[0]);
 	});
 
+	it('ranks releases over uploads and the library first, ignoring punctuation and misspelt artists', async () => {
+		const user = await create_user('rank');
+		const tag = unique('rk').replace('-', '');
+		const sp = (s: string) => `sp${tag}${s}`.padEnd(22, '0').slice(0, 22);
+		const yt = (s: string) => `${s}${tag}`.padEnd(11, '0').slice(0, 11);
+		const graph = {
+			artists: [
+				{ ref: 'star', name: `Zephyrmoon ${tag}`, service_ids: { spotify_id: sp('as') } },
+				{ ref: 'namesake', name: `Namesake ${tag}`, service_ids: { youtube_id: yt('an') } },
+				{ ref: 'uploader', name: `Uploader ${tag}`, service_ids: { youtube_id: yt('au') } }
+			],
+			albums: [{ ref: 'al', name: 'Quiet Lanterns', artist_ref: 'star', album_type: 'ALBUM', track_count: 1, service_ids: { spotify_id: sp('al') } }],
+			tracks: [
+				{ ref: 'release', title: `...Glass Harbor ${tag}`, album_ref: 'al', duration_ms: 200_000, service_ids: { spotify_id: sp('tr') } },
+				{ ref: 'namesake_t', title: `Glass Harbor ${tag}`, duration_ms: 201_000, service_ids: { youtube_id: yt('tn') } },
+				{ ref: 'upload', title: `Glass Harbor ${tag} (slowed + reverb)`, duration_ms: 230_000, service_ids: { youtube_id: yt('tu') } }
+			],
+			relations: {
+				tracks_artists: [
+					{ track_ref: 'release', artist_ref: 'star' },
+					{ track_ref: 'namesake_t', artist_ref: 'namesake' },
+					{ track_ref: 'upload', artist_ref: 'uploader' }
+				],
+				album_tracks: [{ album_ref: 'al', track_ref: 'release', track_number: 1 }],
+				artist_albums: [{ artist_ref: 'star', album_ref: 'al', position: 0 }]
+			}
+		};
+		const created = await contribute(user, graph);
+		expect(created.status).toBe(200);
+		const { release, namesake_t, upload, al, star } = created.body.refs;
+		const search = async (q: string, types: string) => (await api('GET', `/search?q=${encodeURIComponent(q)}&types=${types}`, { token: user.access_token })).body;
+
+		// Equal titles ("..." is punctuation): the release, then the bare upload, then the one with extra words.
+		expect(ids((await search(`glass harbor ${tag}`, 'track')).tracks.items)).toEqual([release, namesake_t, upload]);
+		// The artist named alongside the title wins over another artist's identical title.
+		expect(ids((await search(`zephyrmoon ${tag} glass harbor`, 'track')).tracks.items)[0]).toBe(release);
+		// A misspelt artist still finds its album, whose name shares nothing with the query.
+		const misspelt = await search(`zephyrmon ${tag}`, 'album,artist');
+		expect(ids(misspelt.albums.items)).toContain(al);
+		expect(ids(misspelt.artists.items)[0]).toBe(star);
+
+		await add_to_library(user, [namesake_t]);
+		expect(ids((await search(`glass harbor ${tag}`, 'track')).tracks.items)).toEqual([namesake_t, release, upload]);
+	});
+
 	it('finds albums by their primary and credited artists, in both scopes', async () => {
 		const user = await create_user('album-artist');
 		const tag = unique('cr').replace('-', '');

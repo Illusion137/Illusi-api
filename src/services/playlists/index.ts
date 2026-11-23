@@ -8,7 +8,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
-import { playlists_table } from '../../db/schema';
+import { playlists_table, tracks_table } from '../../db/schema';
 import { require_disk_space } from '../../core/disk';
 import { PendingEvents } from '../../core/events';
 import { HttpError, parse_body, require_user, uuid_schema } from '../../core/http';
@@ -17,6 +17,7 @@ import { rate_limit_user } from '../../core/rate_limit';
 import { matches_if_none_match } from '../catalog/validators';
 import { ARTWORK_SUBDIR, artwork_path, owned_playlist, receive_image, set_artwork, store_artwork_file } from './artwork';
 import { copy_playlist } from './copy';
+import { set_track_artwork } from './track_artwork';
 import { remote_media_url } from '../media/remote';
 
 export { assert_inheritance_allowed, creates_cycle } from './inheritance';
@@ -27,9 +28,15 @@ const log = logger('playlists');
 
 /**
  * Mounted after `require_auth`: `POST /playlists/:id/copy`, `PUT|DELETE /playlists/:id/artwork`,
- * `GET /artwork/:artwork_id`.
+ * `PUT|DELETE /tracks/:id/artwork`, `GET /artwork/:artwork_id`.
  */
 export const playlists_router = Router();
+
+/**
+ * Mounted before `require_auth`: `GET /track_artwork/:artwork_id`. Track artwork shows wherever the track plays (lock
+ * screen, car, other users), which can't send a session, so like media its unguessable id is the capability.
+ */
+export const public_artwork_router = Router();
 
 playlists_router.post('/playlists/:id/copy', async (req, res) => {
 	const user = require_user(req);
@@ -84,6 +91,55 @@ playlists_router.delete('/playlists/:id/artwork', artwork_limit, async (req, res
 	const query = edited_at_schema.safeParse(req.query);
 	if (!query.success) throw new HttpError(400, 'invalid query', { issues: query.error.issues });
 	res.json(await set_artwork(user.id, id, null, query.data.edited_at ? new Date(query.data.edited_at) : null));
+});
+
+const track_artwork_limit = rate_limit_user('track_artwork', 30, 60_000);
+
+function track_id(raw: unknown): string {
+	const id = uuid_schema.safeParse(raw);
+	if (!id.success) throw new HttpError(400, 'invalid track id');
+	return id.data;
+}
+
+/** An imported track in the caller's library; multipart with a `file` part and an optional `edited_at` */
+playlists_router.put('/tracks/:id/artwork', track_artwork_limit, require_disk_space, async (req, res) => {
+	const user = require_user(req);
+	let id: string;
+	let upload;
+	try {
+		id = track_id(req.params.id);
+		upload = await receive_image(req, path.join(config.MEDIA_DIR, '.incoming'), config.ARTWORK_MAX_BYTES);
+	} catch (err) {
+		res.setHeader('Connection', 'close');
+		throw err;
+	}
+	try {
+		const fields = parse_body(edited_at_schema, upload.fields);
+		const artwork_id = await store_artwork_file(upload.temp_path);
+		const result = await set_track_artwork(user.id, id, artwork_id, fields.edited_at ? new Date(fields.edited_at) : null);
+		if (result.applied) log.info('track artwork set', { track_id: id, artwork_id, source: upload.kind });
+		res.json(result);
+	} finally {
+		await rm(upload.temp_path, { force: true });
+	}
+});
+
+playlists_router.delete('/tracks/:id/artwork', track_artwork_limit, async (req, res) => {
+	const user = require_user(req);
+	const id = track_id(req.params.id);
+	const query = edited_at_schema.safeParse(req.query);
+	if (!query.success) throw new HttpError(400, 'invalid query', { issues: query.error.issues });
+	res.json(await set_track_artwork(user.id, id, null, query.data.edited_at ? new Date(query.data.edited_at) : null));
+});
+
+public_artwork_router.get('/track_artwork/:artwork_id', async (req, res) => {
+	const artwork_id = req.params.artwork_id;
+	const file = artwork_path(artwork_id);
+	if (file === null) throw new HttpError(400, 'invalid artwork id');
+	// Playlist artwork shares the folder and stays behind its own access check
+	const [track] = await db.select({ id: tracks_table.id }).from(tracks_table).where(eq(tracks_table.artwork_id, artwork_id)).limit(1);
+	if (!track) throw new HttpError(404, 'artwork not found');
+	await send_image_file(req, res, { id: artwork_id, file, subdir: ARTWORK_SUBDIR, type: 'image/jpeg' });
 });
 
 /** The owner, or anyone while the playlist is public and not deleted. Otherwise 404. */

@@ -1,0 +1,125 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "c0d2c61e-d95d-430c-bd9a-c83d269aea0e",
+  "prevIds": [
+    "2109b5b4-f846-4d37-91d5-91966b1ecb88"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "tracks_table",
+        "artwork_id"
+      ],
+      "writes": [
+        "s|col|public.tracks_table.artwork_id",
+        "n|col|public.tracks_table.artwork_id",
+        "e|col|public.tracks_table.artwork_id"
+      ],
+      "reads": [
+        "n|tbl|public.tracks_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "tracks_table",
+        "artwork_edited_at"
+      ],
+      "writes": [
+        "s|col|public.tracks_table.artwork_edited_at",
+        "n|col|public.tracks_table.artwork_edited_at",
+        "e|col|public.tracks_table.artwork_edited_at"
+      ],
+      "reads": [
+        "n|tbl|public.tracks_table",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "tracks_table",
+        "tracks_artwork_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.tracks_artwork_id_idx",
+        "n|idx|public.tracks_artwork_id_idx",
+        "e|idx|public.tracks_artwork_id_idx",
+        "n|rel|public.tracks_artwork_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.tracks_table",
+        "n|sch|public",
+        "n|col|public.tracks_table.artwork_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "tracks_table",
+        "name": "artwork_id",
+        "type": "varchar(64)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "tracks_table",
+        "name": "artwork_edited_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "tracks_table",
+        "name": "tracks_artwork_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "artwork_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": "\"artwork_id\" is not null",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    }
+  ]
+}
