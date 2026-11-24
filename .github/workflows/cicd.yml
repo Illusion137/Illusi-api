@@ -1,17 +1,17 @@
-# name: CI / Deploy
+name: CI / Deploy
 
-# # Secrets (environment "production"):
-# #   DEPLOY_HOST           VPS hostname or IP
-# #   DEPLOY_USER           ssh user created by scripts/preinstall.sh (default illusi)
-# #   DEPLOY_SSH_KEY        private key whose public half was given to preinstall (DEPLOY_SSH_PUBKEY)
-# #   DEPLOY_KNOWN_HOSTS    output of `ssh-keyscan -t ed25519 <host>`
-# # Variables (optional): LIB_ORIGIN_REF (default full-refactor), DEPLOY_DIR (default /opt/illusi)
+# Secrets (environment "production"):
+#   DEPLOY_HOST           VPS hostname or IP
+#   DEPLOY_USER           ssh user created by scripts/preinstall.sh (default illusi)
+#   DEPLOY_SSH_KEY        private key whose public half was given to preinstall (DEPLOY_SSH_PUBKEY)
+#   DEPLOY_KNOWN_HOSTS    output of `ssh-keyscan -t ed25519 <host>`
+# Variables (optional): LIB_ORIGIN_REF (default full-refactor), DEPLOY_DIR (default /opt/illusi)
 
-# on:
-#   push:
-#     branches: [main]
-#   pull_request:
-#   workflow_dispatch:
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +22,9 @@
 #   API_IMAGE: ghcr.io/illusion137/illusi-api
 #   ANALYZER_IMAGE: ghcr.io/illusion137/illusi-analyzer
 
+jobs:
+  check:
+    runs-on: ubuntu-latest
 # jobs:
 #   check:
 #     runs-on: ubuntu-latest
