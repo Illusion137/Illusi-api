@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Graph } from '../entities';
+import { flatten_items, unwrap_items } from '../soundcloud';
 import type { Batch } from '../soundcloud';
-import { group_album_rows, is_check_due, parse_services, pick_checks, release_window, scope_graph, scope_soundcloud_batch } from './logic';
-import type { AlbumRow, CheckCandidate } from './logic';
+import {
+	dedupe_feed_albums, feed_ids, group_album_rows, is_check_due, parse_services, pick_checks, release_window, scope_graph, scope_soundcloud_batch,
+	soundcloud_feed_rows, youtube_music_feed_rows
+} from './logic';
+import type { AlbumRow, CheckCandidate, FeedAlbum } from './logic';
 
 const ARTIST = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-2222-4222-8222-222222222222';
@@ -109,5 +113,48 @@ describe('group_album_rows', () => {
 		expect(out[0].thumbnails.map(t => t.url)).toEqual(['u1', 'u2']);
 		expect(out[0].release_date).toBe('2026-10-24T00:00:00.000Z');
 		expect(out[1]).toMatchObject({ artists: [], thumbnails: [] });
+	});
+});
+
+describe('feed rows', () => {
+	const window = release_window(now, 7);
+	const uploader = { kind: 'user', id: 5, permalink: 'up', username: 'Up', avatar_url: 'https://i1.sndcdn.com/avatar.jpg' };
+	const track = (id: number, created_at: string, extra: object = {}) => ({ kind: 'track', id, title: `T${id}`, user: uploader, created_at, permalink_url: `https://soundcloud.com/up/t${id}`, ...extra });
+	const stream = [
+		{ type: 'track', created_at: '2026-10-24T00:00:00Z', track: track(1, '2026-10-24T00:00:00Z') },
+		// A repost of something old
+		{ type: 'track-repost', created_at: '2026-10-24T00:00:00Z', track: track(2, '2025-01-01T00:00:00Z') },
+		{ type: 'track', created_at: '2026-10-24T00:00:00Z', track: track(3, '2026-10-24T00:00:00Z', { sharing: 'private' }) },
+		{
+			type: 'playlist', created_at: '2026-10-23T00:00:00Z',
+			playlist: { kind: 'playlist', id: 9, title: 'EP', set_type: 'ep', user: uploader, created_at: '2026-10-23T00:00:00Z', permalink_url: 'https://soundcloud.com/up/sets/ep', tracks: [track(4, '2026-10-23T00:00:00Z')] }
+		}
+	];
+
+	it('keeps the stream\'s own public releases from the window, not reposts of old ones or a playlist\'s tracks', () => {
+		const items = unwrap_items(stream);
+		const rows = soundcloud_feed_rows('u', flatten_items(items).batch, feed_ids(items), window);
+		expect(rows.map(r => [r.kind, r.external_id])).toEqual([['track', '1'], ['album', '9']]);
+		expect(rows[1]).toMatchObject({ album_type: 'EP', name: 'EP', url: 'https://soundcloud.com/up/sets/ep', artists: [{ name: 'Up', id: 'up' }], artwork_url: uploader.avatar_url });
+	});
+
+	it('takes YouTube Music albums undated, once each', () => {
+		const rows = youtube_music_feed_rows('u', [
+			{ id: 'MPREb_1', name: 'A', album_type: 'single', artists: [{ name: 'X', id: 'UC1' }, { name: 'Y' }] },
+			{ id: 'MPREb_1', name: 'A again', artists: [] }
+		]);
+		expect(rows).toEqual([{
+			user_id: 'u', service: 'youtube_music', external_id: 'MPREb_1', kind: 'album', name: 'A', album_type: 'SINGLE',
+			artists: [{ name: 'X', id: 'UC1' }, { name: 'Y', id: null }], artwork_url: null, url: null, explicit: null, released_at: null
+		}]);
+	});
+
+	it('drops feed albums the catalog already has, and repeats', () => {
+		const album = (name: string, artist: string, service = 'youtube_music'): FeedAlbum => ({
+			service, id: name + service, name, album_type: 'ALBUM', explicit: null, artwork_url: null, url: null, artists: [{ name: artist, id: null }], release_date: now.toISOString()
+		});
+		const feed = [album('Known (Deluxe Edition)', 'Beyoncé'), album('New', 'X'), album('New', 'X', 'soundcloud'), album('New', 'Y')];
+		const out = dedupe_feed_albums(feed, [{ name: 'Known', artists: [{ id: 'a', name: 'Beyonce' }] }]);
+		expect(out.map(a => [a.name, a.service, a.artists[0].name])).toEqual([['New', 'youtube_music', 'X'], ['New', 'youtube_music', 'Y']]);
 	});
 });

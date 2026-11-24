@@ -16,6 +16,7 @@ import { lyrics_router } from './services/lyrics';
 import { media_router, public_media_router } from './services/media';
 import { playlists_router, public_artwork_router } from './services/playlists';
 import { releases_router } from './services/releases';
+import { soundtrack_router } from './services/soundtrack';
 import { soundcloud_router } from './services/soundcloud';
 import { service_catalog_router } from './services/service_catalog';
 import { sync_router } from './services/sync';
@@ -57,6 +58,7 @@ function api_v1() {
 	api.use(playlists_router);
 	api.use(media_router);
 	api.use(releases_router);
+	api.use(soundtrack_router);
 	api.use(backpack_router);
 	api.use(durations_router);
 	api.use(account_router);

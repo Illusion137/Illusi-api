@@ -1,9 +1,9 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
-import { albums_table, artist_release_checks_table, service_ids_table } from '../../db/schema';
+import { albums_table, artist_release_checks_table, service_ids_table, user_release_feed_table } from '../../db/schema';
 import { RELEASE_SERVICES } from './logic';
-import type { AlbumRow, CheckCandidate, ReleaseService, ReleaseWindow } from './logic';
+import type { AlbumRow, CheckCandidate, FeedAlbum, FeedArtist, FeedRow, ReleaseService, ReleaseWindow } from './logic';
 
 /** Artists on any of the user's (non-deleted) library tracks. */
 const library_artists = (user_id: string) => sql`
@@ -62,7 +62,7 @@ export async function released_albums(ex: Executor, window: ReleaseWindow, limit
 }
 
 export interface SoundCloudReleaseRow {
-	id: number;
+	id: number | string;
 	illusi_id: string | null;
 	title: string;
 	permalink: string | null;
@@ -71,18 +71,23 @@ export interface SoundCloudReleaseRow {
 	genre: string | null;
 	explicit: boolean | null;
 	released_at: Date | string;
-	user_id: number | null;
+	user_id: number | string | null;
 	username: string | null;
 	user_permalink: string | null;
 	avatar_url: string | null;
 	verified: boolean | null;
 }
 
-/** Public SoundCloud tracks that came out in the window, newest first. */
+/** Public SoundCloud tracks that came out in the window, newest first. A user's are from library uploaders and their own stream. */
 export async function released_soundcloud_tracks(ex: Executor, window: ReleaseWindow, limit: number, user_id?: string): Promise<SoundCloudReleaseRow[]> {
 	// Must match the `soundcloud_tracks_released_at_idx` expression.
 	const released_at = sql`coalesce(st.release_date, st.display_date, st.soundcloud_created_at)`;
-	const scope = user_id ? sql`and st.user_id in (${library_soundcloud_users(user_id)})` : sql``;
+	const scope = user_id
+		? sql`and (
+			st.user_id in (${library_soundcloud_users(user_id)})
+			or exists (select 1 from user_release_feed_table f where f.user_id = ${user_id} and f.service = 'soundcloud' and f.external_id = st.id::text)
+		)`
+		: sql``;
 	return ex.execute<SoundCloudReleaseRow>(sql`
 		select st.id, tr.id as illusi_id, st.title, st.permalink, st.artwork_url, st.duration, st.genre, st.explicit,
 			${released_at} as released_at,
@@ -95,6 +100,54 @@ export async function released_soundcloud_tracks(ex: Executor, window: ReleaseWi
 			and coalesce(st.sharing, 'public') = 'public' and st.public is not false ${scope}
 		order by ${released_at} desc, st.id desc
 		limit ${limit}`, 'objects');
+}
+
+const feed_released_at = sql`coalesce(${user_release_feed_table.released_at}, ${user_release_feed_table.first_seen_at})`;
+
+/** Adds or refreshes feed rows; a row keeps the time it was first seen. */
+export async function upsert_feed(ex: Executor, rows: readonly FeedRow[]) {
+	if (rows.length === 0) return;
+	await ex.insert(user_release_feed_table)
+		.values([...rows])
+		.onConflictDoUpdate({
+			target: [user_release_feed_table.user_id, user_release_feed_table.service, user_release_feed_table.external_id],
+			set: {
+				kind: sql`excluded.kind`,
+				name: sql`excluded.name`,
+				album_type: sql`excluded.album_type`,
+				artists: sql`excluded.artists`,
+				artwork_url: sql`excluded.artwork_url`,
+				url: sql`excluded.url`,
+				explicit: sql`excluded.explicit`,
+				released_at: sql`excluded.released_at`,
+				modified_at: sql`now()`
+			}
+		});
+}
+
+/** Forgets feed rows that have aged out of the window. */
+export async function prune_feed(ex: Executor, user_id: string, window: ReleaseWindow) {
+	await ex.delete(user_release_feed_table)
+		.where(and(eq(user_release_feed_table.user_id, user_id), lt(feed_released_at, window.since)));
+}
+
+/** The user's feed albums and playlists in the window, newest first. */
+export async function feed_albums(ex: Executor, user_id: string, window: ReleaseWindow, limit: number): Promise<FeedAlbum[]> {
+	const t = user_release_feed_table;
+	const rows = await ex.select({
+		service: t.service, id: t.external_id, name: t.name, album_type: t.album_type, explicit: t.explicit,
+		artwork_url: t.artwork_url, url: t.url, artists: t.artists, released_at: sql<Date | string>`${feed_released_at}`
+	})
+		.from(t)
+		// Undated rows were first seen by the database's clock, which may be just past `until`; only dates the service gave can be future ones.
+		.where(and(eq(t.user_id, user_id), eq(t.kind, 'album'), sql`${feed_released_at} >= ${window.since}`, sql`(${t.released_at} is null or ${t.released_at} <= ${window.until})`))
+		.orderBy(desc(feed_released_at), t.service, t.external_id)
+		.limit(limit);
+	return rows.map(({ released_at, artists, ...row }) => ({
+		...row,
+		artists: Array.isArray(artists) ? artists as FeedArtist[] : [],
+		release_date: new Date(released_at).toISOString()
+	}));
 }
 
 /** Library artists with an id on `service` whose check isn't fresh, oldest check first. */

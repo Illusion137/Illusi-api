@@ -1,8 +1,11 @@
 /**
  * Pure parts of the new-releases feature: the window, which client services exist, which
- * artist checks are due, and scoping a FETCH_NEW_RELEASES submission to its one target artist.
+ * artist checks are due, scoping a FETCH_NEW_RELEASES submission to its one target artist, and
+ * turning what a user's own feeds showed them into feed rows.
  */
+import { normalize_name } from '../../core/normalize';
 import type { ServiceIdColumn } from '../../core/service_ids';
+import type { user_release_feed_table } from '../../db/schema';
 import type { Graph, Rejection } from '../entities';
 import type { Batch } from '../soundcloud';
 
@@ -193,4 +196,117 @@ export function group_album_rows(rows: readonly AlbumRow[]): Release[] {
 		}
 	}
 	return [...out.values()];
+}
+
+export type FeedRow = Omit<typeof user_release_feed_table.$inferInsert, 'first_seen_at' | 'created_at' | 'modified_at'>;
+export interface FeedArtist { name: string; id: string | null }
+
+/** A YouTube Music album from the client's new-releases page, already validated. */
+export interface YouTubeMusicFeedAlbum {
+	id: string;
+	name: string;
+	album_type?: string | null;
+	artists: { name: string; id?: string | null }[];
+	artwork_url?: string | null;
+	explicit?: boolean | null;
+}
+
+/** SoundCloud tracks and playlists the client's stream listed directly (not the tracks inside a playlist). */
+export interface FeedIds { tracks: Set<number>; playlists: Set<number> }
+
+const in_window = (date: Date | null | undefined, window: ReleaseWindow): date is Date =>
+	date != null && date.getTime() >= window.since.getTime() && date.getTime() <= window.until.getTime();
+const is_public = (row: { sharing?: string | null; public?: boolean | null }) => (row.sharing ?? 'public') === 'public' && row.public !== false;
+
+/** Ids of the top-level objects in unwrapped stream items: only these are the stream's releases. */
+export function feed_ids(items: readonly unknown[]): FeedIds {
+	const ids: FeedIds = { tracks: new Set(), playlists: new Set() };
+	for (const item of items) {
+		if (typeof item !== 'object' || item === null) continue;
+		const { kind, id } = item as { kind?: unknown; id?: unknown };
+		const n = typeof id === 'string' && /^\d{1,16}$/u.test(id) ? Number(id) : id;
+		if (typeof n !== 'number' || !Number.isSafeInteger(n) || n <= 0) continue;
+		if (kind === 'track') ids.tracks.add(n);
+		else if (kind === 'playlist') ids.playlists.add(n);
+	}
+	return ids;
+}
+
+/**
+ * Feed rows for the public SoundCloud tracks and playlists the stream listed that came out in the window. A repost of
+ * something old is in the stream too, but isn't a new release.
+ */
+export function soundcloud_feed_rows(user_id: string, batch: Batch, ids: FeedIds, window: ReleaseWindow): FeedRow[] {
+	const rows: FeedRow[] = [];
+	const uploader = (sc_user_id: number | null | undefined) => (sc_user_id == null ? undefined : batch.users.get(sc_user_id));
+	const artists_of = (sc_user_id: number | null | undefined): FeedArtist[] => {
+		const user = uploader(sc_user_id);
+		return user ? [{ name: user.username, id: user.permalink }] : [];
+	};
+	for (const id of ids.tracks) {
+		const row = batch.tracks.get(id)?.row;
+		if (!row || !is_public(row)) continue;
+		const released_at = row.release_date ?? row.display_date ?? row.soundcloud_created_at;
+		if (!in_window(released_at, window)) continue;
+		rows.push({
+			user_id, service: 'soundcloud', external_id: String(id), kind: 'track', name: row.title, album_type: 'SONG',
+			artists: artists_of(row.user_id), artwork_url: row.artwork_url ?? uploader(row.user_id)?.avatar_url ?? null,
+			url: batch.tracks.get(id)?.permalink_url ?? null, explicit: row.explicit ?? null, released_at
+		});
+	}
+	for (const id of ids.playlists) {
+		const entry = batch.playlists.get(id);
+		if (!entry || !is_public(entry.row)) continue;
+		const { row } = entry;
+		const released_at = row.release_date ?? row.display_date ?? row.published_at ?? row.soundcloud_created_at;
+		if (!in_window(released_at, window)) continue;
+		const album_type = row.set_type === 'ep' ? 'EP' : row.set_type === 'album' || row.is_album ? 'ALBUM' : row.set_type === 'single' ? 'SINGLE' : 'PLAYLIST';
+		rows.push({
+			user_id, service: 'soundcloud', external_id: String(id), kind: 'album', name: row.title, album_type,
+			artists: artists_of(row.user_id), artwork_url: row.artwork_url ?? uploader(row.user_id)?.avatar_url ?? null,
+			url: entry.permalink_url, explicit: null, released_at
+		});
+	}
+	return rows;
+}
+
+/** YouTube Music only dates new releases by year, so they go in undated and count from when the user first saw them. */
+export function youtube_music_feed_rows(user_id: string, albums: readonly YouTubeMusicFeedAlbum[]): FeedRow[] {
+	const seen = new Set<string>();
+	return albums.flatMap((album) => {
+		if (seen.has(album.id)) return [];
+		seen.add(album.id);
+		return [{
+			user_id, service: 'youtube_music', external_id: album.id, kind: 'album', name: album.name,
+			album_type: album.album_type?.toUpperCase() ?? null,
+			artists: album.artists.map((artist): FeedArtist => ({ name: artist.name, id: artist.id ?? null })),
+			artwork_url: album.artwork_url ?? null, url: null, explicit: album.explicit ?? null, released_at: null
+		}];
+	});
+}
+
+export interface FeedAlbum {
+	service: string;
+	id: string;
+	name: string;
+	album_type: string | null;
+	explicit: boolean | null;
+	artwork_url: string | null;
+	url: string | null;
+	artists: FeedArtist[];
+	release_date: string;
+}
+
+const release_keys = (name: string, artists: readonly { name: string }[]) =>
+	(artists.length === 0 ? [''] : artists.map(artist => normalize_name(artist.name))).map(artist => `${normalize_name(name)}\u0000${artist}`);
+
+/** Drops feed albums the catalog already lists (same name and a shared artist), and repeats within the feed. */
+export function dedupe_feed_albums(feed: readonly FeedAlbum[], catalog: readonly Pick<Release, 'name' | 'artists'>[]): FeedAlbum[] {
+	const known = new Set(catalog.flatMap(release => release_keys(release.name, release.artists)));
+	return feed.filter((album) => {
+		const keys = release_keys(album.name, album.artists);
+		if (keys.some(key => known.has(key))) return false;
+		for (const key of keys) known.add(key);
+		return true;
+	});
 }

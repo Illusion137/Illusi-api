@@ -35,7 +35,7 @@ describe.skipIf(!configured)('row-level security', () => {
 		const [role] = await as_user(null, async c => (await c.query('select rolsuper, rolbypassrls from pg_roles where rolname = current_user')).rows);
 		expect(role).toEqual({ rolsuper: false, rolbypassrls: false });
 		const [tables] = await query<{ missing: string[] }>(`select coalesce(array_agg(c.relname::text), '{}'::text[]) as missing from pg_class c join pg_namespace n on n.oid = c.relnamespace
-			where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity and c.relname in ('users_table', 'sessions_table', 'playlists_table', 'user_tracks_table', 'track_plays_table', 'export_jobs_table', 'sync_pushes_table', 'email_verifications_table')`);
+			where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity and c.relname in ('users_table', 'sessions_table', 'playlists_table', 'user_tracks_table', 'track_plays_table', 'export_jobs_table', 'sync_pushes_table', 'email_verifications_table', 'user_release_feed_table')`);
 		expect(tables.missing).toEqual([]);
 	});
 

@@ -12,17 +12,21 @@ import { ProvenanceLog } from '../../core/provenance';
 import { rate_limit_user } from '../../core/rate_limit';
 import { apply_graph, CONTRIBUTE_MAX_ENTITIES, CONTRIBUTE_MAX_RELATIONS, flush_engine_events, graph_counts, raw_graph_schema, validate_graph } from '../entities';
 import { flatten_items, unwrap_items, write_batch } from '../soundcloud';
-import { group_album_rows, is_release_service, parse_services, pick_checks, release_window, scope_graph, scope_soundcloud_batch } from './logic';
-import type { ReleaseService, ReleaseWindow } from './logic';
-import { artist_service_id, check_candidates, mark_checked, mark_requested, released_albums, released_soundcloud_tracks } from './query';
+import {
+	dedupe_feed_albums, feed_ids, group_album_rows, is_release_service, parse_services, pick_checks, release_window, scope_graph, scope_soundcloud_batch,
+	soundcloud_feed_rows, youtube_music_feed_rows
+} from './logic';
+import type { ReleaseService, ReleaseWindow, YouTubeMusicFeedAlbum } from './logic';
+import { artist_service_id, check_candidates, feed_albums, mark_checked, mark_requested, prune_feed, released_albums, released_soundcloud_tracks, upsert_feed } from './query';
 import type { SoundCloudReleaseRow } from './query';
 
 export { RELEASE_SERVICES } from './logic';
 
-/** Mounted after `require_auth`: `GET /new-releases`, `GET /new-releases/me`, `POST /ingest/new_releases`. */
+/** Mounted after `require_auth`: `GET /new-releases`, `GET|POST /new-releases/me`, `POST /ingest/new_releases`. */
 export const releases_router = Router();
 
 const SC_ITEMS_MAX = 500;
+const YTM_ALBUMS_MAX = 200;
 
 const list_query_schema = z.object({
 	limit: z.coerce.number().int().min(1).max(500).default(200)
@@ -34,9 +38,10 @@ function parse_list_query(req: Request) {
 	return query.data;
 }
 
+/** Raw queries return bigints as strings; SoundCloud ids fit a number. */
 function soundcloud_release(row: SoundCloudReleaseRow) {
 	return {
-		id: row.id,
+		id: Number(row.id),
 		illusi_id: row.illusi_id,
 		title: row.title,
 		permalink: row.permalink,
@@ -45,20 +50,24 @@ function soundcloud_release(row: SoundCloudReleaseRow) {
 		genre: row.genre,
 		explicit: row.explicit,
 		release_date: new Date(row.released_at).toISOString(),
-		user: row.user_id == null ? null : { id: row.user_id, username: row.username, permalink: row.user_permalink, avatar_url: row.avatar_url, verified: row.verified }
+		user: row.user_id == null ? null : { id: Number(row.user_id), username: row.username, permalink: row.user_permalink, avatar_url: row.avatar_url, verified: row.verified }
 	};
 }
 
+/** A user's releases also hold the albums and playlists their own feeds showed them (`feed_albums`). */
 async function new_releases(window: ReleaseWindow, limit: number, user_id?: string) {
-	const [albums, soundcloud] = await Promise.all([
+	const [album_rows, soundcloud, feed] = await Promise.all([
 		released_albums(db, window, limit, user_id),
-		released_soundcloud_tracks(db, window, limit, user_id)
+		released_soundcloud_tracks(db, window, limit, user_id),
+		user_id ? feed_albums(db, user_id, window, limit) : Promise.resolve(null)
 	]);
+	const albums = group_album_rows(album_rows);
 	return {
 		since: window.since.toISOString(),
 		until: window.until.toISOString(),
-		albums: group_album_rows(albums),
-		soundcloud_tracks: soundcloud.map(soundcloud_release)
+		albums,
+		soundcloud_tracks: soundcloud.map(soundcloud_release),
+		...(feed ? { feed_albums: dedupe_feed_albums(feed, albums) } : {})
 	};
 }
 
@@ -105,6 +114,67 @@ releases_router.get('/new-releases/me', async (req, res) => {
 		release_check_actions(user, parse_services(req.query.services), window)
 	]);
 	res.json(with_actions(data, actions));
+});
+
+const feed_artist_schema = z.object({
+	name: z.string().trim().min(1).max(1024),
+	id: z.string().trim().min(1).max(256).nullish()
+});
+const youtube_music_album_schema = z.object({
+	id: z.string().trim().min(1).max(256),
+	name: z.string().trim().min(1).max(1024),
+	album_type: z.string().trim().min(1).max(32).nullish(),
+	artists: z.array(feed_artist_schema).max(32).default([]),
+	artwork_url: z.url({ protocol: /^https?$/u }).max(1024).nullish(),
+	explicit: z.boolean().nullish()
+});
+const feed_schema = z.object({
+	limit: z.number().int().min(1).max(500).default(200),
+	/** Services the client is logged into; each adds FETCH_NEW_RELEASES actions, as `?services=` does on the GET */
+	services: z.array(z.string().max(32)).max(16).default([]),
+	/** Raw SoundCloud stream items (`/stream` collection entries or plain tracks and playlists) */
+	soundcloud_items: z.array(z.unknown()).max(SC_ITEMS_MAX).default([]),
+	/** Albums from YouTube Music's new-releases page; a malformed one is skipped, not the request */
+	youtube_music_albums: z.array(z.unknown()).max(YTM_ALBUMS_MAX).default([])
+});
+
+/**
+ * The client hands over what its own SoundCloud stream and YouTube Music new-releases page show, and gets back the
+ * whole list: those (SoundCloud ones also go into the catalog) and releases by artists in the library.
+ */
+releases_router.post('/new-releases/me', rate_limit_user('new_releases_feed', 30, 60_000), json_body('4mb'), async (req, res) => {
+	const user = require_user(req);
+	const body = parse_body(feed_schema, req.body);
+	const window = release_window(new Date(), config.NEW_RELEASES_WINDOW_DAYS);
+	const ytm_albums: YouTubeMusicFeedAlbum[] = [];
+	let rejected = 0;
+	for (const item of body.youtube_music_albums) {
+		const parsed = youtube_music_album_schema.safeParse(item);
+		if (parsed.success) ytm_albums.push(parsed.data);
+		else rejected++;
+	}
+	const sc_items = unwrap_items(body.soundcloud_items);
+	if (sc_items.length > SC_ITEMS_MAX) throw new HttpError(413, 'too many items', { max_items: SC_ITEMS_MAX });
+	const { batch, rejected: sc_rejected } = flatten_items(sc_items);
+
+	const pending = await db.transaction(async (tx) => {
+		const events = new PendingEvents();
+		if (batch.users.size + batch.tracks.size + batch.playlists.size > 0) {
+			const prov = new ProvenanceLog('soundcloud', user.id);
+			await write_batch(tx, user.id, batch, prov, events);
+			if (prov.entities.length > 0) await prov.write(tx);
+		}
+		await prune_feed(tx, user.id, window);
+		await upsert_feed(tx, [...soundcloud_feed_rows(user.id, batch, feed_ids(sc_items), window), ...youtube_music_feed_rows(user.id, ytm_albums)]);
+		return events;
+	});
+	pending.flush();
+
+	const [data, actions] = await Promise.all([
+		new_releases(window, body.limit, user.id),
+		release_check_actions(user, parse_services(body.services), window)
+	]);
+	res.json(with_actions({ ...data, rejected: rejected + sc_rejected }, actions));
 });
 
 const fulfil_schema = z.object({

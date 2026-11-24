@@ -238,3 +238,94 @@ describe('backpack endpoints', () => {
 		expect(ok.body).toMatchObject({ status: 'NOT_FOUND', applied: false, backpacked: false });
 	});
 });
+
+describe('handed-over feeds', () => {
+	it('stores the SoundCloud stream and YouTube Music releases and answers with them beside library releases', async () => {
+		const fan = await create_user('rel-feed');
+		const base = sc_base();
+		const followed = sc_user(base, unique('followed'));
+		const fresh = days_ago(1).toISOString();
+		const library_artist = unique('Lib Artist');
+		const library = await contribute(fan, mock_album({ artist: library_artist, album: unique('Lib New'), n: 1, release_date: days_ago(2) }));
+		await add_to_library(fan, [library.body.refs.t0]);
+		const library_album = (await query(`select name from albums_table where id = $1`, [library.body.refs.al]))[0].name as string;
+		const stream = [
+			{ type: 'track', created_at: fresh, track: sc_track(base + 1, followed, { created_at: fresh }), user: followed },
+			// A repost of an old track isn't a new release
+			{ type: 'track-repost', created_at: fresh, track: sc_track(base + 2, followed), user: followed },
+			{ type: 'playlist', created_at: fresh, playlist: { kind: 'playlist', id: base + 3, title: 'Fresh EP', set_type: 'ep', user: followed, created_at: fresh, permalink_url: 'https://soundcloud.com/f/sets/ep' }, user: followed }
+		];
+		const youtube_music_albums = [
+			{ id: `MPREb_${base}`, name: 'YTM Single', album_type: 'single', artists: [{ name: 'YTM Artist', id: 'UCx' }], artwork_url: 'https://lh3.example.test/a.jpg' },
+			// The catalog already has this one
+			{ id: `MPREb_${base}b`, name: library_album, artists: [{ name: library_artist }] },
+			{ id: '', name: 'Broken' }
+		];
+		const res = await api('POST', '/new-releases/me', { token: fan.access_token, body: { soundcloud_items: stream, youtube_music_albums } });
+		expect(res.status).toBe(200);
+		expect(res.body.rejected).toBe(1);
+		expect(res.body.albums.map((a: { id: string }) => a.id)).toContain(library.body.refs.al);
+		expect(res.body.soundcloud_tracks.map((t: { id: number }) => t.id)).toEqual([base + 1]);
+		expect(res.body.feed_albums.map((a: { service: string; name: string }) => [a.service, a.name]).sort()).toEqual([['soundcloud', 'Fresh EP'], ['youtube_music', 'YTM Single']]);
+		expect(res.body.feed_albums.find((a: { service: string }) => a.service === 'soundcloud')).toMatchObject({ album_type: 'EP', url: 'https://soundcloud.com/f/sets/ep', artists: [{ name: followed.username, id: followed.permalink }] });
+		expect(await query(`select id from soundcloud_tracks_table where id = $1`, [base + 2])).toHaveLength(1);
+
+		// The GET answers from what was handed over; a later hand-over keeps when a release was first seen.
+		const first_seen = (await query(`select first_seen_at from user_release_feed_table where user_id = $1 and service = 'youtube_music' and external_id = $2`, [fan.id, `MPREb_${base}`]))[0].first_seen_at;
+		await api('POST', '/new-releases/me', { token: fan.access_token, body: { youtube_music_albums: [{ ...youtube_music_albums[0], name: 'YTM Single (renamed)' }] } });
+		const again = await api('GET', '/new-releases/me', { token: fan.access_token });
+		expect(again.body.soundcloud_tracks.map((t: { id: number }) => t.id)).toEqual([base + 1]);
+		expect(again.body.feed_albums.map((a: { name: string }) => a.name)).toContain('YTM Single (renamed)');
+		expect((await query(`select first_seen_at from user_release_feed_table where user_id = $1 and service = 'youtube_music' and external_id = $2`, [fan.id, `MPREb_${base}`]))[0].first_seen_at).toEqual(first_seen);
+
+		// Nobody else sees them.
+		const other = await create_user('rel-feed-other');
+		const theirs = await api('GET', '/new-releases/me', { token: other.access_token });
+		expect(theirs.body.feed_albums).toEqual([]);
+		expect(theirs.body.soundcloud_tracks.map((t: { id: number }) => t.id)).not.toContain(base + 1);
+	});
+
+	it('forgets feed releases that aged out of the window', async () => {
+		const fan = await create_user('rel-feed-prune');
+		await query(`insert into user_release_feed_table (user_id, service, external_id, kind, name, first_seen_at) values ($1, 'youtube_music', 'MPREb_old', 'album', 'Old', $2)`, [fan.id, days_ago(config.NEW_RELEASES_WINDOW_DAYS + 1)]);
+		const res = await api('POST', '/new-releases/me', { token: fan.access_token, body: {} });
+		expect(res.body.feed_albums).toEqual([]);
+		expect(await query(`select 1 from user_release_feed_table where user_id = $1`, [fan.id])).toHaveLength(0);
+	});
+});
+
+describe('my soundtrack', () => {
+	it('mixes heavy rotation with tracks by similar artists, and is stable within a day', async () => {
+		const fan = await create_user('soundtrack');
+		const fav = await contribute(fan, mock_album({ artist: unique('Fav'), album: unique('Fav Album'), n: 6 }));
+		const similar = await contribute(fan, mock_album({ artist: unique('Similar'), album: unique('Similar Album'), n: 6 }));
+		const deleted = await contribute(fan, mock_album({ artist: unique('Gone'), album: unique('Gone Album'), n: 1 }));
+		const fav_tracks = [0, 1, 2, 3, 4, 5].map(i => fav.body.refs[`t${i}`] as string);
+		await add_to_library(fan, fav_tracks);
+		await add_to_library(fan, [deleted.body.refs.t0], { deleted: true });
+		await query(`insert into similar_artists_table (artist_id, similar_artist_id) values ($1, $2)`, [similar.body.refs.ar, fav.body.refs.ar]);
+		for (const [i, track_id] of fav_tracks.slice(0, 3).entries()) {
+			for (let n = 0; n <= i; n++) await query(`insert into track_plays_table (user_id, track_id, created_at) values ($1, $2, $3)`, [fan.id, track_id, days_ago(n + 1)]);
+		}
+		await query(`insert into track_plays_table (user_id, track_id) values ($1, $2)`, [fan.id, deleted.body.refs.t0]);
+		await query(`insert into track_plays_table (user_id, track_id, created_at) values ($1, $2, $3)`, [fan.id, fav_tracks[5], days_ago(200)]);
+
+		const res = await api('GET', '/me/soundtrack?limit=10', { token: fan.access_token });
+		expect(res.status).toBe(200);
+		const items = res.body.items as { reason: string; track: { id: string } }[];
+		const rotation = items.filter(i => i.reason === 'heavy_rotation').map(i => i.track.id);
+		expect(rotation.sort()).toEqual(fav_tracks.slice(0, 3).sort());
+		expect(items[0].reason).toBe('heavy_rotation');
+		const ids = items.map(i => i.track.id);
+		expect(ids).not.toContain(deleted.body.refs.t0);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(ids.some(id => Object.values(similar.body.refs).includes(id))).toBe(true);
+		expect((await api('GET', '/me/soundtrack?limit=10', { token: fan.access_token })).body.items).toEqual(res.body.items);
+		expect((await api('GET', '/me/soundtrack?limit=101', { token: fan.access_token })).status).toBe(400);
+	});
+
+	it('is empty with nothing to go on', async () => {
+		const fan = await create_user('soundtrack-empty');
+		expect((await api('GET', '/me/soundtrack', { token: fan.access_token })).body.items).toEqual([]);
+	});
+});

@@ -1057,6 +1057,30 @@ export const artist_release_checks_table = pgTable('artist_release_checks_table'
 	...timestamps
 }, table => [primaryKey({ columns: [table.artist_id, table.service] })]);
 
+/**
+ * Releases a user's own service feeds showed them (SoundCloud's stream, YouTube Music's new releases), handed over by
+ * their client on `POST /new-releases/me`. SoundCloud tracks are only referenced here (the catalog row holds them);
+ * albums and playlists keep what the feed said, since YouTube Music albums have no catalog table.
+ */
+export const user_release_feed_table = pgTable('user_release_feed_table', {
+	user_id: uuid().notNull().references(() => users_table.id, { onDelete: 'cascade' }),
+	service: varchar({ length: 32 }).notNull(),
+	external_id: varchar({ length: 256 }).notNull(),
+	/** `track` (a SoundCloud track id) or `album` (a SoundCloud playlist or YouTube Music album) */
+	kind: varchar({ length: 16 }).notNull(),
+	name: varchar({ length: 1024 }).notNull(),
+	album_type: varchar({ length: 32 }),
+	/** `{ name, id }[]`, `id` being the artist's id (or permalink) on the service */
+	artists: jsonb().notNull().default([]),
+	artwork_url: varchar({ length: 1024 }),
+	url: varchar({ length: 1024 }),
+	explicit: boolean(),
+	/** Null when the service doesn't say (YouTube Music only gives the year); `first_seen_at` stands in for it. */
+	released_at: timestamptz(),
+	first_seen_at: timestamptz().notNull().defaultNow(),
+	...timestamps
+}, table => [primaryKey({ columns: [table.user_id, table.service, table.external_id] })]);
+
 /** Services a backpacked track can be researched on: the ones clients download from. */
 export const RESEARCH_SERVICES = ['youtube', 'soundcloud', 'bandlab', 'audiomack'] as const;
 export const RESEARCH_STATUSES = ['PENDING', 'FOUND', 'NOT_FOUND'] as const;
