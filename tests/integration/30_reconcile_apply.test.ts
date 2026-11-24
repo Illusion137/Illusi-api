@@ -8,6 +8,7 @@ import type { ApplyContext, ReviewPlan } from '../../src/worker/reconcile/apply'
 import { load_conflicts, load_nodes, load_vectors } from '../../src/worker/reconcile/load';
 import { apply_group, RECONCILE_LOCK_KEY, run_pass, simple_pairs } from '../../src/worker/reconcile/run';
 import type { RunReport } from '../../src/worker/reconcile/run';
+import { resolve_group } from '../../src/worker/reconcile/resolve';
 import { DEFAULT_THRESHOLDS, thresholds_from_config } from '../../src/worker/reconcile/thresholds';
 import type { ConflictInfo, GroupPlan, MergeStep, MoveStep, NewEntity, SplitStep } from '../../src/worker/reconcile/types';
 import { create_user, pool, query, unique, uuid } from './helpers';
@@ -604,6 +605,39 @@ describe('reconcile run', () => {
 		}
 	});
 
+	it('merges two YouTube uploads of one song, keeping the one still playing and the other for the track', async () => {
+		const title = unique('Zodiac Killer');
+		const [dead, live] = [yt_id(), yt_id()];
+		const singer = await artist({}, unique('Khalil'));
+		const a = await track({ youtube_id: dead }, { title, duration_ms: 125_000 });
+		const b = await track({ youtube_id: live }, { title, duration_ms: 125_000 });
+		await query(`insert into tracks_artists_table (artist_id, track_id) values ($1, $2), ($1, $3)`, [singer, a, b]);
+		const [u] = await Promise.all([create_user('two-uploads')]);
+		// The older track survives (more user data), but its id is the dead one.
+		await query(`insert into user_tracks_table (user_id, track_id) values ($1, $2)`, [u.id, a]);
+		await query(`insert into track_youtube_ids_table (youtube_id, track_id, unavailable_at) values ($1, $2, now())`, [dead, a]);
+
+		const plan = resolve_group({ nodes: await load_nodes(db, [a, b]), conflicts: [] }, thresholds);
+		expect(plan.steps).toEqual([expect.objectContaining({ type: 'merge', survivor: a, loser: b, auto: true, reasons: ['same_recording'] })]);
+		const report = empty_report();
+		await apply_group(plan, report, { review: false });
+		expect(report.merges).toBe(1);
+		expect(await query(`select youtube_id from service_ids_table where illusi_id = $1`, [a])).toEqual([{ youtube_id: live }]);
+		expect(await query(`select youtube_id, unavailable_at is not null as dead from track_youtube_ids_table where track_id = $1 order by youtube_id`, [a]))
+			.toEqual([{ youtube_id: dead, dead: true }]);
+		expect(await query(`select new_id from illusi_id_redirects_table where old_id = $1`, [b])).toEqual([{ new_id: a }]);
+
+		// Without a dead id the survivor keeps its own and the loser's is kept for it.
+		const c = await track({ youtube_id: yt_id() }, { title, duration_ms: 125_000 });
+		const loser_id = yt_id();
+		const d = await track({ youtube_id: loser_id }, { title, duration_ms: 126_000 });
+		await query(`insert into tracks_artists_table (artist_id, track_id) values ($1, $2), ($1, $3)`, [singer, c, d]);
+		await apply_group(resolve_group({ nodes: await load_nodes(db, [c, d]), conflicts: [] }, thresholds), empty_report(), { review: false });
+		const survivor = (await query(`select id from tracks_table where id in ($1, $2)`, [c, d]))[0].id;
+		expect(await query(`select track_id from track_youtube_ids_table where youtube_id in (select youtube_id from service_ids_table where illusi_id = $1)`, [survivor])).toEqual([]);
+		expect(await query(`select count(*)::int as n from track_youtube_ids_table where track_id = $1`, [survivor])).toEqual([{ n: 1 }]);
+	});
+
 	async function pass(mode: 'full' | 'incremental', dry_run: boolean): Promise<RunReport> {
 		for (let i = 0; i < 40; i++) {
 			const report = await run_pass({ mode, dry_run, thresholds });
@@ -693,7 +727,7 @@ describe('reconcile edge cases', () => {
 		await query('create trigger refuse_merge_audit_test before insert on audit_log_table for each row execute function refuse_merge_audit()');
 		try {
 			let report = await run_pass({ mode: 'full', dry_run: false, thresholds });
-			for (let i = 0; i < 40 && report.locked; i++) {
+			for (let i = 0; i < 40 && !report.locked; i++) {
 				await new Promise(r => setTimeout(r, 500));
 				report = await run_pass({ mode: 'full', dry_run: false, thresholds });
 			}

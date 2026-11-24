@@ -65,10 +65,11 @@ describe('resolve_group', () => {
 	});
 
 	it('defers metadata-only matches with the plan; the conflict becomes deferred', () => {
-		const A = node('A', { meta: { album: 'LP', track_number: 2 } });
+		// Without a duration to compare, the same title and artist isn't the same recording yet.
+		const A = node('A', { meta: { album: 'LP', track_number: 2, duration_ms: null } });
 		const B = node('B', { meta: { album: 'LP', track_number: 2, duration_ms: 201_000 } });
 		const c = conflict('A', 'applemusic_id', '99', { other_illusi_id: 'B', source: 'itunes', existing_value: '98' });
-		const plan = resolve_group({ nodes: [A, B], conflicts: [c] }, { ...T, review_min_confidence: 0.4 });
+		const plan = resolve_group({ nodes: [A, B], conflicts: [c] }, { ...T, review_min_confidence: 0.3 });
 		expect(plan.steps).toHaveLength(1);
 		expect(plan.steps[0]).toMatchObject({ type: 'merge', auto: false });
 		expect(plan.conflicts[0].status).toBe('deferred');
@@ -143,7 +144,7 @@ describe('is_clear_cut / plan_signature', () => {
 
 	it('rejects borderline dismissals and review cases', () => {
 		const A = node('A', { meta: { album: 'LP' } });
-		const B = node('B', { meta: { album: 'LP' } });
+		const B = node('B', { meta: { album: 'LP', duration_ms: null } });
 		const plan = resolve_group({ nodes: [A, B], conflicts: [conflict('A', 'deezer_id', 'x', { other_illusi_id: 'B' })] }, T);
 		expect(is_clear_cut(plan, T)).toBe(false);
 	});

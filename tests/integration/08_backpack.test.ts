@@ -120,9 +120,9 @@ describe('backpacked tracks', () => {
 		expect((await research_requests(owner)).body.actions).toEqual([]);
 	});
 
-	it('keeps it backpacked when the found id differs from a dead one already stored', async () => {
-		const owner = await create_user('bp-conflict');
-		const created = await contribute(owner, mock_album({ artist: unique('Conflict Artist'), album: unique('Conflict Album'), n: 1 }));
+	it('replaces a dead YouTube id with the one research found, keeping the dead one for the track', async () => {
+		const owner = await create_user('bp-replace');
+		const created = await contribute(owner, mock_album({ artist: unique('Replace Artist'), album: unique('Replace Album'), n: 1 }));
 		const t0: string = created.body.refs.t0;
 		await add_to_library(owner, [t0]);
 		const dead = youtube_id();
@@ -134,10 +134,45 @@ describe('backpacked tracks', () => {
 		const [action] = (await research_requests(owner)).body.actions;
 		expect(action.service).toBe('youtube');
 
-		const res = await api('POST', '/ingest/track_research', { token: owner.access_token, body: { token: action.token, track_id: t0, service: 'youtube', service_id: youtube_id() } });
+		const live = youtube_id();
+		const res = await api('POST', '/ingest/track_research', { token: owner.access_token, body: { token: action.token, track_id: t0, service: 'youtube', service_id: live } });
 		expect(res.status).toBe(200);
-		expect(res.body).toMatchObject({ status: 'FOUND', applied: false, backpacked: true, conflict: { column: 'youtube_id', kind: 'different_value', existing_value: dead } });
-		expect(await query('select count(*)::int as n from service_id_conflicts_table where illusi_id = $1 and "column" = $2', [t0, 'youtube_id'])).toEqual([{ n: 1 }]);
+		expect(res.body).toMatchObject({ status: 'FOUND', applied: true, backpacked: false });
+		expect(await query('select youtube_id from service_ids_table where illusi_id = $1', [t0])).toEqual([{ youtube_id: live }]);
+		expect(await query('select track_id, unavailable_at is not null as dead from track_youtube_ids_table where youtube_id = $1', [dead])).toEqual([{ track_id: t0, dead: true }]);
+		expect(await query('select count(*)::int as n from service_id_conflicts_table where illusi_id = $1 and "column" = $2', [t0, 'youtube_id'])).toEqual([{ n: 0 }]);
+
+		// A contribution still carrying the dead id finds the track instead of making another.
+		const again = await contribute(owner, { artists: [], albums: [], tracks: [{ ref: 't', title: 'Anything', service_ids: { youtube_id: dead } }], relations: { tracks_artists: [], album_tracks: [], artist_albums: [] } });
+		expect(again.body.refs.t).toBe(t0);
+		expect(await query('select youtube_id from service_ids_table where illusi_id = $1', [t0])).toEqual([{ youtube_id: live }]);
+	});
+
+	it('switches a track to another upload it has as soon as an owner finds the current one dead', async () => {
+		const owner = await create_user('bp-switch');
+		const created = await contribute(owner, mock_album({ artist: unique('Switch Artist'), album: unique('Switch Album'), n: 1 }));
+		const t0: string = created.body.refs.t0;
+		await add_to_library(owner, [t0]);
+		const [dead, live] = [youtube_id(), youtube_id()];
+		await query('update service_ids_table set youtube_id = $2 where illusi_id = $1', [t0, dead]);
+		// Someone contributes the same song with another upload: kept, not a conflict.
+		const second = await contribute(owner, { artists: [], albums: [], tracks: [{ ref: t0, title: 'x', service_ids: { youtube_id: live } }], relations: { tracks_artists: [], album_tracks: [], artist_albums: [] } });
+		expect(second.status).toBe(200);
+		expect(await query('select track_id from track_youtube_ids_table where youtube_id = $1', [live])).toEqual([{ track_id: t0 }]);
+
+		// Someone without it reporting changes nothing.
+		const outsider = await create_user('bp-switch-outsider');
+		await api('POST', `/tracks/${t0}/unavailable`, { token: outsider.access_token, body: { service: 'youtube' } });
+		expect(await query('select youtube_id from service_ids_table where illusi_id = $1', [t0])).toEqual([{ youtube_id: dead }]);
+
+		const res = await api('POST', `/tracks/${t0}/unavailable`, { token: owner.access_token, body: { service: 'youtube' } });
+		expect(res.body).toMatchObject({ backpacked: false, youtube_id: live });
+		expect(await query('select youtube_id from service_ids_table where illusi_id = $1', [t0])).toEqual([{ youtube_id: live }]);
+		expect((await backpacked(t0)).backpacked).toBe(false);
+		// Dead now too: nothing left to switch to, so it's backpacked and researched.
+		const next = await api('POST', `/tracks/${t0}/unavailable`, { token: owner.access_token, body: { service: 'youtube' } });
+		expect(next.body).toMatchObject({ backpacked: true });
+		expect(await query('select youtube_id from track_youtube_ids_table where track_id = $1 and unavailable_at is not null order by youtube_id', [t0])).toEqual([dead, live].sort().map(youtube_id => ({ youtube_id })));
 	});
 
 	it('hands research actions out on sync pull', async () => {

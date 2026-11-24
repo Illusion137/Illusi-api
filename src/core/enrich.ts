@@ -6,6 +6,7 @@ import { logger } from './log';
 import { normalize_service_ids, SERVICE_ID_COLUMNS } from './service_ids';
 import type { ServiceIdColumn, ServiceIds } from './service_ids';
 import { pg_error_code, PG_ERRORS } from './pg_errors';
+import { is_track, keep_youtube_ids, switch_youtube_id, track_of_kept_youtube_id, unavailable_youtube_ids } from './youtube_ids';
 
 const log = logger('enrich');
 
@@ -56,6 +57,28 @@ async function record_conflict(tx: Tx, illusi_id: string, conflict: EnrichConfli
 }
 
 /**
+ * A track's YouTube id isn't one of a kind: the song has other uploads. A second id is kept as one instead of being a
+ * conflict, and takes over when the current one was found unplayable. Only an id another entity holds is a conflict;
+ * `fill` leaves an empty column to the usual fill.
+ */
+async function track_youtube_id(tx: Tx, illusi_id: string, existing: string | null, incoming: string): Promise<'fill' | 'filled' | 'kept' | EnrichConflict> {
+	const [holder] = await tx.select({ illusi_id: service_ids_table.illusi_id }).from(service_ids_table)
+		.where(and(eq(service_ids_table.youtube_id, incoming), ne(service_ids_table.illusi_id, illusi_id))).limit(1);
+	const kept_by = await track_of_kept_youtube_id(tx, incoming);
+	const other = holder?.illusi_id ?? (kept_by !== null && kept_by !== illusi_id ? kept_by : null);
+	if (other) return { column: 'youtube_id', kind: 'taken', existing_value: existing, incoming_value: incoming, other_illusi_id: other };
+	const dead = await unavailable_youtube_ids(tx, existing === null ? [incoming] : [incoming, existing]);
+	if (dead.has(incoming)) {
+		await keep_youtube_ids(tx, illusi_id, [incoming]);
+		return 'kept';
+	}
+	if (existing === null) return 'fill';
+	if (dead.has(existing) && await switch_youtube_id(tx, illusi_id, existing, incoming, new Date())) return 'filled';
+	await keep_youtube_ids(tx, illusi_id, [incoming]);
+	return 'kept';
+}
+
+/**
  * The shared helper every service passes cross-service ids through.
  * Only fills empty columns, never overwrites, records conflicts instead of resolving them.
  * Never creates the `service_ids_table` row: the local entity always comes first.
@@ -77,11 +100,25 @@ export async function enrich_service_ids(tx: Tx, illusi_id: string, ids: Service
 	// Kept off other services on purpose: neither a fill nor a conflict to review.
 	if (row.locked) return result;
 
+	let track: boolean | null = null;
 	for (const column of SERVICE_ID_COLUMNS) {
 		const incoming = normalized[column];
 		if (incoming == null) continue;
 		const existing = row[column];
 		if (existing != null && String(existing) === String(incoming)) continue;
+		if (column === 'youtube_id' && (track ??= await is_track(tx, illusi_id))) {
+			const outcome = await track_youtube_id(tx, illusi_id, existing == null ? null : String(existing), String(incoming));
+			if (outcome === 'kept') continue;
+			if (outcome === 'filled') {
+				result.filled.push(column);
+				(row as Record<string, unknown>)[column] = incoming;
+				continue;
+			}
+			if (outcome !== 'fill') {
+				result.conflicts.push(outcome);
+				continue;
+			}
+		}
 		if (existing != null) {
 			result.conflicts.push({ column, kind: 'different_value', existing_value: String(existing), incoming_value: String(incoming), other_illusi_id: null });
 			continue;
@@ -136,6 +173,11 @@ export async function find_illusi_ids_by_service_ids(tx: Tx, ids: ServiceIds): P
 		const value = normalized[column];
 		if (value == null) continue;
 		const rows = await tx.select({ illusi_id: service_ids_table.illusi_id }).from(service_ids_table).where(eq(col(column), value as never)).limit(column === 'isrc' ? 20 : 1);
+		// Another upload of a track's song, or one that stopped playing, still names that track.
+		if (rows.length === 0 && column === 'youtube_id') {
+			const kept_by = await track_of_kept_youtube_id(tx, String(value));
+			if (kept_by) rows.push({ illusi_id: kept_by });
+		}
 		for (const r of rows) matches.set(r.illusi_id, [...(matches.get(r.illusi_id) ?? []), column]);
 	}
 	return [...matches].map(([illusi_id, columns]) => ({ illusi_id, columns }));

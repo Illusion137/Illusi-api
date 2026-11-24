@@ -1086,6 +1086,19 @@ export const RESEARCH_SERVICES = ['youtube', 'soundcloud', 'bandlab', 'audiomack
 export const RESEARCH_STATUSES = ['PENDING', 'FOUND', 'NOT_FOUND'] as const;
 export const research_status = pgEnum('research_status', RESEARCH_STATUSES);
 
+/**
+ * YouTube ids a track has besides its current `service_ids_table.youtube_id`, and ids found unplayable. A song is
+ * uploaded to YouTube many times: merges and contributions keep the other uploads here, so an old id still matches
+ * the track and a dead id can be swapped for a live one. The current id has a row only once it was reported dead.
+ */
+export const track_youtube_ids_table = pgTable('track_youtube_ids_table', {
+	youtube_id: varchar({ length: 64 }).primaryKey(),
+	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),
+	/** When an owner of the track found it unplayable on this id; null while it's believed to play */
+	unavailable_at: timestamptz(),
+	...timestamps
+}, table => [index('track_youtube_ids_track_id_idx').on(table.track_id)]);
+
 /** One row per user and service that reported a track unplayable. */
 export const track_unavailable_reports_table = pgTable('track_unavailable_reports_table', {
 	track_id: uuid().notNull().references(() => tracks_table.id, { onDelete: 'cascade' }),

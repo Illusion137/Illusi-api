@@ -1,0 +1,221 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "cb53e4be-9755-44b6-b8a2-c53c8d793b27",
+  "prevIds": [
+    "b25211f3-983f-409c-b874-0443c7a174e8"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "track_youtube_ids_table"
+      ],
+      "writes": [
+        "s|tbl|public.track_youtube_ids_table",
+        "n|tbl|public.track_youtube_ids_table",
+        "e|tbl|public.track_youtube_ids_table",
+        "n|rel|public.track_youtube_ids_table",
+        "n|type|public.track_youtube_ids_table",
+        "n|rel|public.track_youtube_ids_table_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "track_youtube_ids_table",
+        "track_youtube_ids_track_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.track_youtube_ids_track_id_idx",
+        "n|idx|public.track_youtube_ids_track_id_idx",
+        "e|idx|public.track_youtube_ids_track_id_idx",
+        "n|rel|public.track_youtube_ids_track_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.track_youtube_ids_table",
+        "n|sch|public",
+        "n|col|public.track_youtube_ids_table.track_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "track_youtube_ids_table"
+      ],
+      "writes": [
+        "s|fk|public.track_youtube_ids_table.track_youtube_ids_table_track_id_tracks_table_id_fkey",
+        "n|fk|public.track_youtube_ids_table.track_youtube_ids_table_track_id_tracks_table_id_fkey",
+        "e|fk|public.track_youtube_ids_table.track_youtube_ids_table_track_id_tracks_table_id_fkey",
+        "n|con|public.track_youtube_ids_table.track_youtube_ids_table_track_id_tracks_table_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.track_youtube_ids_table",
+        "n|sch|public",
+        "n|tbl|public.tracks_table",
+        "n|sch|public",
+        "n|col|public.track_youtube_ids_table.track_id",
+        "n|col|public.tracks_table.id",
+        "e|uniqueness|public.tracks_table.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "track_youtube_ids_table",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "youtube_id",
+        "type": "varchar(64)",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "track_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "unavailable_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "modified_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "track_youtube_ids_track_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "track_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "track_youtube_ids_table_track_id_tracks_table_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "track_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "tracks_table",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "track_youtube_ids_table",
+        "name": "track_youtube_ids_table_pkey",
+        "columns": [
+          "youtube_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

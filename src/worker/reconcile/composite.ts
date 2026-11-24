@@ -149,6 +149,7 @@ export const REF_TABLES: Record<Exclude<EntityKind, 'unknown'>, RefTableSpec[]> 
 		{ table: 'tracks_artists_table', ref_col: 'track_id', pk: ['artist_id', 'track_id'], unique_keys: [['artist_id']], has_modified_at: true },
 		{ table: 'tracks_producers_table', ref_col: 'track_id', pk: ['producer_id', 'track_id'], unique_keys: [['producer_id']], has_modified_at: true },
 		{ table: 'service_tracks_table', ref_col: 'illusi_id', pk: ['service', 'external_id'], unique_keys: [], has_modified_at: true },
+		{ table: 'track_youtube_ids_table', ref_col: 'track_id', pk: ['youtube_id'], unique_keys: [], has_modified_at: true },
 		itunes_lookups,
 		thumbnails
 	],

@@ -6,6 +6,7 @@ import {
 } from '../../db/schema';
 import { write_audit } from '../../core/audit';
 import { locked_service_links } from '../../core/enrich';
+import { keep_youtube_ids, unavailable_youtube_ids } from '../../core/youtube_ids';
 import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
 import { resolve_redirects } from '../../core/redirects';
@@ -116,8 +117,8 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 	for (const c of UNIQUE_SERVICE_ID_COLUMNS) {
 		if (s_ids[c] != null && l_ids[c] != null && String(s_ids[c]) !== String(l_ids[c])) dropped[c] = String(l_ids[c]);
 	}
-	// An artist's YouTube id is one of their channels: two of them don't make two artists (the survivor keeps its own).
-	const identifying = Object.keys(dropped).filter(c => kind !== 'artist' || c !== 'youtube_id');
+	// An artist's YouTube id is one of their channels, a track's one of the song's uploads: two of them don't make two.
+	const identifying = Object.keys(dropped).filter(c => c !== 'youtube_id' || (kind !== 'artist' && kind !== 'track'));
 	if (identifying.length > 0 && ctx.actor === 'reconcile') return { step, applied: false, skipped: 'different_ids' };
 
 	const undo_tables: Record<string, { repointed: Row[]; deleted: Row[]; updated: { key: Row; before: Row }[] }[]> = {};
@@ -182,8 +183,18 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 	const fill: Partial<Record<ServiceIdColumn, string>> = {};
 	const loser_values = id_values(l_ids);
 	if (!link_locks.has(survivor)) for (const [c, v] of Object.entries(loser_values) as [ServiceIdColumn, string][]) if (s_ids[c] == null) fill[c] = v;
+	// Two uploads of one song: the one still playing becomes the track's, the other is kept for it.
+	let kept_youtube_id: string | null = null;
+	if (kind === 'track' && dropped.youtube_id) {
+		const own = String(s_ids.youtube_id);
+		const dead = await unavailable_youtube_ids(tx, [own, dropped.youtube_id]);
+		const take_losers = !link_locks.has(survivor) && dead.has(own) && !dead.has(dropped.youtube_id);
+		if (take_losers) fill.youtube_id = dropped.youtube_id;
+		kept_youtube_id = take_losers ? own : dropped.youtube_id;
+	}
 	await tx.delete(service_ids_table).where(eq(service_ids_table.illusi_id, loser));
 	await tx.update(service_ids_table).set({ ...to_column_values(fill), modified_at: now }).where(eq(service_ids_table.illusi_id, survivor));
+	if (kept_youtube_id) await keep_youtube_ids(tx, survivor, [kept_youtube_id]);
 	await tx.insert(illusi_id_redirects_table).values({ old_id: loser, new_id: survivor })
 		.onConflictDoUpdate({ target: illusi_id_redirects_table.old_id, set: { new_id: survivor } });
 
@@ -198,6 +209,7 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 		undo: {
 			loser_service_ids: { ...l_ids, created_at: l_ids.created_at, modified_at: l_ids.modified_at },
 			survivor_service_ids_filled: Object.keys(fill),
+			survivor_youtube_id_before: fill.youtube_id ? s_ids.youtube_id : undefined,
 			loser_entity,
 			survivor_entity_before: entity_before,
 			redirects_rewritten: rewritten.map(r => r.old_id),

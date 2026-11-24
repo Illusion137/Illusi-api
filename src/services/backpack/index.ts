@@ -17,6 +17,7 @@ import { HttpError, json_body, parse_body, require_user, uuid_schema } from '../
 import { rate_limit_user } from '../../core/rate_limit';
 import { resolve_redirect } from '../../core/redirects';
 import { normalize_service_id } from '../../core/service_ids';
+import { live_youtube_alternate, mark_youtube_id_unavailable, switch_youtube_id } from '../../core/youtube_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
 import { db } from '../../db';
 import type { Executor, Tx } from '../../db';
@@ -42,6 +43,22 @@ const policy = () => ({
 });
 
 /** Clears the flag once the track is playable again (media uploaded, or a research result written). */
+/**
+ * Marks the track's current YouTube id unplayable and points it at a kept upload still believed to play. Returns the
+ * new id, or null when there's none (the track is backpacked and researched as usual).
+ */
+async function switch_to_live_upload(tx: Tx, track_id: string, now: Date): Promise<string | null> {
+	const [ids] = await tx.select({ youtube_id: service_ids_table.youtube_id }).from(service_ids_table).where(eq(service_ids_table.illusi_id, track_id));
+	const current = ids?.youtube_id ?? null;
+	if (current) await mark_youtube_id_unavailable(tx, track_id, current, now);
+	const alternate = await live_youtube_alternate(tx, track_id, current);
+	if (!alternate || !(await switch_youtube_id(tx, track_id, current, alternate, now))) return null;
+	// The report was about the old id (other users' reports are out of this request's reach).
+	await tx.delete(track_unavailable_reports_table)
+		.where(and(eq(track_unavailable_reports_table.track_id, track_id), eq(track_unavailable_reports_table.service, 'youtube')));
+	return alternate;
+}
+
 export async function clear_backpacked(tx: Tx, track_id: string): Promise<boolean> {
 	const cleared = await tx.update(tracks_table)
 		.set({ backpacked: false, backpacked_at: null, modified_at: new Date() })
@@ -136,6 +153,14 @@ backpack_router.post('/tracks/:id/unavailable', rate_limit_user('backpack_report
 		if (!own) {
 			const [current] = await tx.select({ backpacked: tracks_table.backpacked, backpacked_at: tracks_table.backpacked_at }).from(tracks_table).where(eq(tracks_table.id, track_id));
 			return { track_id, backpacked: current.backpacked, backpacked_at: current.backpacked_at, has_media: false };
+		}
+		// The song's YouTube id stopped playing: another upload of it the server knows takes over.
+		if (body.service === 'youtube') {
+			const youtube_id = await switch_to_live_upload(tx, track_id, now);
+			if (youtube_id) {
+				await clear_backpacked(tx, track_id);
+				return { track_id, backpacked: false, backpacked_at: null, has_media: false, youtube_id };
+			}
 		}
 		const [row] = await tx.update(tracks_table)
 			.set({ backpacked: true, backpacked_at: sql`coalesce(${tracks_table.backpacked_at}, ${now})`, modified_at: now })

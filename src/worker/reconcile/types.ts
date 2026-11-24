@@ -82,7 +82,7 @@ export interface PairEvidence {
 	contradictions: (Signal & { strong: boolean })[];
 	confidence: number;
 	/** Which hard-evidence rule applies, if any. */
-	hard: 'cross_service_id' | 'isrc_duration' | 'shared_unique_id' | 'album_tracks' | 'same_artist_name' | null;
+	hard: 'cross_service_id' | 'isrc_duration' | 'shared_unique_id' | 'album_tracks' | 'same_artist_name' | 'same_recording' | null;
 }
 
 export type PairDecision = 'merge' | 'review' | 'dismiss';

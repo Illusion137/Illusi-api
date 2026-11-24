@@ -59,12 +59,23 @@ describe('pair_evidence', () => {
 		expect(names).toEqual(expect.arrayContaining(['different_id', 'isrc_differs']));
 	});
 
-	it('scores metadata-only similarity below hard evidence', () => {
+	it('scores metadata-only similarity, and takes the same song within the duration tolerance as one recording', () => {
 		const a = node('A', { meta: { title: 'Song', artist: 'Artist', album: 'LP', duration_ms: 200_000, track_number: 3 } });
 		const b = node('B', { meta: { title: 'Song', artist: 'Artist', album: 'LP', duration_ms: 201_000, track_number: 3 } });
 		const e = evidence(a, b);
-		expect(e.hard).toBeNull();
+		expect(e.hard).toBe('same_recording');
 		expect(e.confidence).toBeCloseTo(T.weights.title + T.weights.artist + T.weights.album + T.weights.duration + T.weights.track_number, 5);
+		expect(evidence(a, node('B', { meta: { title: 'Song', artist: 'Artist', duration_ms: null } })).hard).toBeNull();
+		expect(evidence(a, node('B', { meta: { title: 'Song (Live)', artist: 'Artist', duration_ms: 200_000 } })).hard).toBeNull();
+		expect(evidence(a, node('B', { meta: { title: 'Song', artist: 'Other', duration_ms: 200_000 } })).hard).toBeNull();
+	});
+
+	it('takes two YouTube uploads of one song as one track, unless only one is on SoundCloud', () => {
+		const meta = { title: 'Zodiac Killer', artist: 'Khalil?', duration_ms: 125_000 };
+		const a = node('A', { ids: { youtube_id: 'DBWrUc8MNKQ' }, meta });
+		expect(evidence(a, node('B', { ids: { youtube_id: 'Z14CyfTUHmE' }, meta })).hard).toBe('same_recording');
+		expect(evidence(a, node('B', { ids: { soundcloud_id: '1' }, meta })).hard).toBeNull();
+		expect(evidence(a, node('B', { ids: { applemusic_id: '1' }, meta: { ...meta, duration_ms: 128_000 } })).hard).toBeNull();
 	});
 
 	it('uses audio distance when both tracks have vectors', () => {

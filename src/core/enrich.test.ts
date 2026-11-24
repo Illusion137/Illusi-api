@@ -68,9 +68,9 @@ describe('enrich_service_ids', () => {
 	it('fills empty columns and queues events', async () => {
 		const { events: ev, push } = events();
 		const { ex } = make_ex([[row()], [], [{ illusi_id: 'i1' }], [], [{ illusi_id: 'i1' }]]);
-		const result = await enrich_service_ids(ex as never, 'i1', { youtube_id: 'dQw4w9WgXcQ', applemusic_id: '55' }, ctx(ev));
-		expect(result.filled).toEqual(['youtube_id', 'applemusic_id']);
-		expect(push).toHaveBeenCalledWith('service_ids_filled', { illusi_id: 'i1', columns: ['youtube_id', 'applemusic_id'] });
+		const result = await enrich_service_ids(ex as never, 'i1', { deezer_id: '123', applemusic_id: '55' }, ctx(ev));
+		expect(result.filled.sort()).toEqual(['applemusic_id', 'deezer_id']);
+		expect(push).toHaveBeenCalledWith('service_ids_filled', { illusi_id: 'i1', columns: result.filled });
 		expect(push).toHaveBeenCalledWith('applemusic_id_filled', { illusi_id: 'i1', applemusic_id: '55' });
 	});
 
@@ -87,16 +87,16 @@ describe('enrich_service_ids', () => {
 	});
 
 	it('records a different_value conflict once and never overwrites', async () => {
-		const { ex, calls, arg } = make_ex([[row({ youtube_id: 'aaaaaaaaaaa' })], [], undefined]);
-		const result = await enrich_service_ids(ex as never, 'i1', { youtube_id: 'bbbbbbbbbbb' }, ctx());
-		expect(result.conflicts).toEqual([{ column: 'youtube_id', kind: 'different_value', existing_value: 'aaaaaaaaaaa', incoming_value: 'bbbbbbbbbbb', other_illusi_id: null }]);
-		expect(arg(calls[2], 'values')).toMatchObject({ illusi_id: 'i1', column: 'youtube_id', source: 'test', source_user_id: 'u1', source_token_jti: 'j' });
+		const { ex, calls, arg } = make_ex([[row({ deezer_id: '111' })], [], undefined]);
+		const result = await enrich_service_ids(ex as never, 'i1', { deezer_id: '222' }, ctx());
+		expect(result.conflicts).toEqual([{ column: 'deezer_id', kind: 'different_value', existing_value: '111', incoming_value: '222', other_illusi_id: null }]);
+		expect(arg(calls[2], 'values')).toMatchObject({ illusi_id: 'i1', column: 'deezer_id', source: 'test', source_user_id: 'u1', source_token_jti: 'j' });
 		expect(calls.filter(c => c.op === 'update')).toHaveLength(0);
 	});
 
 	it('does not record a conflict twice', async () => {
-		const { ex, calls } = make_ex([[row({ youtube_id: 'aaaaaaaaaaa' })], [{ id: 1 }]]);
-		await enrich_service_ids(ex as never, 'i1', { youtube_id: 'bbbbbbbbbbb' }, ctx());
+		const { ex, calls } = make_ex([[row({ deezer_id: '111' })], [{ id: 1 }]]);
+		await enrich_service_ids(ex as never, 'i1', { deezer_id: '222' }, ctx());
 		expect(calls.filter(c => c.op === 'insert')).toHaveLength(0);
 	});
 

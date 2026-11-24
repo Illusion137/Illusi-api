@@ -62,8 +62,8 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		}
 		const a_own = a.ids[column];
 		const b_own = b.ids[column];
-		// An artist's YouTube id is one of their channels; two of them don't make two artists.
-		const identifies = a.kind !== 'artist' || column !== 'youtube_id';
+		// An artist's YouTube id is one of their channels, a track's one of the song's uploads: two of them don't make two.
+		const identifies = column !== 'youtube_id' || (a.kind !== 'artist' && a.kind !== 'track');
 		if (identifies && a_own != null && b_own != null && a_own !== b_own) strong('different_id', { column, a: a_own, b: b_own });
 	}
 
@@ -143,6 +143,12 @@ export function pair_evidence(a: ReconcileNode, b: ReconcileNode, a_claims: read
 		// Same name and artist with agreeing tracks; a different release year (a reissue?) is left for review.
 		else if (a.kind === 'album' && tracks_agree && contradictions.length === 0 && (ay == null || by == null || ay === by)
 			&& signals.some(s => s.name === 'title') && signals.some(s => s.name === 'artist')) hard = 'album_tracks';
+		// The same song by the same artist, durations within tolerance and nothing against it: one recording, however
+		// many YouTube uploads it has. A SoundCloud upload is its own track, so one only on SoundCloud is left out.
+		else if (a.kind === 'track' && b.kind === 'track' && contradictions.length === 0 && durations_close && at && bt && aa && ba
+			&& normalize_name(at) !== '' && normalize_name(at) === normalize_name(bt)
+			&& normalize_name(primary_artist_name(aa)) === normalize_name(primary_artist_name(ba))
+			&& (a.ids.soundcloud_id == null) === (b.ids.soundcloud_id == null)) hard = 'same_recording';
 		// Two artists with the same name and no service on which their ids differ: the way contributions match
 		// artists, so duplicates made before that rule (or by a race) are merged.
 		else if (a.kind === 'artist' && b.kind === 'artist' && contradictions.length === 0 && at && bt
