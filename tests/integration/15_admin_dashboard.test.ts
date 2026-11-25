@@ -26,6 +26,37 @@ beforeAll(async () => {
 });
 
 describe('admin dashboard', () => {
+	it('shows every service id of tracks, albums and artists, and a track\'s kept YouTube uploads', async () => {
+		const owner = await create_user('dash-sids');
+		const created = await contribute(owner, mock_album({ artist: unique('Sids Artist'), album: unique('Sids Album'), n: 1 }));
+		const { t0, al: al0, ar: ar0 } = created.body.refs as Record<string, string>;
+		const [live, dead, spotify] = [youtube_id(), youtube_id(), unique('sp')];
+		await query('update service_ids_table set youtube_id = $2, spotify_id = $3 where illusi_id = $1', [t0, live, spotify]);
+		await query('insert into track_youtube_ids_table (youtube_id, track_id, unavailable_at) values ($1, $2, now())', [dead, t0]);
+
+		const title = (await query<{ title: string }>('select title from tracks_table where id = $1', [t0]))[0].title;
+		const [hit] = (await get(`/admin/tracks?q=${t0}`)).body.items;
+		expect(hit.service_ids).toMatchObject({ youtube_id: live, spotify_id: spotify });
+		expect(hit.service_ids).not.toHaveProperty('illusi_id');
+		expect((await get(`/admin/tracks?q=${encodeURIComponent(title)}`)).body.items.find((t: { id: string }) => t.id === t0).service_ids.youtube_id).toBe(live);
+
+		const detail = await get(`/admin/tracks/${t0}`);
+		expect(detail.body.youtube_uploads).toEqual([expect.objectContaining({ youtube_id: dead, unavailable_at: expect.any(String) })]);
+
+		const one = await get(`/admin/service_ids/${t0}`);
+		expect(one.body).toMatchObject({ illusi_id: t0, kind: 'track', service_ids: { youtube_id: live, spotify_id: spotify }, youtube_uploads: [{ youtube_id: dead }] });
+		expect((await get(`/admin/service_ids/${al0}`)).body).toMatchObject({ kind: 'album', youtube_uploads: [] });
+		expect((await get('/admin/service_ids/not-a-uuid')).status).toBe(400);
+
+		const batch = await api('POST', '/admin/service_ids/batch', { token: admin.access_token, body: { ids: [t0, ar0, uuid()] } });
+		expect(batch.status).toBe(200);
+		expect(batch.body.items[t0]).toEqual(expect.objectContaining({ youtube_id: live, spotify_id: spotify }));
+		expect(Object.values(batch.body.items[t0]).every(v => v !== null)).toBe(true);
+		expect(batch.body.items).toHaveProperty(ar0);
+		expect((await api('POST', '/admin/service_ids/batch', { token: admin.access_token, body: { ids: [] } })).status).toBe(400);
+		expect((await api('POST', '/admin/service_ids/batch', { token: owner.access_token, body: { ids: [t0] } })).status).toBe(403);
+	});
+
 	it('serves the dashboard page without auth, and every data route is admin-only', async () => {
 		const page = await api('GET', '/admin/', { root: true });
 		expect(page.status).toBe(200);

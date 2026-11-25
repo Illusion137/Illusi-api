@@ -1,12 +1,12 @@
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
 import {
 	albums_table, artists_table, audit_log_table, media_table, service_ids_table, track_research_table, track_unavailable_reports_table,
-	track_alignment_table, track_vocals_table, tracks_artists_table, tracks_table, users_table, RESEARCH_SERVICES
+	track_alignment_table, track_vocals_table, track_youtube_ids_table, tracks_artists_table, tracks_table, users_table, RESEARCH_SERVICES
 } from '../../db/schema';
 import { write_audit } from '../../core/audit';
 import { HttpError } from '../../core/http';
@@ -49,6 +49,10 @@ const artist_names = sql<string[]>`coalesce((
 	select array_agg(a.name order by a.name) from ${tracks_artists_table} ta join ${artists_table} a on a.id = ta.artist_id where ta.track_id = ${track_id_ref}
 ), '{}')`;
 const media_count = sql<number>`(select count(*)::int from ${media_table} m where m.track_id = ${track_id_ref})`;
+/** The entity's filled service id columns, as `{ column: value }`. */
+const filled_ids = (ref: ReturnType<typeof sql.raw>) => sql<Record<string, string | number>>`coalesce((
+	select jsonb_strip_nulls(to_jsonb(si) - 'illusi_id' - 'created_at' - 'modified_at') from ${service_ids_table} si where si.illusi_id = ${ref}
+), '{}'::jsonb)`;
 
 const track_summary = {
 	id: tracks_table.id,
@@ -59,7 +63,8 @@ const track_summary = {
 	backpacked: tracks_table.backpacked,
 	backpacked_at: tracks_table.backpacked_at,
 	imported: tracks_table.imported,
-	media_count
+	media_count,
+	service_ids: filled_ids(track_id_ref)
 };
 
 const media_columns = {
@@ -87,8 +92,9 @@ export async function track_detail(raw_id: string) {
 	const [track] = await db.select({ ...track_summary, album_id: tracks_table.album_id, created_at: tracks_table.created_at, modified_at: tracks_table.modified_at })
 		.from(tracks_table).leftJoin(albums_table, eq(albums_table.id, tracks_table.album_id)).where(eq(tracks_table.id, id));
 	if (!track) throw new HttpError(404, 'track not found');
-	const [[service_ids], media, reports, research, audit] = await Promise.all([
+	const [[service_ids], youtube_uploads, media, reports, research, audit] = await Promise.all([
 		db.select().from(service_ids_table).where(eq(service_ids_table.illusi_id, id)),
+		youtube_uploads_of(id),
 		db.select(media_columns).from(media_table).leftJoin(users_table, eq(users_table.id, media_table.uploaded_by))
 			.where(eq(media_table.track_id, id)).orderBy(desc(media_table.created_at)),
 		db.select({
@@ -99,7 +105,40 @@ export async function track_detail(raw_id: string) {
 		db.select().from(track_research_table).where(eq(track_research_table.track_id, id)).orderBy(asc(track_research_table.service)),
 		db.select().from(audit_log_table).where(eq(audit_log_table.entity_id, id)).orderBy(desc(audit_log_table.id)).limit(20)
 	]);
-	return { track, redirected_from: id === raw_id ? null : raw_id, credits: await track_credits(db, id), service_ids: service_ids ?? null, media, reports, research, audit };
+	return { track, redirected_from: id === raw_id ? null : raw_id, credits: await track_credits(db, id), service_ids: service_ids ?? null, youtube_uploads, media, reports, research, audit };
+}
+
+/** The other YouTube uploads a track keeps, and which were found dead. */
+function youtube_uploads_of(track_id: string) {
+	return db.select({ youtube_id: track_youtube_ids_table.youtube_id, unavailable_at: track_youtube_ids_table.unavailable_at, created_at: track_youtube_ids_table.created_at })
+		.from(track_youtube_ids_table).where(eq(track_youtube_ids_table.track_id, track_id))
+		.orderBy(desc(track_youtube_ids_table.created_at), asc(track_youtube_ids_table.youtube_id));
+}
+
+export const service_ids_batch_schema = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
+
+/** Every service id row of an entity (any kind), with a track's kept YouTube uploads. */
+export async function service_ids_detail(raw_id: string) {
+	if (!is_uuid(raw_id)) throw new HttpError(400, 'invalid id');
+	const id = await resolve_redirect(db, raw_id);
+	const [[row], [track], [album], [artist]] = await Promise.all([
+		db.select().from(service_ids_table).where(eq(service_ids_table.illusi_id, id)),
+		db.select({ id: tracks_table.id }).from(tracks_table).where(eq(tracks_table.id, id)),
+		db.select({ id: albums_table.id }).from(albums_table).where(eq(albums_table.id, id)),
+		db.select({ id: artists_table.id }).from(artists_table).where(eq(artists_table.id, id))
+	]);
+	const kind = track ? 'track' : album ? 'album' : artist ? 'artist' : null;
+	return { illusi_id: id, redirected_from: id === raw_id ? null : raw_id, kind, service_ids: row ?? null, youtube_uploads: track ? await youtube_uploads_of(id) : [] };
+}
+
+/** Filled service ids of many entities at once, for lists: `{ [illusi_id]: { column: value } }`. */
+export async function service_ids_batch(ids: readonly string[]) {
+	const rows = await db.select().from(service_ids_table).where(inArray(service_ids_table.illusi_id, [...new Set(ids)]));
+	const items: Record<string, Record<string, string | number>> = {};
+	for (const { illusi_id, created_at: _c, modified_at: _m, ...columns } of rows) {
+		items[illusi_id] = Object.fromEntries(Object.entries(columns).filter(([, v]) => v !== null)) as Record<string, string | number>;
+	}
+	return { items };
 }
 
 /** Backpacked tracks with their reports and research progress: most reported first, or longest backpacked. */

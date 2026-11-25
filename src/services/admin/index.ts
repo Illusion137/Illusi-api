@@ -5,7 +5,10 @@ import { db } from '../../db';
 import { PendingEvents } from '../../core/events';
 import { HttpError, json_body, parse_body, require_user } from '../../core/http';
 import { resolve_redirect } from '../../core/redirects';
-import { audit_query_schema, backpack_overview, backpack_query_schema, list_audit, remove_media, search_tracks, track_detail, tracks_query_schema } from './catalog';
+import {
+	audit_query_schema, backpack_overview, backpack_query_schema, list_audit, remove_media, search_tracks, service_ids_batch, service_ids_batch_schema, service_ids_detail, track_detail,
+	tracks_query_schema
+} from './catalog';
 import { credits_body_schema, entity_search_schema, search_albums, search_artists, update_track_credits } from './credits';
 import { admin_update_entity, parse_entity_patch, resolve_table } from './entities';
 import { list_log_files, logs_query_schema, read_logs } from './logs';
@@ -126,6 +129,14 @@ admin_router.get('/tracks', async (req, res) => {
 
 admin_router.get('/tracks/:id', async (req, res) => {
 	res.json(await track_detail(req.params.id));
+});
+
+admin_router.get('/service_ids/:id', async (req, res) => {
+	res.json(await service_ids_detail(req.params.id));
+});
+
+admin_router.post('/service_ids/batch', async (req, res) => {
+	res.json(await service_ids_batch(parse_body(service_ids_batch_schema, req.body).ids));
 });
 
 admin_router.put('/tracks/:id/credits', async (req, res) => {

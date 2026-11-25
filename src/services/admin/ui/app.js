@@ -53,6 +53,119 @@ const to_top = go => (page) => {
 	window.scrollTo(0, 0);
 };
 
+// ---- Kept state and scroll ----
+
+const STATE_PREFIX = 'illusi_admin:';
+
+/** What `keep` last saved under `key` in this tab, over `defaults`: filters, pages and searches survive leaving a view. */
+function kept(key, defaults) {
+	try {
+		const saved = JSON.parse(sessionStorage.getItem(STATE_PREFIX + key) ?? 'null');
+		if (saved && typeof saved === 'object') return { ...defaults, ...saved };
+	} catch { /* storage off: start fresh */ }
+	return { ...defaults };
+}
+
+function keep(key, state) {
+	try {
+		sessionStorage.setItem(STATE_PREFIX + key, JSON.stringify(state));
+	} catch { /* storage off: nothing kept */ }
+}
+
+/**
+ * Each history entry remembers where the page was scrolled, so Back lands where you left and a new page starts at the
+ * top. Lists that outlive a page (marked `data-scroll`, like the table list) keep their own scroll, so picking an
+ * entry near the bottom doesn't throw the list back to the top. Content arrives after the page is built, so the
+ * position is put back once the page is tall enough, unless you scroll first.
+ */
+const page_scroll = new Map(Object.entries(kept('scroll', {})));
+const list_scroll = new Map();
+const settled_lists = new WeakSet();
+let entry_key = null;
+let pending_scroll = null;
+history.scrollRestoration = 'manual';
+
+function remember_scroll() {
+	if (!entry_key) return;
+	page_scroll.set(entry_key, window.scrollY);
+	while (page_scroll.size > 100) page_scroll.delete(page_scroll.keys().next().value);
+	keep('scroll', Object.fromEntries(page_scroll));
+	document.querySelectorAll('[data-scroll]').forEach((el) => { list_scroll.set(el.dataset.scroll, el.scrollTop); });
+}
+
+/** Called as a page is entered (hashchange or load): saves the page being left and finds where the new one was. */
+function enter_entry() {
+	remember_scroll();
+	let key = history.state?.admin_key;
+	if (!key) {
+		key = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+		history.replaceState({ ...history.state, admin_key: key }, '');
+	}
+	entry_key = key;
+	pending_scroll = page_scroll.get(key) ?? 0;
+	window.scrollTo(0, 0);
+	if (pending_scroll === 0) pending_scroll = null;
+}
+
+function settle_scroll() {
+	document.querySelectorAll('[data-scroll]').forEach((el) => {
+		if (settled_lists.has(el) || el.scrollHeight <= el.clientHeight) return;
+		settled_lists.add(el);
+		el.scrollTop = list_scroll.get(el.dataset.scroll) ?? 0;
+	});
+	if (pending_scroll !== null && document.documentElement.scrollHeight - window.innerHeight >= pending_scroll) {
+		window.scrollTo(0, pending_scroll);
+		pending_scroll = null;
+	}
+}
+
+let settle_queued = false;
+new MutationObserver(() => {
+	if (settle_queued) return;
+	settle_queued = true;
+	requestAnimationFrame(() => {
+		settle_queued = false;
+		settle_scroll();
+	});
+}).observe(document.body, { childList: true, subtree: true });
+for (const type of ['wheel', 'touchmove', 'keydown', 'mousedown']) window.addEventListener(type, () => { pending_scroll = null; }, { passive: true });
+window.addEventListener('pagehide', remember_scroll);
+
+// ---- Service ids ----
+
+const SERVICE_URLS = {
+	youtube_id: (v, kind) => kind === 'artist' ? `https://www.youtube.com/channel/${v}` : kind === 'album' ? `https://music.youtube.com/playlist?list=${v}` : `https://www.youtube.com/watch?v=${v}`,
+	spotify_id: (v, kind) => kind ? `https://open.spotify.com/${kind}/${v}` : null,
+	soundcloud_permalink: v => `https://soundcloud.com/${v}`,
+	deezer_id: (v, kind) => kind ? `https://www.deezer.com/${kind}/${v}` : null,
+	tidal_id: (v, kind) => kind ? `https://tidal.com/browse/${kind}/${v}` : null,
+	genius_id: (v, kind) => kind === 'track' ? `https://genius.com/songs/${v}` : kind === 'artist' ? `https://genius.com/artists/${v}` : null
+};
+
+const ENTITY_TABLES = { tracks_table: 'track', albums_table: 'album', artists_table: 'artist' };
+const SERVICE_ID_META = ['illusi_id', 'created_at', 'modified_at'];
+
+/** An entity's filled service ids as chips, each linking out where the service has a page for it. */
+function service_ids_chips(ids, kind) {
+	const entries = Object.entries(ids ?? {}).filter(([c, v]) => v != null && v !== '' && !SERVICE_ID_META.includes(c));
+	if (entries.length === 0) return h('span', { class: 'muted small' }, 'no service ids');
+	return h('div', { class: 'sids' }, entries.map(([c, v]) => {
+		const url = SERVICE_URLS[c]?.(encodeURIComponent(String(v)).replace(/%2F/gu, '/'), kind);
+		return h('span', { class: 'sid', title: `${c}: ${v}` },
+			h('span', { class: 'sid-k' }, c.replace(/_id$/u, '')),
+			url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', onclick: e => e.stopPropagation() }, String(v)) : h('span', null, String(v)));
+	}));
+}
+
+/** Service ids of many entities in one call: `{ [illusi_id]: { column: value } }`. */
+async function service_ids_of(ids) {
+	const unique_ids = [...new Set(ids.filter(Boolean))];
+	if (unique_ids.length === 0) return {};
+	const out = {};
+	for (let i = 0; i < unique_ids.length; i += 500) Object.assign(out, (await api('POST', '/admin/service_ids/batch', { ids: unique_ids.slice(i, i + 500) })).items);
+	return out;
+}
+
 function toast(message, kind = '') {
 	const el = h('div', { class: `toast ${kind}` }, message);
 	document.body.append(el);
@@ -250,6 +363,7 @@ let cleanup = null;
 let nav_counts = {};
 
 async function render() {
+	enter_entry();
 	cleanup?.();
 	cleanup = null;
 	hide_fk_preview();
@@ -473,7 +587,8 @@ function status_cards(s) {
 
 function logs_view(main, [service_param]) {
 	const today = new Date().toISOString().slice(0, 10);
-	const f = { service: service_param ?? 'api', day: today, level: 'info', access: false, scope: '', request_id: '', user_id: '', q: '' };
+	const f = { ...kept('logs', { service: 'api', level: 'info', access: false, scope: '', request_id: '', user_id: '', q: '' }), day: today };
+	if (service_param) f.service = service_param;
 	let files = [];
 	let rows = [];
 	let last_line = null;
@@ -552,6 +667,8 @@ function logs_view(main, [service_param]) {
 	const params = extra => qs({ ...f, access: String(f.access), limit: 200, ...extra });
 
 	async function load() {
+		const { day: _day, ...kept_filters } = f;
+		keep('logs', kept_filters);
 		replace(tbody, h('tr', null, h('td', { colspan: 6, class: 'empty' }, 'Loading…')));
 		draw_controls();
 		try {
@@ -638,7 +755,7 @@ function entity_link(context) {
 const REVIEW_SORTS = [['newest', 'Newest first', 'age', 'desc'], ['oldest', 'Oldest first', 'age', 'asc'], ['occurrences', 'Most reported', 'occurrences', undefined]];
 
 function review_view(main) {
-	const f = { status: 'OPEN', kind: '', sort: 'newest', hide_auto: true, page: 1 };
+	const f = kept('review', { status: 'OPEN', kind: '', sort: 'newest', hide_auto: true, page: 1 });
 	const list = h('div', { class: 'stack' });
 	const controls = h('div', { class: 'toolbar' });
 	const count = h('span', { class: 'muted small' });
@@ -653,15 +770,18 @@ function review_view(main) {
 		h('button', { onclick: () => void load() }, 'Reload'));
 
 	async function load() {
+		keep('review', f);
 		draw_controls();
 		loading(list, h('div', { class: 'empty' }, 'Loading…'));
-		const [, , sort, order] = REVIEW_SORTS.find(([v]) => v === f.sort);
+		const [, , sort, order] = REVIEW_SORTS.find(([v]) => v === f.sort) ?? REVIEW_SORTS[0];
 		try {
 			const data = await api('GET', `/admin/review${qs({ status: f.status, kind: f.kind, sort, order, hide_auto: f.hide_auto && !f.kind ? 'true' : undefined, page: f.page })}`);
+			const sids = await service_ids_of(data.items.flatMap(item => [item.context, ...(item.group ?? [])].filter(Boolean).map(c => c.redirected_to ?? c.entity_id)))
+				.catch(() => ({}));
 			replace(count, `${data.total} items`);
 			if (f.status === 'OPEN' && !f.kind && !f.hide_auto) nav_counts.review = data.total;
 			rerender(list,
-				data.items.length === 0 ? h('div', { class: 'card empty' }, 'Nothing to review.') : data.items.map(item => review_card(item, load)),
+				data.items.length === 0 ? h('div', { class: 'card empty' }, 'Nothing to review.') : data.items.map(item => review_card(item, load, sids)),
 				pager(data, f.page, to_top((p) => { f.page = p; void load(); })));
 		} catch (err) {
 			replace(list, error_view(err));
@@ -672,7 +792,7 @@ function review_view(main) {
 	void load();
 }
 
-function review_card(item, reload) {
+function review_card(item, reload, sids = {}) {
 	const proposals = item.proposed_values ?? [];
 	const open = item.status === 'OPEN';
 	const is_conflict = item.kind === 'SERVICE_ID_CONFLICT';
@@ -747,8 +867,24 @@ function review_card(item, reload) {
 					h('td', null, c.source),
 					h('td', null, badge(c.status)))))))
 		] : null,
+		review_service_ids(item, sids),
 		h('details', null, h('summary', { class: 'muted small' }, 'Entity context'), json({ context: item.context, group: item.group, details: item.details })),
 		open ? h('div', { class: 'row', style: 'margin-top:12px' }, apply_btn, dismiss_btn) : null);
+}
+
+/** Every entity a card is about, with all its service ids: the evidence for a merge, split or id conflict. */
+function review_service_ids(item, sids) {
+	const seen = new Set();
+	const entities = [item.context, ...(item.group ?? [])].filter((c) => {
+		const id = c?.redirected_to ?? c?.entity_id;
+		if (!id || seen.has(id)) return false;
+		seen.add(id);
+		return true;
+	});
+	if (entities.length === 0) return null;
+	return [h('h3', null, 'Service ids'), h('div', { class: 'sid-rows' }, entities.map(c => h('div', { class: 'sid-row' },
+		h('div', null, entity_link(c)),
+		service_ids_chips(sids[c.redirected_to ?? c.entity_id], c.kind))))];
 }
 
 function default_proposal(kind, proposals) {
@@ -769,7 +905,7 @@ function plan_step(s, ref) {
 // ---- Backpack ----
 
 function backpack_view(main) {
-	const f = { sort: 'reports', exhausted: false, page: 1 };
+	const f = kept('backpack', { sort: 'reports', exhausted: false, page: 1 });
 	const body = h('div');
 	const controls = h('div', { class: 'toolbar' });
 	const count = h('span', { class: 'muted small' });
@@ -780,6 +916,7 @@ function backpack_view(main) {
 		h('button', { onclick: () => void load() }, 'Reload'));
 
 	async function load() {
+		keep('backpack', f);
 		draw_controls();
 		loading(body, h('div', { class: 'empty' }, 'Loading…'));
 		try {
@@ -789,9 +926,9 @@ function backpack_view(main) {
 				h('div', { class: 'table-wrap' }, h('table', null,
 					h('thead', null, h('tr', null,
 						h('th', null, 'Track'), h('th', { class: 'num' }, 'Reports'), h('th', { class: 'num' }, 'Users'), h('th', null, 'Reported on'),
-						h('th', null, 'Research'), h('th', null, 'Backpacked'), h('th', null, 'Last report'), h('th'))),
+						h('th', null, 'Research'), h('th', null, 'Service ids'), h('th', null, 'Backpacked'), h('th', null, 'Last report'), h('th'))),
 					h('tbody', null, data.items.length === 0
-						? h('tr', null, h('td', { colspan: 8, class: 'empty' }, 'No backpacked tracks.'))
+						? h('tr', null, h('td', { colspan: 9, class: 'empty' }, 'No backpacked tracks.'))
 						: data.items.map(t => backpack_row(t, load))))),
 				pager(data, f.page, to_top((p) => { f.page = p; void load(); })));
 		} catch (err) {
@@ -827,6 +964,7 @@ function backpack_row(t, reload) {
 		h('td', { class: 'num' }, t.reporters),
 		h('td', null, t.reported_services.join(', ')),
 		h('td', null, research_badges(t.research)),
+		h('td', null, service_ids_chips(t.service_ids, 'track')),
 		h('td', { class: 'nowrap' }, ago(t.backpacked_at)),
 		h('td', { class: 'nowrap' }, ago(t.last_reported_at)),
 		h('td', null, clear));
@@ -836,22 +974,24 @@ function backpack_row(t, reload) {
 
 function tracks_view(main, [id]) {
 	if (id) return track_detail_view(main, id);
-	let q = '';
+	const f = kept('tracks', { q: '' });
 	const results = h('div');
 	const search = async () => {
-		if (!q) return;
-		replace(results, h('div', { class: 'empty' }, 'Searching…'));
+		keep('tracks', f);
+		if (!f.q) return replace(results);
+		loading(results, h('div', { class: 'empty' }, 'Searching…'));
 		try {
-			const data = await api('GET', `/admin/tracks${qs({ q })}`);
-			replace(results, h('div', { class: 'table-wrap' }, h('table', null,
-				h('thead', null, h('tr', null, h('th', null, 'Title'), h('th', null, 'Artists'), h('th', null, 'Album'), h('th', null, 'Length'), h('th', { class: 'num' }, 'Media'), h('th'))),
+			const data = await api('GET', `/admin/tracks${qs({ q: f.q, limit: 100 })}`);
+			rerender(results, h('div', { class: 'table-wrap' }, h('table', null,
+				h('thead', null, h('tr', null, h('th', null, 'Title'), h('th', null, 'Artists'), h('th', null, 'Album'), h('th', null, 'Length'), h('th', null, 'Service ids'), h('th', { class: 'num' }, 'Media'), h('th'))),
 				h('tbody', null, data.items.length === 0
-					? h('tr', null, h('td', { colspan: 6, class: 'empty' }, 'No tracks found.'))
+					? h('tr', null, h('td', { colspan: 7, class: 'empty' }, 'No tracks found.'))
 					: data.items.map(t => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/tracks/${t.id}`; } },
 						h('td', null, h('strong', null, t.title)),
 						h('td', null, t.artists.join(', ')),
 						h('td', null, t.album ?? '—'),
 						h('td', null, ms(t.duration_ms)),
+						h('td', null, service_ids_chips(t.service_ids, 'track')),
 						h('td', { class: 'num' }, t.media_count),
 						h('td', null, t.backpacked ? badge('backpacked', 'warn') : null)))))));
 		} catch (err) {
@@ -859,12 +999,13 @@ function tracks_view(main, [id]) {
 		}
 	};
 	const input = h('input', {
-		placeholder: 'Track title or id', style: 'width:min(420px,100%)',
-		oninput: (e) => { q = e.target.value.trim(); },
+		placeholder: 'Track title or id', style: 'width:min(420px,100%)', value: f.q,
+		oninput: (e) => { f.q = e.target.value.trim(); },
 		onkeydown: (e) => { if (e.key === 'Enter') void search(); }
 	});
 	main.append(h('h1', null, 'Tracks'), h('div', { class: 'toolbar' }, input, h('button', { class: 'primary', onclick: () => void search() }, 'Search')), results);
-	setTimeout(() => input.focus());
+	if (f.q) void search();
+	else setTimeout(() => input.focus());
 }
 
 function track_detail_view(main, id) {
@@ -874,7 +1015,7 @@ function track_detail_view(main, id) {
 	async function load() {
 		try {
 			const d = await api('GET', `/admin/tracks/${encodeURIComponent(id)}`);
-			if (d.redirected_from) history.replaceState(null, '', `#/tracks/${d.track.id}`);
+			if (d.redirected_from) history.replaceState(history.state, '', `#/tracks/${d.track.id}`);
 			rerender(body, track_sections(d, load));
 		} catch (err) {
 			replace(body, error_view(err));
@@ -1068,6 +1209,7 @@ function track_sections(d, reload) {
 				h('div', { class: 'row' }, t.backpacked ? badge('backpacked', 'warn') : null, t.imported ? badge('imported') : null, toggle)),
 			h('div', { style: 'margin-top:12px' }, kv([
 				['Id', h('span', { class: 'mono' }, t.id)],
+				['Service ids', service_ids_chips(d.service_ids, 'track')],
 				['Length', ms(t.duration_ms)],
 				['Backpacked since', t.backpacked_at ? datetime(t.backpacked_at) : null],
 				['Created', datetime(t.created_at)],
@@ -1100,6 +1242,7 @@ function track_sections(d, reload) {
 				h('div', { class: 'kv', style: 'grid-template-columns:max-content 1fr' }, id_columns.map(c => [h('dt', { class: 'mono' }, c), h('dd', null, id_inputs[c])])),
 				h('div', { class: 'row', style: 'margin-top:12px' }, save_ids, h('span', { class: 'muted small' }, 'Setting a youtube, soundcloud, bandlab or audiomack id clears the backpacked flag.'))
 			] : h('p', { class: 'muted' }, 'No service ids row.')),
+		youtube_uploads_card(t, sids, d.youtube_uploads ?? [], reload),
 		h('div', { class: 'grid' },
 			h('div', { class: 'card' },
 				h('h2', null, `Unavailable reports (${d.reports.length})`),
@@ -1122,14 +1265,41 @@ function track_sections(d, reload) {
 	];
 }
 
+/** The other YouTube uploads the track keeps: the one playing is in its service ids; a dead one is never switched to. */
+function youtube_uploads_card(t, sids, uploads, reload) {
+	if (uploads.length === 0) return null;
+	return h('div', { class: 'card' },
+		h('h2', null, `Kept YouTube uploads (${uploads.length})`),
+		h('p', { class: 'muted small' }, 'Other uploads of this song found through merges and contributions. When the current one stops playing, the track switches to the newest live one.'),
+		h('div', { style: 'overflow-x:auto' }, h('table', null,
+			h('thead', null, h('tr', null, h('th', null, 'YouTube id'), h('th', null, 'State'), h('th', null, 'Kept since'), h('th'))),
+			h('tbody', null, uploads.map((u) => {
+				const current = sids.youtube_id === u.youtube_id;
+				const use = current || u.unavailable_at ? null : h('button', {
+					class: 'small',
+					onclick: async () => {
+						if (!confirm(`Play ${u.youtube_id} for "${t.title}" instead of ${sids.youtube_id ?? 'nothing'}?`)) return;
+						await act(use, () => api('PATCH', `/admin/entities/service_ids/${t.id}`, { youtube_id: u.youtube_id }), 'YouTube id switched');
+						reload();
+					}
+				}, 'Use this one');
+				return h('tr', null,
+					h('td', { class: 'mono' }, h('a', { href: SERVICE_URLS.youtube_id(u.youtube_id, 'track'), target: '_blank', rel: 'noopener noreferrer' }, u.youtube_id)),
+					h('td', null, current ? badge('current', 'info') : null, ' ', u.unavailable_at ? badge(`dead since ${datetime(u.unavailable_at)}`, 'bad') : badge('live', 'ok')),
+					h('td', { class: 'nowrap' }, ago(u.created_at)),
+					h('td', null, use));
+			})))));
+}
+
 // ---- Users ----
 
 function users_view(main) {
-	const f = { q: '', role: '', page: 1 };
+	const f = kept('users', { q: '', role: '', page: 1 });
 	const body = h('div');
 	const count = h('span', { class: 'muted small' });
 
 	async function load() {
+		keep('users', f);
 		loading(body, h('div', { class: 'empty' }, 'Loading…'));
 		try {
 			const data = await api('GET', `/admin/users${qs(f)}`);
@@ -1145,7 +1315,7 @@ function users_view(main) {
 	}
 
 	const input = h('input', {
-		placeholder: 'Email, username or id', style: 'width:min(320px,100%)',
+		placeholder: 'Email, username or id', style: 'width:min(320px,100%)', value: f.q,
 		oninput: (e) => { f.q = e.target.value.trim(); },
 		onkeydown: (e) => { if (e.key === 'Enter') { f.page = 1; void load(); } }
 	});
@@ -1200,13 +1370,13 @@ const SCALAR_KINDS = ['text', 'uuid', 'enum', 'boolean', 'integer', 'number', 't
 let table_list = null;
 
 function tables_view(main, [name, column, value]) {
-	const list = h('div', { class: 'db-list' }, h('div', { class: 'empty' }, 'Loading…'));
+	const list = h('div', { class: 'db-list', 'data-scroll': 'tables' }, h('div', { class: 'empty' }, 'Loading…'));
 	const content = h('div', { class: 'db-content' });
-	let q = '';
+	const side = kept('tables', { q: '' });
 	main.append(h('div', { class: 'db-layout' }, h('div', { class: 'db-side' },
-		h('input', { placeholder: 'Find a table…', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw_list(); } }), list), content));
+		h('input', { placeholder: 'Find a table…', value: side.q, oninput: (e) => { side.q = e.target.value.trim().toLowerCase(); keep('tables', side); draw_list(); } }), list), content));
 
-	const draw_list = () => replace(list, table_list.filter(t => t.name.includes(q)).map(t => h('a', { href: `#/tables/${t.name}`, class: t.name === name ? 'active' : '' },
+	const draw_list = () => replace(list, table_list.filter(t => t.name.includes(side.q)).map(t => h('a', { href: `#/tables/${t.name}`, class: t.name === name ? 'active' : '' },
 		h('span', { class: 'ellipsis' }, t.name.replace(/_table$/u, '')),
 		t.row_estimate != null ? h('span', { class: 'muted small' }, compact(t.row_estimate)) : null)));
 
@@ -1312,7 +1482,14 @@ function cell_text(value) {
 
 /** `focus`: a `{ column, value }` the grid opens filtered on; when that's the key, the row's drawer opens too. */
 function table_grid(content, table, focus) {
-	const f = { page: 1, limit: 50, sort: '', dir: 'asc', filters: focus ? [{ column: focus.column, op: 'eq', value: focus.value }] : [] };
+	// A followed foreign key opens on that row alone; otherwise the table opens as it was last left.
+	const state_key = `table:${table.name}`;
+	const f = focus
+		? { page: 1, limit: 50, sort: '', dir: 'asc', filters: [{ column: focus.column, op: 'eq', value: focus.value }] }
+		: kept(state_key, { page: 1, limit: 50, sort: '', dir: 'asc', filters: [] });
+	const entity_kind = ENTITY_TABLES[table.name];
+	const id_column = entity_kind ? 'id' : null;
+	let row_sids = {};
 	let open_focused = Boolean(focus && table.primary_key.length === 1 && table.primary_key[0] === focus.column);
 	let rows = [];
 	let has_more = false;
@@ -1346,7 +1523,7 @@ function table_grid(content, table, focus) {
 		void load();
 	};
 
-	const header = () => h('tr', null, table.columns.map(c => h('th', { class: sortable(c) ? 'sortable' : '', title: `${c.sql_type}${c.nullable ? '' : ' not null'}`, onclick: () => sort_by(c) },
+	const header = () => h('tr', null, id_column ? h('th', null, 'service ids', h('div', { class: 'type' }, 'service_ids_table')) : null, table.columns.map(c => h('th', { class: sortable(c) ? 'sortable' : '', title: `${c.sql_type}${c.nullable ? '' : ' not null'}`, onclick: () => sort_by(c) },
 		c.name, c.primary_key ? h('span', { class: 'key' }, ' 🔑') : null,
 		f.sort === c.name ? (f.dir === 'asc' ? ' ▲' : ' ▼') : null,
 		h('div', { class: 'type' }, c.sql_type))));
@@ -1376,12 +1553,13 @@ function table_grid(content, table, focus) {
 		document.body.append(drawer);
 	};
 
+	const sids_cell = r => h('td', { class: 'cell sids-cell' }, service_ids_chips(row_sids[r[id_column]], entity_kind));
 	const draw = () => rerender(body,
 		h('div', { class: 'table-wrap db-grid' }, h('table', null,
 			h('thead', null, header()),
 			h('tbody', null, rows.length === 0
-				? h('tr', null, h('td', { colspan: table.columns.length, class: 'empty' }, f.filters.length ? 'No rows match these filters.' : 'This table is empty.'))
-				: rows.map(r => h('tr', { class: 'clickable', onclick: () => open_row(r) }, table.columns.map(c => cell(c, r))))))),
+				? h('tr', null, h('td', { colspan: table.columns.length + (id_column ? 1 : 0), class: 'empty' }, f.filters.length ? 'No rows match these filters.' : 'This table is empty.'))
+				: rows.map(r => h('tr', { class: 'clickable', onclick: () => open_row(r) }, id_column ? sids_cell(r) : null, table.columns.map(c => cell(c, r))))))),
 		h('div', { class: 'row', style: 'margin-top:12px' },
 			h('button', { class: 'small', disabled: f.page <= 1, onclick: () => { f.page--; void load(); window.scrollTo(0, 0); } }, '← Prev'),
 			h('span', { class: 'muted small' }, `Page ${f.page} · rows ${rows.length ? (f.page - 1) * f.limit + 1 : 0}–${(f.page - 1) * f.limit + rows.length}`),
@@ -1389,6 +1567,7 @@ function table_grid(content, table, focus) {
 			select([['25', '25 rows'], ['50', '50 rows'], ['100', '100 rows'], ['200', '200 rows']], String(f.limit), (v) => { f.limit = Number(v); f.page = 1; void load(); })));
 
 	async function load() {
+		if (!focus) keep(state_key, f);
 		draw_chips();
 		try {
 			const data = await api('GET', `/admin/tables/${encodeURIComponent(table.name)}/rows${qs({
@@ -1396,6 +1575,7 @@ function table_grid(content, table, focus) {
 			})}`);
 			rows = data.items;
 			has_more = data.has_more;
+			if (id_column) row_sids = await service_ids_of(rows.map(r => r[id_column])).catch(() => ({}));
 			draw();
 			if (open_focused && rows.length === 1) open_row(rows[0]);
 			open_focused = false;
@@ -1474,7 +1654,8 @@ function row_drawer(table, key, { on_saved, on_created, on_deleted, on_close }) 
 	};
 	const on_key = (e) => { if (e.key === 'Escape') close(); };
 	document.addEventListener('keydown', on_key);
-	const el = h('aside', { class: 'drawer' }, h('div', { class: 'spread' }, title, h('button', { class: 'small', onclick: close }, 'Close')), subtitle, body);
+	const ids_slot = h('div');
+	const el = h('aside', { class: 'drawer' }, h('div', { class: 'spread' }, title, h('button', { class: 'small', onclick: close }, 'Close')), subtitle, ids_slot, body);
 	el.remove = ((remove) => () => { document.removeEventListener('keydown', on_key); remove(); })(el.remove.bind(el));
 
 	const show_row = (row) => {
@@ -1482,7 +1663,27 @@ function row_drawer(table, key, { on_saved, on_created, on_deleted, on_close }) 
 		replace(title, table.name);
 		replace(subtitle, Object.entries(key).map(([k, v]) => `${k} = ${v}`).join(' · '));
 		draw_fields(row);
+		void draw_ids(row);
 	};
+
+	// Tracks, albums and artists: all their service ids (and a track's kept uploads) above the fields.
+	async function draw_ids(row) {
+		const kind = ENTITY_TABLES[table.name];
+		if (!kind) return replace(ids_slot);
+		const id = row.id;
+		try {
+			const d = await api('GET', `/admin/service_ids/${encodeURIComponent(id)}`);
+			replace(ids_slot, h('div', { class: 'drawer-ids' },
+				h('div', { class: 'spread' }, h('strong', null, 'Service ids'),
+					d.service_ids ? h('a', { href: fk_href({ table: 'service_ids_table', column: 'illusi_id' }, id), class: 'small' }, 'Edit row') : null),
+				service_ids_chips(d.service_ids, d.kind),
+				d.youtube_uploads.length ? h('div', { class: 'muted small', style: 'margin-top:8px' }, 'Kept YouTube uploads: ',
+					d.youtube_uploads.map(u => h('span', { class: `mono ${u.unavailable_at ? 'dead' : ''}`, title: u.unavailable_at ? `dead since ${datetime(u.unavailable_at)}` : 'live' }, u.youtube_id, ' '))) : null,
+				kind === 'track' ? h('div', { style: 'margin-top:8px' }, h('a', { href: `#/tracks/${id}`, class: 'small' }, 'Open track page →')) : null));
+		} catch (err) {
+			replace(ids_slot, h('div', { class: 'error small' }, err.message));
+		}
+	}
 
 	if (key) {
 		replace(title, table.name);
@@ -1627,22 +1828,23 @@ function audit_table(items) {
 }
 
 function audit_view(main) {
-	const f = { action: '', actor: '', entity_id: '' };
+	const f = kept('audit', { action: '', actor: '', entity_id: '' });
 	let items = [];
 	let has_more = false;
 	const body = h('div');
 
 	const input = (key, placeholder) => h('input', {
-		placeholder, style: 'width:180px',
+		placeholder, style: 'width:180px', value: f[key],
 		oninput: (e) => { f[key] = e.target.value.trim(); },
 		onkeydown: (e) => { if (e.key === 'Enter') void load(); }
 	});
 
-	const draw = () => replace(body,
+	const draw = () => rerender(body,
 		h('div', { class: 'table-wrap' }, items.length === 0 ? h('div', { class: 'empty' }, 'No entries.') : audit_table(items)),
 		has_more ? h('div', { style: 'margin-top:12px' }, h('button', { onclick: () => void load(items.at(-1).id) }, 'Load more')) : null);
 
 	async function load(before_id) {
+		keep('audit', f);
 		try {
 			const data = await api('GET', `/admin/audit${qs({ ...f, before_id })}`);
 			items = before_id ? items.concat(data.items) : data.items;
