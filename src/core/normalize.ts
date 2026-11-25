@@ -14,12 +14,18 @@ const VERSION_WORDS = [
 ];
 const VERSION_PAREN_RE = new RegExp(`[([]\\s*(?:${VERSION_WORDS.join('|')})\\s*[)\\]]`, 'giu');
 const VERSION_DASH_RE = new RegExp(`\\s+-\\s+(?:${VERSION_WORDS.join('|')})\\s*$`, 'giu');
+/** A `$` written for an s (`KA$HDAMI`, `$uicideboy$`, `Bada$$`): one touching a letter, or a run of them that does. `$100` keeps it. */
+const DOLLAR_S_RE = /(?<=\p{L}\$*)\$|\$(?=\$*\p{L})/gu;
 
-/** Lowercase, NFKC, strip Latin accents, invisible characters, `feat.` parts, version suffixes and punctuation, collapse whitespace. */
+/**
+ * Lowercase, NFKC, strip Latin accents, invisible characters, `feat.` parts, version suffixes and punctuation, collapse
+ * whitespace; a `$` standing for an s is an s. `illusi_name_key` in SQL folds names the same way for prefiltering.
+ */
 export function normalize_name(value: string): string {
 	// Only combining diacritics (U+0300–U+036F) are dropped, so `Beyonce` matches `Beyoncé` without touching other scripts.
 	// Format characters (left-to-right marks, zero-width spaces) are invisible: `cade\u200e` is `cade`.
 	let s = value.replace(/\p{Cf}/gu, '').normalize('NFKC').normalize('NFD').replace(/[\u0300-\u036f]/gu, '').normalize('NFC').toLowerCase();
+	s = s.replace(DOLLAR_S_RE, 's');
 	s = s.replace(FEATURE_RE, ' ');
 	for (let i = 0; i < 2; i++) s = s.replace(VERSION_PAREN_RE, ' ').replace(VERSION_DASH_RE, ' ');
 	s = s.replace(/&/gu, ' and ');

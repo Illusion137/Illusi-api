@@ -24,6 +24,22 @@ describe('validate_graph', () => {
 		]);
 	});
 
+	it('rejects artists that are view counts, with their credits, unless they come with ids', () => {
+		const { graph, rejected } = validate_graph({
+			artists: [
+				{ ref: 'real', name: 'Lelo' }, { ref: 'v1', name: '175K' }, { ref: 'v2', name: '1.2M views' }, { ref: 'v3', name: '4,031 plays' },
+				{ ref: 'k', name: '10k' }, { ref: 'id', name: '41K', service_ids: { spotify_id: '0yknvLWQZxwsMjhUhwWZQ8' } }, { ref: 'n', name: '41' }
+			],
+			albums: [{ ref: 'al', name: 'Album', artist_ref: 'v1' }],
+			tracks: [{ ref: 't', title: 'Like Sunday' }],
+			relations: { tracks_artists: ['real', 'v1', 'v2', 'v3', 'k', 'id', 'n'].map(artist_ref => ({ track_ref: 't', artist_ref })) }
+		});
+		expect(graph.artists.map(a => a.ref)).toEqual(['real', 'k', 'id', 'n']);
+		expect(graph.relations.tracks_artists.map(r => r.artist_ref)).toEqual(['real', 'k', 'id', 'n']);
+		expect(graph.albums[0].artist_ref).toBeUndefined();
+		expect(rejected.filter(r => r.reason === 'a view count, not an artist').map(r => r.ref)).toEqual(['v1', 'v2', 'v3']);
+	});
+
 	it('drops reference fields to rejected or unknown refs but applies the entity', () => {
 		const { graph, rejected } = validate_graph({
 			artists: [{ ref: 'bad', name: '' }],

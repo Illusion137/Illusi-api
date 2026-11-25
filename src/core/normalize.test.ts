@@ -13,6 +13,15 @@ describe('normalize_name', () => {
 		expect(normalize_name('방탄소년단')).toBe('방탄소년단');
 		expect(normalize_name('cade\u200e \u200e')).toBe('cade');
 	});
+	it('reads a $ written for an s as one, but not in a price', () => {
+		expect(normalize_name('KA$HDAMI')).toBe(normalize_name('KASHDAMI'));
+		expect(normalize_name('$umn$light')).toBe(normalize_name('SumnSlight'));
+		expect(normalize_name('$uicideboy$')).toBe('suicideboys');
+		expect(normalize_name('Joey Bada$$')).toBe('joey badass');
+		expect(normalize_name('A$AP Rocky')).toBe('asap rocky');
+		expect(normalize_name('$100 Bill')).toBe('100 bill');
+		expect(name_similarity('Ca$h Out', 'Cash Out')).toBe(1);
+	});
 	it('takes the primary artist', () => {
 		expect(primary_artist_name('A, B & C')).toBe('A');
 		expect(primary_artist_name('Drake feat. Future')).toBe('Drake');

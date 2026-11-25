@@ -141,12 +141,21 @@ const RELATION_REFS: Record<RelationKind, [string, EntityType][]> = {
 };
 const RELATION_KINDS = Object.keys(RELATION_REFS) as RelationKind[];
 
+/** `175K`, `1.2M views`, `4,031 plays`: the count YouTube shows beside a channel, which older clients credited as an artist. */
+const VIEW_COUNT_RE = /^\d[\d.,]*(?:\s*[KMB]|\s*[KMBkmb]?\s+(?:views?|plays?))$/u;
+
+/** An artist named like a view count with no id anywhere: never a real credit (a real `10K` comes with its ids). */
+function is_view_count_artist(artist: ArtistInput): boolean {
+	return VIEW_COUNT_RE.test(artist.name) && !Object.values(artist.service_ids ?? {}).some(v => v != null && v !== '');
+}
+
 /**
  * Validates every entity and relation separately.
  * - A malformed entity, or a duplicate ref, is rejected.
  * - Relations referencing a rejected ref, a ref of the wrong type, or an unknown temp ref are rejected.
  * - `album.artist_ref` / `track.album_ref` pointing at such a ref are dropped; the entity itself still applies.
  * - A ref that isn't defined in the payload but looks like a UUID is kept: it may be an existing `illusi_id`.
+ * - An artist named like a view count without ids is rejected, and with it every credit to it.
  */
 export function validate_graph(raw: RawGraph): { graph: Graph; rejected: Rejection[] } {
 	const rejected: Rejection[] = [];
@@ -173,7 +182,13 @@ export function validate_graph(raw: RawGraph): { graph: Graph; rejected: Rejecti
 		return out;
 	}
 
-	const artists = take('artist', raw.artists, artist_schema);
+	const artists = take('artist', raw.artists, artist_schema).filter((artist, index) => {
+		if (!is_view_count_artist(artist)) return true;
+		rejected.push({ kind: 'artist', index, ref: artist.ref, reason: 'a view count, not an artist' });
+		types.delete(artist.ref);
+		bad.add(artist.ref);
+		return false;
+	});
 	const albums = take('album', raw.albums, album_schema);
 	const tracks = take('track', raw.tracks, track_schema);
 	// A ref rejected once but defined validly elsewhere is still usable.

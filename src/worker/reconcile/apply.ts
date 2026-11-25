@@ -10,10 +10,12 @@ import { keep_youtube_ids, unavailable_youtube_ids } from '../../core/youtube_id
 import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
 import { resolve_redirects } from '../../core/redirects';
+import { normalize_name } from '../../core/normalize';
 import { add_review_item } from '../../core/review';
 import type { ProposedValue } from '../../core/review';
 import { SERVICE_ID_COLUMNS, UNIQUE_SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
+import { artist_ids_differ } from '../../services/entities/matching';
 import { attach_itunes_album } from '../../services/itunes/album_link';
 import { merge_entity_row, plan_ref_merge, REF_TABLES } from './composite';
 import type { Row } from './composite';
@@ -229,7 +231,34 @@ export async function apply_merge(tx: Tx, step: MergeStep, ctx: ApplyContext): P
 		});
 	}
 	log.info(`merged ${loser} into ${survivor}`, { kind, reasons: step.reasons, actor: ctx.actor });
+	if (kind === 'track') await merge_same_name_credits(tx, survivor, ctx);
 	return { step, applied: true };
+}
+
+/**
+ * Two copies of a song merged carry both copies' credits, so one artist can be credited twice under two spellings
+ * (`KASHDAMI` and `KA$HDAMI`). Artists credited on one track whose names are the same are the same artist, unless their
+ * ids on a service say otherwise: merged into the one with more ids, then more credits.
+ */
+async function merge_same_name_credits(tx: Tx, track_id: string, ctx: ApplyContext) {
+	const credited = await tx.execute<{ id: string; name: string; credits: number } & IdRow>(sql`
+		select a.id, a.name, s.*, (select count(*)::int from tracks_artists_table x where x.artist_id = a.id) as credits
+		from tracks_artists_table ta join artists_table a on a.id = ta.artist_id join service_ids_table s on s.illusi_id = a.id
+		where ta.track_id = ${track_id}`, 'objects');
+	const groups = new Map<string, typeof credited>();
+	for (const a of credited) {
+		const key = normalize_name(a.name);
+		if (key) groups.set(key, [...groups.get(key) ?? [], a]);
+	}
+	for (const group of groups.values()) {
+		if (group.length < 2) continue;
+		group.sort((a, b) => Object.keys(id_values(b)).length - Object.keys(id_values(a)).length || b.credits - a.credits || a.id.localeCompare(b.id));
+		const [survivor, ...rest] = group;
+		for (const loser of rest) {
+			if (artist_ids_differ(id_values(survivor), id_values(loser))) continue;
+			await apply_merge(tx, { type: 'merge', kind: 'artist', survivor: survivor.id, loser: loser.id, auto: true, reasons: ['same_artist_on_track'] }, ctx);
+		}
+	}
 }
 
 /** Still-attached planned values: a column changed since planning is left alone. */

@@ -638,6 +638,25 @@ describe('reconcile run', () => {
 		expect(await query(`select count(*)::int as n from track_youtube_ids_table where track_id = $1`, [survivor])).toEqual([{ n: 1 }]);
 	});
 
+	it('merges a song spelled with $ for s, and the artist it ends up credited to twice', async () => {
+		const tag = unique('x').slice(-6).replace(/[^a-z0-9]/giu, 'q');
+		const [styled, plain] = [await artist({ spotify_id: unique('sp') }, `KA$H${tag}`), await artist({}, `KASH${tag}`)];
+		const other = await artist({ spotify_id: unique('sp') }, `KA$H${tag}`.replace('$', 'Z'));
+		const a = await track({ spotify_id: unique('sp') }, { title: `Sumn${tag}Slight`, duration_ms: 75_000 });
+		const b = await track({ youtube_id: yt_id() }, { title: `$umn${tag}$light`, duration_ms: 76_000 });
+		await query(`insert into tracks_artists_table (artist_id, track_id) values ($1, $3), ($2, $4)`, [styled, plain, a, b]);
+		await query(`insert into tracks_artists_table (artist_id, track_id, created_at) values ($1, $2, now() + interval '1 second')`, [other, a]);
+
+		const plan = resolve_group({ nodes: await load_nodes(db, [a, b]), conflicts: [] }, thresholds);
+		expect(plan.steps).toEqual([expect.objectContaining({ type: 'merge', auto: true, reasons: ['same_recording'] })]);
+		await apply_group(plan, empty_report(), { review: false });
+		const [survivor] = await query(`select id from tracks_table where id in ($1, $2)`, [a, b]);
+		// The plain spelling joins the one with ids; a different artist on the track is left alone.
+		expect(await query(`select artist_id from tracks_artists_table where track_id = $1 order by artist_id`, [survivor.id]))
+			.toEqual([styled, other].sort().map(artist_id => ({ artist_id })));
+		expect(await query(`select new_id from illusi_id_redirects_table where old_id = $1`, [plain])).toEqual([{ new_id: styled }]);
+	});
+
 	async function pass(mode: 'full' | 'incremental', dry_run: boolean): Promise<RunReport> {
 		for (let i = 0; i < 40; i++) {
 			const report = await run_pass({ mode, dry_run, thresholds });

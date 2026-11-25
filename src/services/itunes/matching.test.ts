@@ -39,6 +39,9 @@ describe('pick_track', () => {
 	it('requires the threshold', () => {
 		expect(pick_track({ track_name: 'Hello' }, [song(1, 'Goodbye')], 0.9)).toBeNull();
 	});
+	it('matches a title spelled with $ for s', () => {
+		expect(pick_track({ track_name: '$umn$light', duration_ms: 76_000 }, [song(1, 'SumnSlight', { trackTimeMillis: 75_000 })], 0.9)?.trackId).toBe(1);
+	});
 	it('breaks ties on duration within ±3 s', () => {
 		const tracks = [song(1, 'Intro', { trackTimeMillis: 60_000 }), song(2, 'Intro', { trackTimeMillis: 200_000 })];
 		expect(pick_track({ track_name: 'Intro', duration_ms: 201_500 }, tracks, 0.9)?.trackId).toBe(2);
