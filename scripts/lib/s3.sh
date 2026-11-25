@@ -8,6 +8,8 @@
 # _ACCESS_KEY and _SECRET_KEY.
 
 RCLONE_IMAGE=rclone/rclone:1.69.1
+# Only for rewriting object headers in place (backup-media.sh headers), which rclone can't do.
+AWS_CLI_IMAGE=amazon/aws-cli:2.22.0
 
 # `s3_configured BACKUP|MEDIA`
 s3_configured() { local endpoint="${1}_S3_ENDPOINT"; [[ -n "${!endpoint:-}" ]]; }
