@@ -205,6 +205,13 @@ describe('read API: catalog', () => {
 
 		const similar = await api('GET', `/artists/${first.artist_id}/similar`, { token: user.access_token });
 		expect(ids(similar.body.items)).toEqual([second.artist_id]);
+
+		// An artist page's list, sent in one contribution, reads back in the order the page listed it.
+		const listed = await Promise.all([1, 2, 3].map(() => seed_album(user, { n: 1 })));
+		const order = [listed[2], listed[0], listed[1]].map(l => l.artist_id);
+		await contribute(user, { relations: { similar_artists: order.map(similar_artist_ref => ({ artist_ref: second.artist_id, similar_artist_ref })) } });
+		const page = await api('GET', `/artists/${second.artist_id}/similar`, { token: user.access_token });
+		expect(ids(page.body.items)).toEqual([first.artist_id, ...order]);
 	});
 });
 

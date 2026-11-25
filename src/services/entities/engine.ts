@@ -446,7 +446,9 @@ class Engine {
 			if (x.ids[0] === x.ids[1]) this.result.rejected.push({ kind: 'similar_artists', index: x.index, reason: 'artist cannot be similar to itself' });
 		}
 		const index_of = new Map(sa.map(x => [`${x.ids[0]}:${x.ids[1]}`, x.index]));
-		await this.insert_rows('similar_artists', pairs.map(p => ({ row: p, index: index_of.get(`${p.artist_id}:${p.similar_artist_id}`) ?? -1 })), async (tx, rows) => {
+		// Pairs are listed most similar first and read back by created_at, so each is a millisecond after the one before.
+		const listed_at = Date.now();
+		await this.insert_rows('similar_artists', pairs.map((p, i) => ({ row: { ...p, created_at: new Date(listed_at + i) }, index: index_of.get(`${p.artist_id}:${p.similar_artist_id}`) ?? -1 })), async (tx, rows) => {
 			const written = await tx.insert(similar_artists_table).values(rows).onConflictDoNothing()
 				.returning({ artist_id: similar_artists_table.artist_id, similar_artist_id: similar_artists_table.similar_artist_id });
 			return written.map(w => ({ key: `${w.artist_id}:${w.similar_artist_id}`, inserted: true }));
