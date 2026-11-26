@@ -58,6 +58,11 @@ export function best_thumbnail<T extends Thumbnail>(thumbnails: readonly T[]): T
 	return best;
 }
 
+/** YouTube serves channel avatars protocol-relative (`//yt3.googleusercontent.com/...`); clients would read them as file paths. */
+export function absolute_url(url: string): string {
+	return url.startsWith('//') ? `https:${url}` : url;
+}
+
 /**
  * Upserts by `url` for an owner whose `illusi_id` is known. Width/height are only filled when
  * empty, and parsed from the URL when missing. An existing URL keeps its owner unless it had none.
@@ -65,9 +70,10 @@ export function best_thumbnail<T extends Thumbnail>(thumbnails: readonly T[]): T
 export async function upsert_thumbnails(tx: Tx, owner_id: string, thumbnails: readonly Thumbnail[]) {
 	const rows = new Map<string, { id: string; url: string; width: number | null; height: number | null }>();
 	for (const t of thumbnails) {
-		if (!t.url || t.url.length > 512) continue;
-		const parsed = parse_thumbnail_size(t.url);
-		rows.set(t.url, { id: owner_id, url: t.url, width: clean_size(t.width) ?? parsed?.width ?? null, height: clean_size(t.height) ?? parsed?.height ?? null });
+		const url = absolute_url(t.url);
+		if (!url || url.length > 512) continue;
+		const parsed = parse_thumbnail_size(url);
+		rows.set(url, { id: owner_id, url, width: clean_size(t.width) ?? parsed?.width ?? null, height: clean_size(t.height) ?? parsed?.height ?? null });
 	}
 	if (rows.size === 0) return;
 	await tx.insert(thumbnails_table).values([...rows.values()]).onConflictDoUpdate({

@@ -77,4 +77,13 @@ describe('upsert_thumbnails', () => {
 		]);
 		expect(on_conflict).toHaveBeenCalledOnce();
 	});
+
+	it('stores protocol-relative urls as https and dedupes them with their absolute form', async () => {
+		const { tx: t, values } = tx();
+		await upsert_thumbnails(t as never, 'owner', [
+			{ url: 'https://yt3.googleusercontent.com/a=s176-c-k' },
+			{ url: '//yt3.googleusercontent.com/a=s176-c-k', width: 176, height: 176 }
+		]);
+		expect(values).toHaveBeenCalledWith([{ id: 'owner', url: 'https://yt3.googleusercontent.com/a=s176-c-k', width: 176, height: 176 }]);
+	});
 });
