@@ -311,14 +311,15 @@ describe('analyzer repo: alignment', () => {
 		await pool.query(`insert into track_alignment_table (track_id, resource_id, status, retry_after) values ($1, $2, 'ERROR', now() + interval '1 hour')`, [error_wait, ref + 'w']);
 		const bad = await played({ media: [ref + 'b'] });
 		await pool.query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, $2, 'BAD_FILE')`, [bad, ref + 'b']);
-		const synced = await played({ media: [ref + 'l'], lyrics: ['NONE', 'LINE'] });
+		const lined = await played({ media: [ref + 'l'], lyrics: ['NONE', 'LINE'] });
+		const worded = await played({ media: [ref + 'x'], lyrics: ['LINE', 'WORD'] });
 		const no_lyrics = await played({ media: [ref + 'n'], lyrics: [] });
 		const listed = new Set(await eligible_alignment_track_ids());
-		expect([fresh, stale, error_due, kept].every(id => listed.has(id))).toBe(true);
-		expect([unplayed, zero, removed, done, error_wait, bad, synced, no_lyrics].some(id => listed.has(id))).toBe(false);
+		expect([fresh, stale, error_due, kept, lined].every(id => listed.has(id))).toBe(true);
+		expect([unplayed, zero, removed, done, error_wait, bad, worded, no_lyrics].some(id => listed.has(id))).toBe(false);
 	});
 
-	it('resolves the target only for played or library tracks with only unsynced lyrics, or when a user asks', async () => {
+	it('resolves the target only for played or library tracks without word-synced lyrics, or when a user asks', async () => {
 		const ref = unique('at');
 		const unplayed = await seed_track({ media: [ref, 'later-' + ref] });
 		expect(await resolve_alignment_target(unplayed)).toBeNull();
@@ -331,6 +332,7 @@ describe('analyzer repo: alignment', () => {
 		expect(await resolve_alignment_target(id, true)).toBeNull();
 		await pool.query(`update track_alignment_table set resource_id = 'previous-file' where track_id = $1`, [id]);
 		expect(await resolve_alignment_target(id)).toMatchObject({ resource_id: ref + 'p', prior: { status: 'DONE', source_ref: 'previous-file', attempts: 1 } });
+		expect(await resolve_alignment_target(await played({ media: [ref + 'm'], lyrics: ['LINE'] }))).toEqual({ resource_id: ref + 'm', prior: null });
 		const synced = await played({ media: [ref + 'l'], lyrics: ['WORD'] });
 		expect(await resolve_alignment_target(synced, true)).toBeNull();
 		expect(await resolve_alignment_target(await played({}), true)).toBeNull();

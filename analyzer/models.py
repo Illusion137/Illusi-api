@@ -18,7 +18,7 @@ If either library's API changes, this is the only file to adjust:
   activity (speech.py) and Beat This! beats and downbeats (beat_grid.py).
 - `/alignment` (alignment.py): Demucs stems, the MMS model's letter probabilities and loudness of the vocals stem,
   with Whisper and Beat This! run again on the stems. Minutes of CPU per track, so the API only asks for it on
-  tracks users play whose lyrics are all unsynced.
+  tracks users play or keep that have no word-synced lyrics.
 
 All read a temporary WAV that ffmpeg decodes from the input (audio.py), so any container ffmpeg understands works
 (.m4a, .webm, .ogg, .mp3, .flac, ...), with or without an extension. Nothing writes or deletes the input file.

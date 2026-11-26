@@ -104,15 +104,9 @@ export async function record_lookup(ex: Executor, track_id: string, source: Reso
 	});
 }
 
-/** Whether the track's lyrics are all unsynced: only those does the app letter-align, so only then is `/alignment` worth running. */
-const has_only_unsynced_lyrics = (track_id: SQL) => sql`(
-	exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type = 'NONE')
-	and not exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id} and ly.sync_type <> 'NONE')
-)`;
-
 /**
  * Whether the track has lyrics and none of them are word or syllable synced: the app word-syncs those (line-synced
- * ones too) against the `/vocals` analysis.
+ * ones too) against the `/vocals` and `/alignment` analyses.
  */
 const lacks_word_synced_lyrics = (track_id: SQL) => sql`(
 	exists (select 1 from track_lyrics_table ly where ly.track_id = ${track_id})
@@ -124,7 +118,6 @@ async function lyrics_check(check: SQL): Promise<boolean> {
 	return rows[0]?.ok ?? false;
 }
 
-export const has_only_unsynced_lyrics_now = (track_id: string) => lyrics_check(has_only_unsynced_lyrics(sql`${track_id}::uuid`));
 export const lacks_word_synced_lyrics_now = (track_id: string) => lyrics_check(lacks_word_synced_lyrics(sql`${track_id}::uuid`));
 
 export interface TrackPriority { plays: number; views: number }
@@ -149,7 +142,7 @@ export async function track_priorities(track_ids: readonly string[]): Promise<Ma
 
 /**
  * Track ids whose newest media file has no vocals result and no failure blocking it (`source_eligible` rules), among
- * tracks whose lyrics are all unsynced.
+ * tracks without word-synced lyrics.
  */
 export async function eligible_vocals_track_ids(): Promise<string[]> {
 	const rows = await db.execute<{ track_id: string }>(sql`
@@ -223,7 +216,7 @@ const wanted = (track_id: SQL) => sql`(
 
 /**
  * Track ids users have in their library or have played whose newest media file has no alignment result and no failure
- * blocking it (`source_eligible` rules), among tracks whose lyrics are all unsynced. The queue runs played ones first.
+ * blocking it (`source_eligible` rules), among tracks without word-synced lyrics. The queue runs played ones first.
  */
 export async function eligible_alignment_track_ids(): Promise<string[]> {
 	const rows = await db.execute<{ track_id: string }>(sql`
@@ -235,16 +228,16 @@ export async function eligible_alignment_track_ids(): Promise<string[]> {
 			or a.resource_id <> lm.resource_id
 			or (a.status = 'ERROR' and (a.retry_after is null or a.retry_after <= now())))
 		and ${wanted(sql`lm.track_id`)}
-		and ${has_only_unsynced_lyrics(sql`lm.track_id`)}`, 'objects');
+		and ${lacks_word_synced_lyrics(sql`lm.track_id`)}`, 'objects');
 	return rows.map(r => r.track_id);
 }
 
 /**
- * The media file an alignment job should analyze right now, or null (no media / lyrics synced or missing / in nobody's
+ * The media file an alignment job should analyze right now, or null (no media / lyrics word synced or missing / in nobody's
  * library and never played / already done / blocked). `requested`: a user is playing it right now.
  */
 export async function resolve_alignment_target(track_id: string, requested = false): Promise<VocalsTarget | null> {
-	if (!(await has_only_unsynced_lyrics_now(track_id))) return null;
+	if (!(await lacks_word_synced_lyrics_now(track_id))) return null;
 	if (!requested && !(await lyrics_check(wanted(sql`${track_id}::uuid`)))) return null;
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
 		.where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);

@@ -351,13 +351,17 @@ describe('which tracks get vocals and in what order', () => {
 		await stop();
 	});
 
-	it('analyzes vocals for a track with line-synced lyrics, without aligning it', async () => {
+	it('analyzes vocals and aligns a played track with line-synced lyrics, neither for word-synced ones', async () => {
 		const t = await seed_track({ media: uuid(), lyrics: ['LINE'] });
-		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, 2)', [t.id]);
+		const worded = await seed_track({ media: uuid(), lyrics: ['LINE', 'WORD'] });
+		await pool.query('insert into track_play_counts_table (track_id, plays) values ($1, 2), ($2, 2)', [t.id, worded.id]);
 		await start();
+		emit('media_inserted', { track_id: worded.id, resource_id: worded.resource_id! });
 		emit('media_inserted', { track_id: t.id, resource_id: t.resource_id! });
 		await wait(async () => expect(await vocals_of(t.id)).toMatchObject({ status: 'DONE' }));
-		expect(calls.filter(c => c.url.endsWith('/alignment'))).toHaveLength(0);
+		await wait(async () => expect(await alignment_of(t.id)).toMatchObject({ status: 'DONE' }));
+		expect(calls.filter(c => c.url.endsWith('/alignment'))).toHaveLength(1);
+		expect(await vocals_of(worded.id)).toBeUndefined();
 		await stop();
 	});
 
@@ -419,7 +423,7 @@ describe('alignment jobs', () => {
 	};
 	const alignment_calls = () => calls.filter(c => c.url.endsWith('/alignment'));
 
-	it('aligns a played track with only unsynced lyrics and stores the analysis', async () => {
+	it('aligns a played track with unsynced lyrics and stores the analysis', async () => {
 		const t = await played();
 		const unplayed = await seed_track({ media: uuid() });
 		await start();
@@ -435,9 +439,9 @@ describe('alignment jobs', () => {
 		await stop();
 	});
 
-	it('aligns a track a user asks for before their play is synced, never one with synced lyrics', async () => {
+	it('aligns a track a user asks for before their play is synced, never one with word-synced lyrics', async () => {
 		const asked = await seed_track({ media: uuid() });
-		const synced = await seed_track({ media: uuid(), lyrics: ['LINE'] });
+		const synced = await seed_track({ media: uuid(), lyrics: ['WORD'] });
 		await start();
 		emit('alignment_requested', { track_id: synced.id });
 		emit('alignment_requested', { track_id: asked.id });

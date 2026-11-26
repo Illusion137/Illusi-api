@@ -1145,8 +1145,8 @@ The server asks clients to upload audio they've **already downloaded locally**.
 - **New action** (§0.1): `{ type: 'UPLOAD_MEDIA', token, track_id }`. It's issued for tracks where:
   - the user's `downloaded_at` is set;
   - the track is `imported`, `backpacked` (§17) or on SoundCloud (a `soundcloud_id` or `soundcloud_permalink`: uploads
-    there are taken down without warning), or it has lyrics and all of them are unsynced (`sync_type` `NONE`), so vocal
-    detection (§2.11) can help line-sync them. Other tracks can still be played from a service, so no copy is asked
+    there are taken down without warning), or it has lyrics and none of them are word synced (`sync_type` `WORD` or `SYLLABLE`), so
+    vocal detection (§2.11) and alignment can sync them. Other tracks can still be played from a service, so no copy is asked
     for;
   - the track has **no** `media_table` row yet.
 - **Where requests come from**:

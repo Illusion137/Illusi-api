@@ -21,7 +21,7 @@ const log = logger('analyzer');
 interface Job {
 	/**
 	 * `sample`: `/analyze` on media or an iTunes preview, for every track. `vocals`: `/vocals`, on full media files of
-	 * tracks whose lyrics are all unsynced. `alignment`: `/alignment`, minutes of CPU, only on those in a library or played.
+	 * tracks without word-synced lyrics. `alignment`: `/alignment`, minutes of CPU, only on those in a library or played.
 	 */
 	kind: 'sample' | 'vocals' | 'alignment';
 	track_id: string;
@@ -86,7 +86,7 @@ function register_listeners() {
 	on('media_inserted', async ({ track_id }) => {
 		await enqueue([{ kind: 'sample', track_id, prefer: 'media' }, { kind: 'vocals', track_id }, { kind: 'alignment', track_id }]);
 	});
-	// The vocals and alignment jobs themselves check that the lyrics are all unsynced (and alignment, that someone has or plays it)
+	// The vocals and alignment jobs themselves check that no lyrics are word synced (and alignment, that someone has or plays it)
 	on('lyrics_stored', async ({ track_id }) => {
 		await enqueue([{ kind: 'vocals', track_id }, { kind: 'alignment', track_id }]);
 	});

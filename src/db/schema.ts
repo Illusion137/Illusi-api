@@ -624,9 +624,9 @@ export const track_vocals_table = pgTable('track_vocals_table', {
 });
 
 /**
- * What the app aligns a track's plain lyrics against (`POST /alignment` on its media file): the separated vocals'
+ * What the app aligns a track's plain or line-synced lyrics against (`POST /alignment` on its media file): the separated vocals'
  * letter probabilities, loudness, words, beat grid and repeats. Never a synced version; the app builds that and keeps
- * it to itself. Only analyzed for tracks users play whose lyrics are all unsynced.
+ * it to itself. Only analyzed for tracks users play or keep that have no word-synced lyrics.
  */
 export const track_alignment_table = pgTable('track_alignment_table', {
 	track_id: uuid().primaryKey().references(() => tracks_table.id, { onDelete: 'cascade' }),
