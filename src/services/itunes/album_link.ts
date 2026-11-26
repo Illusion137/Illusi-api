@@ -7,21 +7,16 @@ import {
 } from '../../db/schema';
 import { enrich_service_ids } from '../../core/enrich';
 import type { PendingEvents } from '../../core/events';
-import { durations_match, name_similarity, names_match } from '../../core/normalize';
+import { durations_match, name_similarity, names_match, split_release_suffix } from '../../core/normalize';
 import { itunes_thumbnails, upsert_thumbnails } from '../../core/thumbnails';
 import { album_candidates } from '../entities/candidates';
 
 type AlbumType = NonNullable<typeof albums_table.$inferInsert.album_type>;
 
-const RELEASE_SUFFIX_RE = /\s+-\s+(Single|EP)$/iu;
-
 /** iTunes names singles and EPs "Name - Single" / "Name - EP" */
 export function collection_album(name: string, track_count: number | null): { name: string; album_type: AlbumType } {
-	const suffix = RELEASE_SUFFIX_RE.exec(name)?.[1]?.toUpperCase();
-	const clean = name.replace(RELEASE_SUFFIX_RE, '').trim() || name;
-	if (suffix === 'SINGLE') return { name: clean, album_type: 'SINGLE' };
-	if (suffix === 'EP') return { name: clean, album_type: 'EP' };
-	return { name: clean, album_type: track_count === 1 ? 'SINGLE' : 'ALBUM' };
+	const release = split_release_suffix(name);
+	return { name: release.name, album_type: release.album_type ?? (track_count === 1 ? 'SINGLE' : 'ALBUM') };
 }
 
 /** `Song (feat. X)`, `Song [with X]`, `Song ft. X`: the featured artists, which iTunes and uploads write differently. */

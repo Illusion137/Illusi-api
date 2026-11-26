@@ -105,6 +105,18 @@ describe('global contributions (§9)', () => {
 		expect([...await reviews(track_id), ...await reviews(song)]).toEqual([]);
 	});
 
+	it('stores albums without Apple Music\'s " - Single" suffix, taking the type from it', async () => {
+		const user = await create_user('suffix');
+		const name = unique('Suffix Song');
+		const graph = mock_album({ artist: unique('Suffix Artist'), album: `${name} - Single`, n: 1 });
+		delete (graph.albums[0] as { album_type?: string }).album_type;
+		const album_id = (await contribute(user, graph)).body.refs.al;
+		expect(await query(`select name, album_type from albums_table where id = $1`, [album_id])).toEqual([{ name, album_type: 'SINGLE' }]);
+		const again = structuredClone(graph);
+		again.albums[0].name = name;
+		expect((await contribute(user, again)).body.refs.al).toBe(album_id);
+	});
+
 	it('takes a single or EP claim over a stored ALBUM, unless it has too many tracks', async () => {
 		const a = await create_user('type-a');
 		const b = await create_user('type-b');

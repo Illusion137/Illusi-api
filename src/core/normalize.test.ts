@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { name_similarity, names_differ, names_match, normalize_name, primary_artist_name, strip_decorations } from './normalize';
+import { name_similarity, names_differ, names_match, normalize_name, primary_artist_name, split_release_suffix, strip_decorations } from './normalize';
 import { normalize_isrc, normalize_soundcloud_permalink, normalize_youtube_id } from './service_ids';
 import { parse_thumbnail_size } from './thumbnails';
 
@@ -66,5 +66,18 @@ describe('service ids', () => {
 	it('parses thumbnail sizes', () => {
 		expect(parse_thumbnail_size('https://is1.mzstatic.com/x/100x100bb.jpg')).toEqual({ width: 100, height: 100 });
 		expect(parse_thumbnail_size('https://lh3.googleusercontent.com/a=w544-h544-l90')).toEqual({ width: 544, height: 544 });
+	});
+});
+
+describe('split_release_suffix', () => {
+	it('drops Apple Music\'s release suffix and reads the type from it', () => {
+		expect(split_release_suffix('Zelda - Single')).toEqual({ name: 'Zelda', album_type: 'SINGLE' });
+		expect(split_release_suffix('Spacepaxk 2 - EP')).toEqual({ name: 'Spacepaxk 2', album_type: 'EP' });
+		expect(split_release_suffix('Weak \u2013 album')).toEqual({ name: 'Weak', album_type: 'ALBUM' });
+	});
+	it('leaves other names alone', () => {
+		expect(split_release_suffix('Single Ladies')).toEqual({ name: 'Single Ladies', album_type: null });
+		expect(split_release_suffix('Live - Remastered')).toEqual({ name: 'Live - Remastered', album_type: null });
+		expect(split_release_suffix(' - Single')).toEqual({ name: ' - Single', album_type: null });
 	});
 });

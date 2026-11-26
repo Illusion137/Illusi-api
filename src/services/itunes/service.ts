@@ -60,6 +60,10 @@ export class ITunesService {
 			if (imported) return;
 			await this.enqueue_scanned(entity_type, [illusi_id], 'live');
 		});
+		// Names changed: the old match (or miss) was made with the old ones
+		on('metadata_changed', async ({ illusi_id, entity_type }) => {
+			await this.enqueue_scanned(entity_type, [illusi_id], 'live', true);
+		});
 		on('applemusic_id_filled', async ({ illusi_id, applemusic_id }) => {
 			if (this.self_filled.delete(illusi_id)) return;
 			const entity = await find_entity(illusi_id);
@@ -73,10 +77,10 @@ export class ITunesService {
 		if (this.queue.add(candidate, lane)) this.wake?.();
 	}
 
-	/** Queues the given local entities of one type if they're unlinked and their lookup is due. */
-	async enqueue_scanned(type: EntityType, illusi_ids: readonly string[], lane: Lane) {
+	/** Queues the given local entities of one type if they're unlinked and their lookup is due, or always with `recheck`. */
+	async enqueue_scanned(type: EntityType, illusi_ids: readonly string[], lane: Lane, recheck = false) {
 		for (const ids of chunk(illusi_ids, 1000)) {
-			for (const c of await scan_candidates(type, { ids, limit: ids.length })) this.add(c, lane);
+			for (const c of await scan_candidates(type, { ids, limit: ids.length, recheck })) this.add(c, lane);
 		}
 	}
 
@@ -145,6 +149,12 @@ export class ITunesService {
 		const known: KnownId[] = [];
 		for (const item of batch) {
 			const states = await link_states(item.entity_type, item.illusi_ids);
+			if (item.recheck) {
+				// A different match than the stored Apple Music id goes to review through the enrichment rules
+				const ids = item.illusi_ids.filter(id => states.has(id));
+				if (ids.length > 0 && item.request) await this.process_search(item, ids);
+				continue;
+			}
 			const pending = item.illusi_ids.filter(id => states.has(id) && !states.get(id)!.linked);
 			const search_ids: string[] = [];
 			for (const id of pending) {

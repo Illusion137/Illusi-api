@@ -9,7 +9,9 @@ import { db } from '../../db';
 import type { Executor, Tx } from '../../db';
 import { album_tracks_table, albums_table, artist_albums_table, artists_table, service_ids_table, tracks_artists_table, tracks_table } from '../../db/schema';
 import { write_audit } from '../../core/audit';
+import { emit } from '../../core/events';
 import { HttpError } from '../../core/http';
+import { split_release_suffix } from '../../core/normalize';
 import { resolve_redirect } from '../../core/redirects';
 
 const escape_like = (s: string) => s.replace(/[\\%_]/gu, m => `\\${m}`);
@@ -93,11 +95,12 @@ async function existing(tx: Tx, table: typeof artists_table | typeof albums_tabl
 /**
  * Replaces a track's credits. Artists are rewritten in the given order (their creation times carry the order, so
  * the first is the primary artist everywhere). Setting the album links the track to it (keeping other album
- * links unless listed in `unlink_albums`). The track's `modified_at` is bumped so clients pull it again.
+ * links unless listed in `unlink_albums`). The track's `modified_at` is bumped so clients pull it again, and iTunes
+ * matches it again by its new credits.
  */
 export async function update_track_credits(raw_id: string, body: z.infer<typeof credits_body_schema>, admin_id: string) {
 	if (!is_uuid(raw_id)) throw new HttpError(400, 'invalid track id');
-	return db.transaction(async (tx) => {
+	const result = await db.transaction(async (tx) => {
 		const id = await resolve_redirect(tx, raw_id);
 		const [track] = await tx.select().from(tracks_table).where(eq(tracks_table.id, id)).for('update');
 		if (!track) throw new HttpError(404, 'track not found');
@@ -132,9 +135,10 @@ export async function update_track_credits(raw_id: string, body: z.infer<typeof 
 			} else if ('id' in body.album) {
 				album_id = await existing(tx, albums_table, body.album.id);
 			} else {
-				album_id = await create_entity(tx, albums_table, { name: body.album.name, artist_id: artist_ids[0] ?? null });
+				const release = split_release_suffix(body.album.name);
+				album_id = await create_entity(tx, albums_table, { name: release.name, album_type: release.album_type, artist_id: artist_ids[0] ?? null });
 				if (artist_ids[0]) await tx.insert(artist_albums_table).values({ artist_id: artist_ids[0], album_id, position: 0 }).onConflictDoNothing();
-				created.push({ type: 'album', id: album_id, name: body.album.name });
+				created.push({ type: 'album', id: album_id, name: release.name });
 			}
 			if (track.album_id && track.album_id !== album_id) {
 				await tx.delete(album_tracks_table).where(and(eq(album_tracks_table.track_id, id), eq(album_tracks_table.album_id, track.album_id)));
@@ -164,4 +168,6 @@ export async function update_track_credits(raw_id: string, body: z.infer<typeof 
 		});
 		return { id, ...after, created };
 	});
+	if (body.artists || body.album !== undefined) emit('metadata_changed', { illusi_id: result.id, entity_type: 'track' });
+	return result;
 }

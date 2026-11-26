@@ -311,6 +311,47 @@ describe('ITunesService: queueing and events', () => {
 	});
 });
 
+describe('ITunesService: changed names', () => {
+	it('queues a linked or not yet due entity again from metadata_changed, as a search by its names', async () => {
+		const s = new ITunesService();
+		internals(s).listen();
+		const artist = await seed('artist', unique('Recheck Artist'));
+		const linked_to = itunes_id();
+		await pool.query('insert into itunes_tracks_table (id, name) values ($1, $2)', [linked_to, 'Old Song']);
+		const track = await seed('track', 'Renamed Song', { artist_id: artist, applemusic_id: String(linked_to) });
+		const events = new PendingEvents();
+		events.push('metadata_changed', { illusi_id: track, entity_type: 'track' });
+		events.flush();
+		await vi.waitFor(() => expect(internals(s).queue.has(track)).toBe(true));
+		expect(internals(s).queue.take()).toMatchObject([{ illusi_ids: [track], recheck: true, applemusic_id: null, request: { track_name: 'Renamed Song' } }]);
+	});
+
+	it('searches a recheck even when linked: the same match stays, a different one goes to review', async () => {
+		const artist = { id: itunes_id(), name: unique('Recheck Svc Artist') };
+		const local_artist = await seed('artist', artist.name);
+		const same_it = itunes_id();
+		const other_it = itunes_id();
+		const wrong_link = itunes_id();
+		await pool.query('insert into itunes_tracks_table (id, name) values ($1, $2), ($3, $4)', [same_it, 'Kept Song', wrong_link, 'Wrong Song']);
+		const kept = await seed('track', 'Kept Song', { artist_id: local_artist, applemusic_id: String(same_it) });
+		const wrong = await seed('track', 'Fixed Song', { artist_id: local_artist, applemusic_id: String(wrong_link) });
+		client.search_artists.mockResolvedValue([artist_result(artist.id, artist.name)]);
+		client.artist_albums.mockResolvedValue({ artist: artist_result(artist.id, artist.name), albums: [{ wrapperType: 'collection', collectionId: itunes_id(), collectionName: 'Recheck Album', trackCount: 2, artistId: artist.id }] });
+		client.album_tracks.mockImplementation(async (ids: number[]) => new Map(ids.map(id => [id, { collection: null, tracks: [
+			{ ...track_result(same_it, artist, 'Kept Song'), collectionId: id },
+			{ ...track_result(other_it, artist, 'Fixed Song'), collectionId: id }
+		] }])));
+		const candidates = await scan_candidates('track', { ids: [kept, wrong], limit: 2, recheck: true });
+		expect(candidates.every(c => c.recheck && c.applemusic_id === null)).toBe(true);
+		await internals(service).process(candidates.map(c => ({ ...c, illusi_ids: [c.illusi_id] })));
+		expect(await applemusic_of(kept)).toBe(String(same_it));
+		expect(await lookup_of(kept)).toMatchObject({ status: 'FOUND' });
+		expect(await applemusic_of(wrong)).toBe(String(wrong_link));
+		const conflicts = await pool.query('select "column", incoming_value from service_id_conflicts_table where illusi_id = $1', [wrong]);
+		expect(conflicts.rows).toEqual([expect.objectContaining({ incoming_value: String(other_it) })]);
+	});
+});
+
 describe('ITunesService: drain loop', () => {
 	it('processes queued work in the background and stops cleanly', async () => {
 		const s = new ITunesService();

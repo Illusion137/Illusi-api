@@ -27,6 +27,11 @@ export interface EventMap {
 	alignment_requested: { track_id: string };
 	/** A user's library, playlists or inheritance rows changed (cache invalidation). Reaches every API process. */
 	user_library_changed: { user_id: string };
+	/**
+	 * A track's title, artists or album, or an album's name, changed after it was stored: iTunes matches it again.
+	 * Reaches every API process (the iTunes queue runs in one of them).
+	 */
+	metadata_changed: { illusi_id: string; entity_type: 'track' | 'album' };
 	/** Service ids were newly filled on an entity (follow-up work). */
 	service_ids_filled: { illusi_id: string; columns: string[] };
 	/**
@@ -45,7 +50,7 @@ export type EventName = keyof EventMap;
 /** Postgres channel that carries events between processes (API replicas, the reconcile worker). */
 const CHANNEL = 'illusi_events';
 /** Events that are also published to every other process once emitted here. */
-const BROADCAST: ReadonlySet<EventName> = new Set<EventName>(['user_library_changed', 'user_deleted', 'export_requested', 'media_inserted', 'lyrics_stored', 'alignment_requested']);
+const BROADCAST: ReadonlySet<EventName> = new Set<EventName>(['user_library_changed', 'user_deleted', 'export_requested', 'media_inserted', 'lyrics_stored', 'alignment_requested', 'metadata_changed']);
 /** Marks this process's own notifications, which it already handled locally. */
 const ORIGIN = randomUUID();
 const RECONNECT_MS = 2_000;

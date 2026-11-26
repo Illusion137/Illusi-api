@@ -10,6 +10,7 @@ import { album_tracks_table, albums_table, artist_albums_table, artists_table, s
 import { enrich_service_ids } from '../../core/enrich';
 import { PendingEvents } from '../../core/events';
 import { logger } from '../../core/log';
+import { split_release_suffix } from '../../core/normalize';
 import type { ProvenanceLog, TouchedEntity } from '../../core/provenance';
 import { add_review_item } from '../../core/review';
 import { upsert_thumbnails } from '../../core/thumbnails';
@@ -164,6 +165,17 @@ function with_song_titles(graph: Graph): Graph {
 	return { ...graph, tracks: graph.tracks.map(t => ({ ...t, title: strip_artist_prefix(t.title, track_artist_names(graph, links, t.ref)) })) };
 }
 
+/** Albums are stored without Apple Music's " - Single" / " - EP" / " - Album"; the suffix fills a missing type. */
+function with_release_names(graph: Graph): Graph {
+	return {
+		...graph,
+		albums: graph.albums.map((a) => {
+			const release = split_release_suffix(a.name);
+			return release.album_type === null ? a : { ...a, name: release.name, album_type: a.album_type ?? release.album_type };
+		})
+	};
+}
+
 class Engine {
 	readonly result: EngineResult = { refs: {}, created: [], matched: [], conflicts: [], rejected: [], relations_added: 0, events: [] };
 	private readonly payload_refs = new Map<string, AnyInput>();
@@ -179,9 +191,10 @@ class Engine {
 	/**
 	 * Settles track disagreements that have a rule instead of a reviewer. `explicit` follows `explicit_rule`. A stored
 	 * `Artist - Title` gives way to the clean title. A different album links the track to both, and a full album becomes the primary one over a single
-	 * or EP. Returns the conflicts left for review.
+	 * or EP. Returns the conflicts left for review; a title or album that changed queues `metadata_changed`.
 	 */
-	private async settle_track_conflicts(sp: Tx, id: string, input: TrackInput, differing: FieldConflict[]): Promise<FieldConflict[]> {
+	private async settle_track_conflicts(sp: Tx, id: string, input: TrackInput, differing: FieldConflict[], events: PendingEvents): Promise<FieldConflict[]> {
+		const changed = () => events.push('metadata_changed', { illusi_id: id, entity_type: 'track' });
 		const left: FieldConflict[] = [];
 		const artists = track_artist_names(this.graph, this.links, input.ref);
 		if (differing.some(c => c.field === 'title')) {
@@ -192,7 +205,10 @@ class Engine {
 		for (const c of differing) {
 			if (c.field === 'title') {
 				const settled = settle_title(String(c.current), String(c.proposed), artists);
-				if (settled === 'apply') await sp.update(tracks_table).set({ title: String(c.proposed) }).where(eq(tracks_table.id, id));
+				if (settled === 'apply') {
+					await sp.update(tracks_table).set({ title: String(c.proposed) }).where(eq(tracks_table.id, id));
+					changed();
+				}
 				if (settled === 'review') left.push(c);
 				continue;
 			}
@@ -209,6 +225,7 @@ class Engine {
 					.where(inArray(albums_table.id, [current, proposed]))).map(r => [r.id, r.album_type]));
 				if (types.get(proposed) === 'ALBUM' && (types.get(current) === 'SINGLE' || types.get(current) === 'EP')) {
 					await sp.update(tracks_table).set({ album_id: proposed }).where(eq(tracks_table.id, id));
+					changed();
 				}
 				continue;
 			}
@@ -324,12 +341,13 @@ class Engine {
 					const resolved = resolve_shared_fields(FIELD_SPECS[type], current as Record<string, unknown>, values);
 					const { fill } = resolved;
 					const differing = type === 'track'
-						? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts)
+						? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts, events)
 						: type === 'artist'
 							? await settle_artist_conflicts(sp, id, resolved.conflicts)
 							: await settle_album_conflicts(sp, id, (current as { track_count?: number | null }).track_count ?? null, resolved.conflicts);
 					if (Object.keys(fill).length > 0) {
 						await sp.update(table).set(fill).where(eq(table.id, id));
+						if (type === 'track' && 'album_id' in fill) events.push('metadata_changed', { illusi_id: id, entity_type: 'track' });
 						touched.push({ table: table_name, id, filled: Object.keys(fill) });
 					}
 					for (const c of differing) {
@@ -434,11 +452,18 @@ class Engine {
 		const inserted_flag = sql<boolean>`(xmax = 0)`;
 
 		const ta = await this.endpoints('tracks_artists', r.tracks_artists, [['track_ref', 'track'], ['artist_ref', 'artist']]);
+		const credited: string[] = [];
 		await this.insert_rows('tracks_artists', ta.map(x => ({ row: { track_id: x.ids[0], artist_id: x.ids[1] }, index: x.index })), async (tx, rows) => {
 			const written = await tx.insert(tracks_artists_table).values(rows).onConflictDoNothing()
 				.returning({ track_id: tracks_artists_table.track_id, artist_id: tracks_artists_table.artist_id });
+			credited.push(...written.map(w => w.track_id));
 			return written.map(w => ({ key: `${w.track_id}:${w.artist_id}`, inserted: true }));
 		}, '*');
+		// A track stored before that got another artist is matched on iTunes again
+		const created = new Set(this.result.created.map(c => c.illusi_id));
+		const recredited = new PendingEvents();
+		for (const track_id of new Set(credited)) if (!created.has(track_id)) recredited.push('metadata_changed', { illusi_id: track_id, entity_type: 'track' });
+		this.result.events.push(recredited);
 
 		const at = await this.endpoints('album_tracks', r.album_tracks, [['album_ref', 'album'], ['track_ref', 'track']]);
 		await this.insert_rows('album_tracks', at.map(x => ({ row: { album_id: x.ids[0], track_id: x.ids[1], track_number: x.item.track_number ?? null }, index: x.index })), async (tx, rows) => {
@@ -482,7 +507,7 @@ class Engine {
  * and the relations that need it are rejected with it.
  */
 export async function apply_graph(tx: Tx, raw: Graph, ctx: EngineContext): Promise<EngineResult> {
-	const graph = with_song_titles(await split_joint_credits(tx, raw));
+	const graph = with_release_names(with_song_titles(await split_joint_credits(tx, raw)));
 	const engine = new Engine(tx, graph, ctx);
 	for (const [index, a] of graph.artists.entries()) await engine.apply_entity('artist', a, index);
 	for (const [index, a] of graph.albums.entries()) await engine.apply_entity('album', a, index);

@@ -26,6 +26,16 @@ describe('WorkQueue', () => {
 		expect(q.size('backfill')).toBe(0);
 		expect(q.take()).toMatchObject([{ applemusic_id: '123', illusi_ids: ['a'] }]);
 	});
+	it('searches a recheck by its names, over anything waiting for it, and keeps it apart from plain searches', () => {
+		const q = new WorkQueue({ live: 3, backfill: 1 });
+		q.add(known('a', '123'), 'backfill');
+		expect(q.add({ ...track('a', 'Renamed'), applemusic_id: '123', recheck: true }, 'live')).toBe(true);
+		expect(q.add(known('a', '123'), 'live')).toBe(false);
+		expect(q.add(track('b', 'Renamed'), 'live')).toBe(true);
+		expect(q.size()).toBe(2);
+		expect(q.take()).toMatchObject([{ illusi_ids: ['a'], applemusic_id: null, recheck: true, request: { track_name: 'Renamed' } }]);
+		expect(q.take()).toMatchObject([{ illusi_ids: ['b'], recheck: false }]);
+	});
 	it('batches known ids from the same lane, up to 200 ids', () => {
 		const q = new WorkQueue({ live: 3, backfill: 1 });
 		for (let i = 0; i < 250; i++) q.add(known(`k${i}`, String(1000 + i)), 'live');

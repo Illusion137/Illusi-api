@@ -134,3 +134,16 @@ export function durations_match(a_ms: number | null | undefined, b_ms: number | 
 export function primary_artist_name(artist: string): string {
 	return artist.split(/\s*(?:,|&|\bx\b|\band\b|\bfeat\.?|\bft\.?|\bwith\b)\s*/iu)[0].trim() || artist.trim();
 }
+
+const RELEASE_SUFFIX_RE = /\s+[-–—]\s+(Single|EP|Album)$/iu;
+
+/**
+ * Apple Music and iTunes name releases "Name - Single", "Name - EP" or "Name - Album": albums are stored without it,
+ * and the suffix tells the type. `album_type` is null when there was no suffix.
+ */
+export function split_release_suffix(name: string): { name: string; album_type: 'SINGLE' | 'EP' | 'ALBUM' | null } {
+	const suffix = RELEASE_SUFFIX_RE.exec(name)?.[1]?.toUpperCase();
+	const clean = name.replace(RELEASE_SUFFIX_RE, '').trim();
+	if (suffix === undefined || clean === '') return { name, album_type: null };
+	return { name: clean, album_type: suffix as 'SINGLE' | 'EP' | 'ALBUM' };
+}

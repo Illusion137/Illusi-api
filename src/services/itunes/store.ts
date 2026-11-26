@@ -22,12 +22,16 @@ import { pg_error_code, PG_ERRORS } from '../../core/pg_errors';
 
 export type EntityType = 'track' | 'album' | 'artist';
 
-/** A local entity that may be queued: an `applemusic_id` to look up directly, or names to search with. */
+/**
+ * A local entity that may be queued: an `applemusic_id` to look up directly, or names to search with. `recheck`: its
+ * names changed, so it's searched again by them even if it's linked already.
+ */
 export interface Candidate {
 	illusi_id: string;
 	entity_type: EntityType;
 	applemusic_id: string | null;
 	request: LookupRequest | null;
+	recheck?: boolean;
 }
 
 const ITUNES_TABLE = { track: itunes_tracks_table, album: itunes_collections_table, artist: itunes_artists_table } as const;
@@ -45,7 +49,8 @@ const lookup_due = or(
 
 const primary_track_artist = sql<string | null>`(select ${artists_table.name} from ${tracks_artists_table} join ${artists_table} on ${artists_table.id} = ${tracks_artists_table.artist_id} where ${tracks_artists_table.track_id} = ${tracks_table.id} order by ${tracks_artists_table.created_at}, ${artists_table.id} limit 1)`;
 
-export interface ScanOptions { ids?: readonly string[]; after?: string; limit: number }
+/** `recheck`: linked entities and lookups not yet due are returned too, as name searches (see `Candidate`). */
+export interface ScanOptions { ids?: readonly string[]; after?: string; limit: number; recheck?: boolean }
 
 /**
  * Local entities with no linked iTunes row whose lookup is due (startup backfill, `enqueue_if_needed`).
@@ -53,6 +58,12 @@ export interface ScanOptions { ids?: readonly string[]; after?: string; limit: n
  */
 export async function scan_candidates(type: EntityType, opts: ScanOptions): Promise<Candidate[]> {
 	if (opts.ids?.length === 0) return [];
+	const candidates = await scan(type, opts);
+	return opts.recheck ? candidates.map(c => ({ ...c, applemusic_id: null, recheck: true })) : candidates;
+}
+
+async function scan(type: EntityType, opts: ScanOptions): Promise<Candidate[]> {
+	const due = (kind: EntityType) => (opts.recheck ? [] : [not(linked(kind)), lookup_due]);
 	switch (type) {
 		case 'track': {
 			const rows = await db.select({
@@ -62,7 +73,7 @@ export async function scan_candidates(type: EntityType, opts: ScanOptions): Prom
 				.innerJoin(service_ids_table, eq(service_ids_table.illusi_id, tracks_table.id))
 				.leftJoin(albums_table, eq(albums_table.id, tracks_table.album_id))
 				.leftJoin(itunes_lookups_table, eq(itunes_lookups_table.illusi_id, tracks_table.id))
-				.where(and(eq(tracks_table.imported, false), not(linked('track')), lookup_due, ...page_filters(tracks_table.id, opts)))
+				.where(and(eq(tracks_table.imported, false), ...due('track'), ...page_filters(tracks_table.id, opts)))
 				.orderBy(asc(tracks_table.id)).limit(opts.limit);
 			return rows.map(r => ({
 				illusi_id: r.id, entity_type: 'track', applemusic_id: r.applemusic_id,
@@ -77,7 +88,7 @@ export async function scan_candidates(type: EntityType, opts: ScanOptions): Prom
 				.innerJoin(service_ids_table, eq(service_ids_table.illusi_id, albums_table.id))
 				.leftJoin(artists_table, eq(artists_table.id, albums_table.artist_id))
 				.leftJoin(itunes_lookups_table, eq(itunes_lookups_table.illusi_id, albums_table.id))
-				.where(and(not(linked('album')), lookup_due, ...page_filters(albums_table.id, opts)))
+				.where(and(...due('album'), ...page_filters(albums_table.id, opts)))
 				.orderBy(asc(albums_table.id)).limit(opts.limit);
 			return rows.map(r => ({
 				illusi_id: r.id, entity_type: 'album', applemusic_id: r.applemusic_id,
@@ -88,7 +99,7 @@ export async function scan_candidates(type: EntityType, opts: ScanOptions): Prom
 			const rows = await db.select({ id: artists_table.id, name: artists_table.name, applemusic_id: service_ids_table.applemusic_id }).from(artists_table)
 				.innerJoin(service_ids_table, eq(service_ids_table.illusi_id, artists_table.id))
 				.leftJoin(itunes_lookups_table, eq(itunes_lookups_table.illusi_id, artists_table.id))
-				.where(and(not(linked('artist')), lookup_due, ...page_filters(artists_table.id, opts)))
+				.where(and(...due('artist'), ...page_filters(artists_table.id, opts)))
 				.orderBy(asc(artists_table.id)).limit(opts.limit);
 			return rows.map(r => ({ illusi_id: r.id, entity_type: 'artist', applemusic_id: r.applemusic_id, request: { type: 'artist', artist_name: r.name } }));
 		}

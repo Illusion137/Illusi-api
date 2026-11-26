@@ -5,6 +5,7 @@ import { album_type, albums_table, artists_table, service_ids_table, tracks_tabl
 import { write_audit } from '../../core/audit';
 import type { PendingEvents } from '../../core/events';
 import { HttpError } from '../../core/http';
+import { split_release_suffix } from '../../core/normalize';
 import { normalize_service_id, SERVICE_ID_COLUMNS } from '../../core/service_ids';
 import type { ServiceIdColumn } from '../../core/service_ids';
 import { pg_error_code, pg_error_detail, PG_ERRORS } from '../../core/pg_errors';
@@ -109,11 +110,19 @@ export interface AdminEditContext {
 	events?: PendingEvents;
 }
 
+/** Fields iTunes matches by: changing one makes it match the entity again (`metadata_changed`). */
+const MATCHED_FIELDS: Partial<Record<EditableTable, { fields: readonly string[]; entity_type: 'track' | 'album' }>> = {
+	tracks_table: { fields: ['title', 'album_id'], entity_type: 'track' },
+	albums_table: { fields: ['name', 'artist_id'], entity_type: 'album' }
+};
+
 /**
  * Applies an admin correction. Bumps
- * `modified_at` so clients get it on their next pull, and writes the audit log with the old values.
+ * `modified_at` so clients get it on their next pull, and writes the audit log with the old values. Album names lose
+ * Apple Music's " - Single" / " - EP" / " - Album".
  */
-export async function admin_update_entity(tx: Tx, table: EditableTable, entity_id: string, values: Record<string, unknown>, ctx: AdminEditContext) {
+export async function admin_update_entity(tx: Tx, table: EditableTable, entity_id: string, edited: Record<string, unknown>, ctx: AdminEditContext) {
+	const values = table === 'albums_table' && typeof edited.name === 'string' ? { ...edited, name: split_release_suffix(edited.name).name } : edited;
 	const { table: t, pk } = TABLES[table];
 	const [before] = await tx.select().from(t).where(eq(pk, entity_id)).for('update') as Record<string, unknown>[];
 	if (!before) throw new HttpError(404, 'entity not found');
@@ -141,6 +150,10 @@ export async function admin_update_entity(tx: Tx, table: EditableTable, entity_i
 		await clear_backpacked_if_playable(tx, entity_id, filled);
 		if (filled.length > 0) ctx.events?.push('service_ids_filled', { illusi_id: entity_id, columns: filled });
 		if (filled.includes('applemusic_id')) ctx.events?.push('applemusic_id_filled', { illusi_id: entity_id, applemusic_id: String(values.applemusic_id) });
+	}
+	const matched = MATCHED_FIELDS[table];
+	if (matched?.fields.some(f => f in values && old[f] !== after[f])) {
+		ctx.events?.push('metadata_changed', { illusi_id: entity_id, entity_type: matched.entity_type });
 	}
 	return { before: old, after };
 }

@@ -14,11 +14,14 @@ export interface QueueItem {
 	/** Known id (fast path) or the names to search with. */
 	applemusic_id: string | null;
 	request: LookupRequest | null;
+	/** Searched by its names even if linked (`Candidate.recheck`). */
+	recheck: boolean;
 }
 
 /**
  * The in-memory two-lane queue. Pure: no I/O. Dedupes by type + normalized fields and never
- * holds the same `illusi_id` twice; a known id replaces a waiting name search for the same entity.
+ * holds the same `illusi_id` twice; a known id replaces a waiting name search for the same entity, and a recheck
+ * replaces anything else waiting for it.
  */
 export class WorkQueue {
 	private lanes: Record<Lane, QueueItem[]> = { live: [], backfill: [] };
@@ -41,13 +44,14 @@ export class WorkQueue {
 	/** Returns false when the candidate was skipped (nothing to look up, or already waiting). */
 	add(candidate: Candidate, lane: Lane): boolean {
 		let key: string;
-		if (candidate.applemusic_id) key = `id|${candidate.entity_type}|${candidate.applemusic_id}`;
-		else if (candidate.request) key = `${candidate.entity_type}|${request_key(candidate.request)}`;
+		const recheck = candidate.recheck === true;
+		if (candidate.applemusic_id && !recheck) key = `id|${candidate.entity_type}|${candidate.applemusic_id}`;
+		else if (candidate.request) key = `${recheck ? 'recheck|' : ''}${candidate.entity_type}|${request_key(candidate.request)}`;
 		else return false;
 
 		const waiting = this.by_illusi.get(candidate.illusi_id);
 		if (waiting) {
-			if (!candidate.applemusic_id || waiting.applemusic_id) return false;
+			if (waiting.recheck || (!recheck && (!candidate.applemusic_id || waiting.applemusic_id))) return false;
 			this.remove_illusi_id(candidate.illusi_id);
 		}
 
@@ -59,7 +63,7 @@ export class WorkQueue {
 		}
 		const item: QueueItem = {
 			key, lane, entity_type: candidate.entity_type, illusi_ids: [candidate.illusi_id],
-			applemusic_id: candidate.applemusic_id, request: candidate.applemusic_id ? null : candidate.request
+			applemusic_id: recheck ? null : candidate.applemusic_id, request: candidate.applemusic_id && !recheck ? null : candidate.request, recheck
 		};
 		this.lanes[lane].push(item);
 		this.by_key.set(key, item);
