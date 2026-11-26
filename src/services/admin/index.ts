@@ -12,6 +12,7 @@ import {
 import { credits_body_schema, entity_search_schema, search_albums, search_artists, update_track_credits } from './credits';
 import { admin_update_entity, parse_entity_patch, resolve_table } from './entities';
 import { list_log_files, logs_query_schema, read_logs } from './logs';
+import { merge_tracks, merge_tracks_schema } from './merge';
 import { apply_body_schema, apply_review, dismiss_review, list_query_schema, list_review } from './review';
 import { system_status } from './status';
 import { delete_row, get_row, insert_row, list_rows, list_tables, preview_delete, preview_row, row_insert_schema, row_patch_schema, rows_query_schema, update_row } from './tables';
@@ -125,6 +126,11 @@ admin_router.delete('/users/:id', async (req, res) => {
 
 admin_router.get('/tracks', async (req, res) => {
 	res.json(await search_tracks(parse_query(tracks_query_schema, req.query)));
+});
+
+admin_router.post('/tracks/merge', async (req, res) => {
+	const admin = require_user(req);
+	res.json(await merge_tracks(parse_body(merge_tracks_schema, req.body), admin.id));
 });
 
 admin_router.get('/tracks/:id', async (req, res) => {

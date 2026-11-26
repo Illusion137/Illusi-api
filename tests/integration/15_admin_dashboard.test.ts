@@ -183,6 +183,35 @@ describe('admin dashboard', () => {
 		expect(await is_backpacked(to)).toBe(false);
 	});
 
+	it('merges tracks an admin picked into the one to keep, even with different ids, and a playable copy clears backpacked', async () => {
+		const owner = await create_user('dash-merge');
+		const keep = await backpacked_track(owner);
+		const created = await contribute(owner, mock_album({ artist: unique('Merge Dash'), album: unique('Merge Dash Album'), n: 2 }));
+		const { t0, t1 } = created.body.refs as Record<string, string>;
+		await add_to_library(owner, [t0]);
+		const [own_yt, other_yt] = [youtube_id(), youtube_id()];
+		await query('update service_ids_table set youtube_id = $2 where illusi_id = $1', [keep, own_yt]);
+		await query('update service_ids_table set youtube_id = $2 where illusi_id = $1', [t0, other_yt]);
+
+		const merge = (body: object) => api('POST', '/admin/tracks/merge', { token: admin.access_token, body });
+		const res = await merge({ survivor: keep, losers: [t0, t1, keep] });
+		expect(res.status).toBe(200);
+		expect(res.body).toEqual({ survivor: keep, merged: [t0, t1], skipped: [] });
+		expect(await query('select id from tracks_table where id = any($1)', [[t0, t1]])).toEqual([]);
+		expect(await query('select new_id from illusi_id_redirects_table where old_id = $1', [t0])).toEqual([{ new_id: keep }]);
+		expect(await query('select track_id from user_tracks_table where user_id = $1 and track_id = $2', [owner.id, keep])).toHaveLength(1);
+		expect(await query('select youtube_id from service_ids_table where illusi_id = $1', [keep])).toEqual([{ youtube_id: own_yt }]);
+		expect(await is_backpacked(keep)).toBe(false);
+		expect((await get(`/admin/tracks/${t0}`)).body).toMatchObject({ track: { id: keep }, redirected_from: t0 });
+		const audit = await get(`/admin/audit?entity_id=${keep}&action=merge`);
+		expect(audit.body.items.map((a: { details: { loser: string } }) => a.details.loser).sort()).toEqual([t0, t1].sort());
+
+		expect((await merge({ survivor: keep, losers: [t0] })).status).toBe(400);
+		expect((await merge({ survivor: keep, losers: [uuid()] })).status).toBe(404);
+		expect((await merge({ survivor: keep, losers: [] })).status).toBe(400);
+		expect((await api('POST', '/admin/tracks/merge', { token: owner.access_token, body: { survivor: keep, losers: [t1] } })).status).toBe(403);
+	});
+
 	it('removes a media file, its row and its vocal and alignment analyses', async () => {
 		const owner = await create_user('dash-media');
 		const created = await contribute(owner, mock_album({ artist: unique('Media Dash'), album: unique('Media Dash Album'), n: 1, imported: true }));

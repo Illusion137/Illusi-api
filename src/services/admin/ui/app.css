@@ -115,6 +115,9 @@ h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: u
 .stack > * + * { margin-top: 16px; }
 .stack-tight > * + * { margin-top: 6px; }
 
+.merge-tray { margin-bottom: 16px; border-color: var(--accent); }
+.merge-keep td { background: var(--panel-2); }
+
 .chip-row { display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: var(--panel-2); border-radius: var(--radius); min-width: 0; }
 .chip-row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .picker { position: relative; }

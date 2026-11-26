@@ -975,18 +975,34 @@ function backpack_row(t, reload) {
 function tracks_view(main, [id]) {
 	if (id) return track_detail_view(main, id);
 	const f = kept('tracks', { q: '' });
+	const tray = h('div');
 	const results = h('div');
+	let items = [];
+	const draw_tray = () => replace(tray, merge_tray(draw));
+	const draw = () => {
+		draw_tray();
+		results.querySelectorAll('input[data-merge]').forEach((box) => { box.checked = merge_picked(box.dataset.merge); });
+	};
 	const search = async () => {
 		keep('tracks', f);
 		if (!f.q) return replace(results);
 		loading(results, h('div', { class: 'empty' }, 'Searching…'));
 		try {
 			const data = await api('GET', `/admin/tracks${qs({ q: f.q, limit: 100 })}`);
+			items = data.items;
+			const all = h('input', {
+				type: 'checkbox', title: 'Select every result for merging',
+				onchange: (e) => { for (const t of items) merge_toggle(t, e.target.checked); draw(); }
+			});
 			rerender(results, h('div', { class: 'table-wrap' }, h('table', null,
-				h('thead', null, h('tr', null, h('th', null, 'Title'), h('th', null, 'Artists'), h('th', null, 'Album'), h('th', null, 'Length'), h('th', null, 'Service ids'), h('th', { class: 'num' }, 'Media'), h('th'))),
-				h('tbody', null, data.items.length === 0
-					? h('tr', null, h('td', { colspan: 7, class: 'empty' }, 'No tracks found.'))
-					: data.items.map(t => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/tracks/${t.id}`; } },
+				h('thead', null, h('tr', null, h('th', null, items.length > 1 ? all : null), h('th', null, 'Title'), h('th', null, 'Artists'), h('th', null, 'Album'), h('th', null, 'Length'), h('th', null, 'Service ids'), h('th', { class: 'num' }, 'Media'), h('th'))),
+				h('tbody', null, items.length === 0
+					? h('tr', null, h('td', { colspan: 8, class: 'empty' }, 'No tracks found.'))
+					: items.map(t => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/tracks/${t.id}`; } },
+						h('td', { onclick: e => e.stopPropagation() }, h('input', {
+							type: 'checkbox', 'data-merge': t.id, checked: merge_picked(t.id), title: 'Select for merging',
+							onchange: (e) => { merge_toggle(t, e.target.checked); draw(); }
+						})),
 						h('td', null, h('strong', null, t.title)),
 						h('td', null, t.artists.join(', ')),
 						h('td', null, t.album ?? '—'),
@@ -1003,20 +1019,116 @@ function tracks_view(main, [id]) {
 		oninput: (e) => { f.q = e.target.value.trim(); },
 		onkeydown: (e) => { if (e.key === 'Enter') void search(); }
 	});
-	main.append(h('h1', null, 'Tracks'), h('div', { class: 'toolbar' }, input, h('button', { class: 'primary', onclick: () => void search() }, 'Search')), results);
+	main.append(h('h1', null, 'Tracks'), h('div', { class: 'toolbar' }, input, h('button', { class: 'primary', onclick: () => void search() }, 'Search')), tray, results);
+	draw_tray();
 	if (f.q) void search();
 	else setTimeout(() => input.focus());
 }
 
+// ---- Merging tracks ----
+
+/** Tracks picked for merging, kept across searches so copies with different titles can be gathered from several. */
+const MERGE_GAP_MS = 1500;
+let merge_picks = kept('merge', { tracks: [], survivor: null });
+
+function merge_save() {
+	keep('merge', merge_picks);
+}
+
+function merge_picked(id) {
+	return merge_picks.tracks.some(t => t.id === id);
+}
+
+function merge_toggle(t, on) {
+	const summary = { id: t.id, title: t.title, artists: t.artists, album: t.album, duration_ms: t.duration_ms, service_ids: t.service_ids, media_count: t.media_count, backpacked: t.backpacked };
+	merge_picks.tracks = merge_picks.tracks.filter(x => x.id !== t.id);
+	if (on) merge_picks.tracks.push(summary);
+	if (!merge_picked(merge_picks.survivor)) merge_picks.survivor = null;
+	merge_save();
+}
+
+/** The copy that stays when none is chosen: the one with the most service ids, then media, then not backpacked. */
+function merge_default_survivor(tracks) {
+	const score = t => [Object.keys(t.service_ids ?? {}).length, t.media_count ?? 0, t.backpacked ? 0 : 1];
+	return [...tracks].sort((a, b) => {
+		const [x, y] = [score(a), score(b)];
+		return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+	})[0];
+}
+
+/**
+ * The picked tracks with the one to keep, gaps in length flagged (more than 1.5 s apart is another recording),
+ * and the merge button. `on_change` redraws whatever shows the picks; `on_merged` reloads a page already on the kept track.
+ */
+function merge_tray(on_change, on_merged = on_change) {
+	const tracks = merge_picks.tracks;
+	if (tracks.length === 0) return null;
+	const survivor = tracks.find(t => t.id === merge_picks.survivor) ?? merge_default_survivor(tracks);
+	const changed = () => { merge_save(); on_change(); };
+	const clear = () => { merge_picks = { tracks: [], survivor: null }; changed(); };
+	const losers = tracks.filter(t => t.id !== survivor.id);
+	const gap = t => t.duration_ms != null && survivor.duration_ms != null ? Math.abs(t.duration_ms - survivor.duration_ms) : null;
+	const far = losers.filter(t => gap(t) > MERGE_GAP_MS);
+
+	const go = h('button', {
+		class: 'primary', disabled: losers.length === 0,
+		onclick: async () => {
+			const lines = [`Merge ${losers.length} track${losers.length === 1 ? '' : 's'} into "${survivor.title}" (${short_id(survivor.id)})?`, '',
+				...losers.map(t => `• ${t.title} — ${t.artists.join(', ')} (${ms(t.duration_ms)})`)];
+			if (far.length > 0) lines.push('', `${far.length} differ in length by more than ${MERGE_GAP_MS / 1000} s and are likely other recordings.`);
+			lines.push('', 'Libraries, playlists and media move to the kept track; the others redirect to it.');
+			if (!confirm(lines.join('\n'))) return;
+			const r = await act(go, () => api('POST', '/admin/tracks/merge', { survivor: survivor.id, losers: losers.map(t => t.id) }));
+			if (r.skipped.length > 0) toast(`Merged ${r.merged.length}; skipped ${r.skipped.map(x => `${short_id(x.id)} (${x.reason})`).join(', ')}`, 'bad');
+			else toast(`Merged ${r.merged.length} into "${survivor.title}"`);
+			const kept_ids = new Set(r.skipped.map(x => x.id));
+			merge_picks = { tracks: tracks.filter(t => kept_ids.has(t.id)), survivor: null };
+			if (merge_picks.tracks.length > 0) merge_picks.tracks.unshift(survivor);
+			merge_save();
+			if (location.hash === `#/tracks/${r.survivor}`) on_merged();
+			else location.hash = `#/tracks/${r.survivor}`;
+		}
+	}, losers.length === 0 ? 'Pick another track to merge' : `Merge ${losers.length} into kept track`);
+
+	return h('div', { class: 'card merge-tray' },
+		h('div', { class: 'spread' },
+			h('h2', { style: 'margin:0' }, `Merge tracks (${tracks.length} selected)`),
+			h('div', { class: 'row' }, h('button', { class: 'small', onclick: clear }, 'Clear'))),
+		h('p', { class: 'muted small' }, 'Pick the track to keep. Select more from other searches; the selection stays until you merge or clear it.'),
+		h('div', { class: 'table-wrap' }, h('table', null,
+			h('thead', null, h('tr', null, h('th', null, 'Keep'), h('th', null, 'Title'), h('th', null, 'Artists'), h('th', null, 'Album'), h('th', null, 'Length'), h('th', null, 'Service ids'), h('th', { class: 'num' }, 'Media'), h('th'))),
+			h('tbody', null, tracks.map((t) => {
+				const g = t.id === survivor.id ? null : gap(t);
+				return h('tr', { class: t.id === survivor.id ? 'merge-keep' : '' },
+					h('td', null, h('input', { type: 'radio', name: 'merge-survivor', checked: t.id === survivor.id, onchange: () => { merge_picks.survivor = t.id; changed(); } })),
+					h('td', null, link_track(t.id, h('strong', null, t.title)), t.backpacked ? [' ', badge('backpacked', 'warn')] : null),
+					h('td', null, t.artists.join(', ')),
+					h('td', null, t.album ?? '—'),
+					h('td', { class: 'nowrap' }, ms(t.duration_ms), g > MERGE_GAP_MS ? [' ', badge(`±${(g / 1000).toFixed(1)} s`, 'bad')] : null),
+					h('td', null, service_ids_chips(t.service_ids, 'track')),
+					h('td', { class: 'num' }, t.media_count ?? '—'),
+					h('td', null, h('button', { class: 'small', title: 'Remove from selection', onclick: () => { merge_toggle(t, false); on_change(); } }, '✕')));
+			})))),
+		far.length > 0 ? h('p', { class: 'small', style: 'color:var(--bad)' }, `${far.length} track${far.length === 1 ? '' : 's'} differ in length from the kept one by more than ${MERGE_GAP_MS / 1000} s: likely a different recording.`) : null,
+		h('div', { class: 'row', style: 'margin-top:12px' }, go));
+}
+
 function track_detail_view(main, id) {
+	const tray = h('div');
 	const body = h('div', { class: 'stack' }, h('div', { class: 'empty' }, 'Loading…'));
-	main.append(h('h1', null, h('a', { href: '#/tracks' }, 'Tracks'), h('span', { class: 'muted' }, '/'), short_id(id)), body);
+	main.append(h('h1', null, h('a', { href: '#/tracks' }, 'Tracks'), h('span', { class: 'muted' }, '/'), short_id(id)), tray, body);
+	let last = null;
+	const draw_tray = () => {
+		replace(tray, merge_tray(draw_tray, load));
+		if (last) rerender(body, track_sections(last, load, draw_tray));
+	};
 
 	async function load() {
 		try {
 			const d = await api('GET', `/admin/tracks/${encodeURIComponent(id)}`);
 			if (d.redirected_from) history.replaceState(history.state, '', `#/tracks/${d.track.id}`);
-			rerender(body, track_sections(d, load));
+			last = d;
+			draw_tray();
 		} catch (err) {
 			replace(body, error_view(err));
 		}
@@ -1176,8 +1288,23 @@ function credits_card(t, credits, reload) {
 			h('span', { class: 'muted small' }, 'The first artist is the primary one. A new album is by the primary artist.')));
 }
 
-function track_sections(d, reload) {
+function track_sections(d, reload, on_merge_change) {
 	const t = d.track;
+	const picked = merge_picked(t.id);
+	const pick = h('button', {
+		title: 'Gather this track with others to merge them into one',
+		onclick: () => { merge_toggle(t, !picked); on_merge_change(); }
+	}, picked ? 'Unselect for merge' : 'Select for merge');
+	const duplicates = h('button', {
+		title: 'Select this track and search for others with its title',
+		onclick: () => {
+			merge_toggle(t, true);
+			if (!merge_picks.survivor) merge_picks.survivor = t.id;
+			merge_save();
+			keep('tracks', { q: t.title });
+			location.hash = '#/tracks';
+		}
+	}, 'Find duplicates');
 	const toggle = h('button', {
 		onclick: async () => {
 			await act(toggle, () => api('PATCH', `/admin/entities/tracks/${t.id}`, { backpacked: !t.backpacked }), t.backpacked ? 'Cleared' : 'Backpacked');
@@ -1206,7 +1333,7 @@ function track_sections(d, reload) {
 		h('div', { class: 'card' },
 			h('div', { class: 'spread' },
 				h('div', null, h('h2', { style: 'margin:0' }, t.title), h('div', { class: 'muted' }, [t.artists.join(', '), t.album].filter(Boolean).join(' · '))),
-				h('div', { class: 'row' }, t.backpacked ? badge('backpacked', 'warn') : null, t.imported ? badge('imported') : null, toggle)),
+				h('div', { class: 'row' }, t.backpacked ? badge('backpacked', 'warn') : null, t.imported ? badge('imported') : null, duplicates, pick, toggle)),
 			h('div', { style: 'margin-top:12px' }, kv([
 				['Id', h('span', { class: 'mono' }, t.id)],
 				['Service ids', service_ids_chips(d.service_ids, 'track')],
