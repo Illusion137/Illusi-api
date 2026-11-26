@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Executor } from '../../db';
 import { db } from '../../db';
-import { itunes_tracks_table, media_table, service_ids_table, track_alignment_table, track_play_counts_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table, tracks_table } from '../../db/schema';
+import { itunes_tracks_table, media_table, service_ids_table, track_alignment_table, track_sample_data_table, track_sample_lookups_table, track_vocals_table, tracks_table } from '../../db/schema';
 import { write_vector } from '../vectors';
 import type { AlignmentResult, SampleInsert, VocalsResult } from './contract';
 import { SAMPLE_VERSION } from './contract';
@@ -215,34 +215,37 @@ export async function record_vocals(track_id: string, target: VocalsTarget, stat
 		.onConflictDoUpdate({ target: track_vocals_table.track_id, set: { ...values, modified_at: now } });
 }
 
+/** Someone has the track in their library or has played it: only then is minutes of CPU on `/alignment` worth it. */
+const wanted = (track_id: SQL) => sql`(
+	exists (select 1 from track_play_counts_table pc where pc.track_id = ${track_id} and pc.plays > 0)
+	or exists (select 1 from user_tracks_table ut where ut.track_id = ${track_id} and not ut.deleted)
+)`;
+
 /**
- * Track ids users have played whose newest media file has no alignment result and no failure blocking it
- * (`source_eligible` rules), among tracks whose lyrics are all unsynced.
+ * Track ids users have in their library or have played whose newest media file has no alignment result and no failure
+ * blocking it (`source_eligible` rules), among tracks whose lyrics are all unsynced. The queue runs played ones first.
  */
 export async function eligible_alignment_track_ids(): Promise<string[]> {
 	const rows = await db.execute<{ track_id: string }>(sql`
 		select lm.track_id from (
 			select distinct on (m.track_id) m.track_id, m.resource_id from media_table m order by m.track_id, m.id desc
 		) lm
-		join track_play_counts_table pc on pc.track_id = lm.track_id and pc.plays > 0
 		left join track_alignment_table a on a.track_id = lm.track_id
 		where (a.track_id is null
 			or a.resource_id <> lm.resource_id
 			or (a.status = 'ERROR' and (a.retry_after is null or a.retry_after <= now())))
+		and ${wanted(sql`lm.track_id`)}
 		and ${has_only_unsynced_lyrics(sql`lm.track_id`)}`, 'objects');
 	return rows.map(r => r.track_id);
 }
 
 /**
- * The media file an alignment job should analyze right now, or null (no media / lyrics synced or missing / nobody
- * plays it / already done / blocked). `requested`: a user is playing it right now, before the play is synced.
+ * The media file an alignment job should analyze right now, or null (no media / lyrics synced or missing / in nobody's
+ * library and never played / already done / blocked). `requested`: a user is playing it right now.
  */
 export async function resolve_alignment_target(track_id: string, requested = false): Promise<VocalsTarget | null> {
 	if (!(await has_only_unsynced_lyrics_now(track_id))) return null;
-	if (!requested) {
-		const [count] = await db.select({ plays: track_play_counts_table.plays }).from(track_play_counts_table).where(eq(track_play_counts_table.track_id, track_id));
-		if (!count || count.plays <= 0) return null;
-	}
+	if (!requested && !(await lyrics_check(wanted(sql`${track_id}::uuid`)))) return null;
 	const [media] = await db.select({ resource_id: media_table.resource_id }).from(media_table)
 		.where(eq(media_table.track_id, track_id)).orderBy(asc(media_table.created_at), asc(media_table.id)).limit(1);
 	if (!media) return null;

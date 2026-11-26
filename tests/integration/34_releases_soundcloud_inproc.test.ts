@@ -285,9 +285,10 @@ describe('handed-over feeds', () => {
 		expect(theirs.body.soundcloud_tracks.map((t: { id: number }) => t.id)).not.toContain(base + 1);
 	});
 
-	it('forgets feed releases that aged out of the window', async () => {
+	it('forgets feed releases that aged out of the window and stopped being handed over', async () => {
 		const fan = await create_user('rel-feed-prune');
-		await query(`insert into user_release_feed_table (user_id, service, external_id, kind, name, first_seen_at) values ($1, 'youtube_music', 'MPREb_old', 'album', 'Old', $2)`, [fan.id, days_ago(config.NEW_RELEASES_WINDOW_DAYS + 1)]);
+		const aged = days_ago(config.NEW_RELEASES_WINDOW_DAYS + 1);
+		await query(`insert into user_release_feed_table (user_id, service, external_id, kind, name, first_seen_at, modified_at) values ($1, 'youtube_music', 'MPREb_old', 'album', 'Old', $2, $2)`, [fan.id, aged]);
 		const res = await api('POST', '/new-releases/me', { token: fan.access_token, body: {} });
 		expect(res.body.feed_albums).toEqual([]);
 		expect(await query(`select 1 from user_release_feed_table where user_id = $1`, [fan.id])).toHaveLength(0);

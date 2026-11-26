@@ -133,11 +133,6 @@ const schema = z.object({
 	NEW_RELEASES_SERVER_INTERVAL_MIN: num(10),
 	NEW_RELEASES_SERVER_BATCH: num(25),
 
-	/**
-	 * A backpacked track is researched on download services first. Users who downloaded it are asked for the file
-	 * (UPLOAD_MEDIA) once every service has answered, or once it has been backpacked this long, whichever comes first.
-	 */
-	BACKPACK_RESEARCH_WINDOW_HOURS: num(48),
 	/** A handed-out RESEARCH_TRACK isn't handed out again for this long, unless it gets fulfilled. */
 	BACKPACK_RESEARCH_COOLDOWN_MIN: num(60),
 	/** A service answered NOT_FOUND is asked again after this long. */

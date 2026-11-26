@@ -105,6 +105,22 @@ describe('global contributions (§9)', () => {
 		expect([...await reviews(track_id), ...await reviews(song)]).toEqual([]);
 	});
 
+	it('takes a single or EP claim over a stored ALBUM, unless it has too many tracks', async () => {
+		const a = await create_user('type-a');
+		const b = await create_user('type-b');
+		const short = mock_album({ artist: unique('Type Artist'), album: unique('Type Single'), album_type: 'ALBUM', n: 2 });
+		const long = mock_album({ artist: unique('Type Artist'), album: unique('Type LP'), album_type: 'ALBUM', n: 2 });
+		const short_id = (await contribute(a, short)).body.refs.al;
+		const long_id = (await contribute(a, long)).body.refs.al;
+		await query(`update albums_table set track_count = 12 where id = $1`, [long_id]);
+		await contribute(b, { albums: [{ ref: short_id, name: short.albums[0].name, album_type: 'SINGLE' }] });
+		await contribute(b, { albums: [{ ref: long_id, name: long.albums[0].name, album_type: 'EP' }] });
+		const types = await query(`select id, album_type from albums_table where id = any($1)`, [[short_id, long_id]]);
+		expect(Object.fromEntries(types.map(r => [r.id, r.album_type]))).toEqual({ [short_id]: 'SINGLE', [long_id]: 'ALBUM' });
+		expect(await query(`select field from review_items_table where entity_id = $1`, [long_id])).toEqual([{ field: 'album_type' }]);
+		expect(await query(`select 1 from review_items_table where entity_id = $1`, [short_id])).toEqual([]);
+	});
+
 	it('first write wins on shared fields and conflicting values go to admin review (§9.3, §11.2)', async () => {
 		const a = await create_user('writer-a');
 		const b = await create_user('writer-b');

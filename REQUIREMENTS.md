@@ -1144,9 +1144,10 @@ The server asks clients to upload audio they've **already downloaded locally**.
 
 - **New action** (§0.1): `{ type: 'UPLOAD_MEDIA', token, track_id }`. It's issued for tracks where:
   - the user's `downloaded_at` is set;
-  - the track is `imported` or `backpacked` (§17), or it has lyrics and all of them are unsynced (`sync_type` `NONE`),
-    so vocal detection (§2.11) can help line-sync them. Other tracks can still be played from a service, so no copy is
-    asked for;
+  - the track is `imported`, `backpacked` (§17) or on SoundCloud (a `soundcloud_id` or `soundcloud_permalink`: uploads
+    there are taken down without warning), or it has lyrics and all of them are unsynced (`sync_type` `NONE`), so vocal
+    detection (§2.11) can help line-sync them. Other tracks can still be played from a service, so no copy is asked
+    for;
   - the track has **no** `media_table` row yet.
 - **Where requests come from**:
   - attached to `/sync/pull` responses, a limited number per pull;
@@ -1367,10 +1368,9 @@ by asking any user or device that has it downloaded for a copy.
 
 ### 17.2 Asking for a copy
 
-Once research is done — every research service has answered (`FOUND` or `NOT_FOUND`), or
-`BACKPACK_RESEARCH_WINDOW_HOURS` (default 48) have passed since `backpacked_at` — every device that has the track
-downloaded gets an `UPLOAD_MEDIA` action (§13.4), with backpacked tracks put ahead of the user's other pending uploads.
-Until then no copy of a backpacked track is asked for.
+From the first report, every device that has the track downloaded gets an `UPLOAD_MEDIA` action (§13.4), alongside
+research: the device's file plays now. Backpacked tracks go ahead of the user's other pending uploads, then imported
+tracks, then SoundCloud ones.
 
 ### 17.3 Research: `RESEARCH_TRACK`
 

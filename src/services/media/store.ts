@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq, exists, gt, inArray, lte, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, gt, inArray, isNotNull, notExists, or, sql } from 'drizzle-orm';
 import { decodeJwt } from 'jose';
 import { config } from '../../config';
 import { db } from '../../db';
 import type { Executor } from '../../db';
 import {
-	media_table, playlist_tracks_table, playlists_table, RESEARCH_SERVICES, track_downloads_table, track_lyrics_table, track_research_table, tracks_table, user_tracks_table
+	media_table, playlist_tracks_table, playlists_table, service_ids_table, track_downloads_table, track_lyrics_table, tracks_table, user_tracks_table
 } from '../../db/schema';
 import { consume_action_token } from '../../core/actions';
 import { HttpError } from '../../core/http';
@@ -138,24 +138,19 @@ function lacks_word_synced_lyrics(ex: Executor) {
 }
 
 /**
- * A backpacked track is researched on download services first; its file is asked for only once every research
- * service has answered (found or not), or once it has been backpacked BACKPACK_RESEARCH_WINDOW_HOURS, so tracks
- * nobody researches still get uploaded. Correlated on `tracks_table.id`.
+ * The track is on SoundCloud, where uploads are taken down without warning: its file is wanted while a device still
+ * has it. Correlated on `user_tracks_table.track_id`.
  */
-function research_done(ex: Executor, now: Date) {
-	const answered = ex.select({ n: sql<number>`count(*)` }).from(track_research_table).where(and(
-		eq(track_research_table.track_id, tracks_table.id),
-		inArray(track_research_table.status, ['FOUND', 'NOT_FOUND'])
-	));
-	return or(
-		lte(tracks_table.backpacked_at, new Date(now.getTime() - config.BACKPACK_RESEARCH_WINDOW_HOURS * 3_600_000)),
-		sql`(${answered}) >= ${RESEARCH_SERVICES.length}`
-	);
+function on_soundcloud(ex: Executor) {
+	return exists(ex.select({ one: sql`1` }).from(service_ids_table).where(and(
+		eq(service_ids_table.illusi_id, user_tracks_table.track_id),
+		or(isNotNull(service_ids_table.soundcloud_id), isNotNull(service_ids_table.soundcloud_permalink))
+	)));
 }
 
 /**
  * Track ids that need an UPLOAD_MEDIA request for this device (`user.sid`): downloaded on it, without media, and
- * imported, backpacked (once research is done) or without word-synced lyrics. Ordered by id for cursor paging.
+ * imported, backpacked, on SoundCloud or without word-synced lyrics. Ordered by id for cursor paging.
  */
 export async function pending_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number, after?: string): Promise<string[]> {
 	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
@@ -164,8 +159,7 @@ export async function pending_upload_track_ids(ex: Executor, user: Pick<AuthUser
 			eq(user_tracks_table.user_id, user.id),
 			eq(user_tracks_table.deleted, false),
 			downloaded_on(ex, user.sid),
-			or(eq(tracks_table.imported, true), eq(tracks_table.backpacked, true), lacks_word_synced_lyrics(ex)),
-			or(eq(tracks_table.backpacked, false), research_done(ex, new Date())),
+			or(eq(tracks_table.imported, true), eq(tracks_table.backpacked, true), on_soundcloud(ex), lacks_word_synced_lyrics(ex)),
 			after === undefined ? undefined : gt(user_tracks_table.track_id, after),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
@@ -175,8 +169,8 @@ export async function pending_upload_track_ids(ex: Executor, user: Pick<AuthUser
 }
 
 /**
- * Like `pending_upload_track_ids`, limited to backpacked tracks whose research is done, longest-unavailable first.
- * Any user who downloaded the track is asked, on each device that has it.
+ * Like `pending_upload_track_ids`, limited to backpacked tracks, longest-unavailable first. Any user who downloaded the
+ * track is asked, on each device that has it, without waiting on research: the device's file plays now.
  */
 export async function backpacked_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number): Promise<string[]> {
 	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
@@ -186,7 +180,6 @@ export async function backpacked_upload_track_ids(ex: Executor, user: Pick<AuthU
 			eq(user_tracks_table.deleted, false),
 			downloaded_on(ex, user.sid),
 			eq(tracks_table.backpacked, true),
-			research_done(ex, new Date()),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
 		.orderBy(asc(tracks_table.backpacked_at), asc(user_tracks_table.track_id))
@@ -206,6 +199,21 @@ export async function imported_upload_track_ids(ex: Executor, user: Pick<AuthUse
 			eq(user_tracks_table.deleted, false),
 			downloaded_on(ex, user.sid),
 			eq(tracks_table.imported, true),
+			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
+		))
+		.orderBy(asc(user_tracks_table.track_id))
+		.limit(limit);
+	return rows.map(r => r.track_id);
+}
+
+/** Like `pending_upload_track_ids`, limited to SoundCloud tracks: the next takedown may leave the device's file the only copy. */
+export async function soundcloud_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number): Promise<string[]> {
+	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+		.where(and(
+			eq(user_tracks_table.user_id, user.id),
+			eq(user_tracks_table.deleted, false),
+			downloaded_on(ex, user.sid),
+			on_soundcloud(ex),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
 		.orderBy(asc(user_tracks_table.track_id))

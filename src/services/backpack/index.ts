@@ -1,8 +1,8 @@
 /**
  * Unavailable ("backpacked") tracks. A client reports a track it can't play or download; the server flags it and asks
- * users who have it in their library to look for it on a download service (RESEARCH_TRACK). Once every service has
- * answered without a usable result (or BACKPACK_RESEARCH_WINDOW_HOURS passed), any user or device that downloaded
- * it is asked for a copy (UPLOAD_MEDIA, backpacked tracks first). Media or a usable research result clears the flag.
+ * users who have it in their library to look for it on a download service (RESEARCH_TRACK). Any user or device that
+ * downloaded it is asked for a copy right away too (UPLOAD_MEDIA, backpacked tracks first). Media or a usable
+ * research result clears the flag.
  */
 import { and, asc, eq, inArray, isNotNull, notExists, sql } from 'drizzle-orm';
 import { Router } from 'express';

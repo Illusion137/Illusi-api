@@ -288,11 +288,19 @@ describe('analyzer repo: alignment', () => {
 		return id;
 	};
 
-	it('lists played tracks whose newest media file has no usable alignment result', async () => {
+	const in_library = async (track_id: string, deleted = false) => {
+		const owner = await create_user('al-owner');
+		await pool.query('insert into user_tracks_table (user_id, track_id, deleted) values ($1, $2, $3)', [owner.id, track_id, deleted]);
+		return track_id;
+	};
+
+	it('lists played or library tracks whose newest media file has no usable alignment result', async () => {
 		const ref = unique('al');
 		const fresh = await played({ media: [ref] });
 		const unplayed = await seed_track({ media: [ref + 'q'] });
 		const zero = await played({ media: [ref + 'z'] }, 0);
+		const kept = await in_library(await seed_track({ media: [ref + 'k'] }));
+		const removed = await in_library(await seed_track({ media: [ref + 'r'] }), true);
 		const done = await played({ media: [ref + 'd'] });
 		await pool.query(`insert into track_alignment_table (track_id, resource_id, status) values ($1, $2, 'DONE')`, [done, ref + 'd']);
 		const stale = await played({ media: [ref + 's'] });
@@ -306,15 +314,17 @@ describe('analyzer repo: alignment', () => {
 		const synced = await played({ media: [ref + 'l'], lyrics: ['NONE', 'LINE'] });
 		const no_lyrics = await played({ media: [ref + 'n'], lyrics: [] });
 		const listed = new Set(await eligible_alignment_track_ids());
-		expect([fresh, stale, error_due].every(id => listed.has(id))).toBe(true);
-		expect([unplayed, zero, done, error_wait, bad, synced, no_lyrics].some(id => listed.has(id))).toBe(false);
+		expect([fresh, stale, error_due, kept].every(id => listed.has(id))).toBe(true);
+		expect([unplayed, zero, removed, done, error_wait, bad, synced, no_lyrics].some(id => listed.has(id))).toBe(false);
 	});
 
-	it('resolves the target only for played tracks with only unsynced lyrics, or when a user asks', async () => {
+	it('resolves the target only for played or library tracks with only unsynced lyrics, or when a user asks', async () => {
 		const ref = unique('at');
 		const unplayed = await seed_track({ media: [ref, 'later-' + ref] });
 		expect(await resolve_alignment_target(unplayed)).toBeNull();
 		expect(await resolve_alignment_target(unplayed, true)).toEqual({ resource_id: ref, prior: null });
+		await in_library(unplayed);
+		expect(await resolve_alignment_target(unplayed)).toEqual({ resource_id: ref, prior: null });
 		const id = await played({ media: [ref + 'p'] });
 		expect(await resolve_alignment_target(id)).toEqual({ resource_id: ref + 'p', prior: null });
 		await pool.query(`insert into track_alignment_table (track_id, resource_id, status, attempts) values ($1, $2, 'DONE', 1)`, [id, ref + 'p']);

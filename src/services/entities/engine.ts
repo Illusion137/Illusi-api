@@ -135,6 +135,24 @@ async function settle_artist_conflicts(sp: Tx, id: string, differing: FieldConfl
 	return left;
 }
 
+/** More tracks than this and a stored album isn't taken for a single or EP. */
+const SHORT_RELEASE_MAX_TRACKS = 7;
+
+/**
+ * `ALBUM` is what services fall back to when they don't say (YouTube Music's artist pages did for every single and
+ * EP), so a single or EP claim replaces it, unless the stored album has too many tracks to be one. The rest is reviewed.
+ */
+async function settle_album_conflicts(sp: Tx, id: string, track_count: number | null, differing: FieldConflict[]): Promise<FieldConflict[]> {
+	const left: FieldConflict[] = [];
+	for (const c of differing) {
+		const short = track_count === null || track_count <= SHORT_RELEASE_MAX_TRACKS;
+		if (c.field === 'album_type' && c.current === 'ALBUM' && (c.proposed === 'SINGLE' || c.proposed === 'EP') && short) {
+			await sp.update(albums_table).set({ album_type: c.proposed }).where(eq(albums_table.id, id));
+		} else left.push(c);
+	}
+	return left;
+}
+
 function track_artist_names(graph: Graph, links: Links, track_ref: string): string[] {
 	const names = new Map(graph.artists.map(a => [a.ref, a.name]));
 	return (links.artists_of_track.get(track_ref) ?? []).map(r => names.get(r)).filter((n): n is string => n != null);
@@ -307,7 +325,9 @@ class Engine {
 					const { fill } = resolved;
 					const differing = type === 'track'
 						? await this.settle_track_conflicts(sp, id, input as TrackInput, resolved.conflicts)
-						: type === 'artist' ? await settle_artist_conflicts(sp, id, resolved.conflicts) : resolved.conflicts;
+						: type === 'artist'
+							? await settle_artist_conflicts(sp, id, resolved.conflicts)
+							: await settle_album_conflicts(sp, id, (current as { track_count?: number | null }).track_count ?? null, resolved.conflicts);
 					if (Object.keys(fill).length > 0) {
 						await sp.update(table).set(fill).where(eq(table.id, id));
 						touched.push({ table: table_name, id, filled: Object.keys(fill) });

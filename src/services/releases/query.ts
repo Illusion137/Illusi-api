@@ -28,8 +28,16 @@ const library_soundcloud_users = (user_id: string) => sql`
 	join soundcloud_tracks_table st on st.id = si.soundcloud_id
 	where ut.user_id = ${user_id} and not ut.deleted and st.user_id is not null`;
 
-/** Albums, singles and EPs released in the window, newest first; one row per (album, artist, thumbnail). */
+/**
+ * Albums, singles and EPs released in the window, newest first; one row per (album, artist, thumbnail).
+ *
+ * YouTube Music only dates releases by year, stored as January 1st (UTC). One of those from the window's year counts
+ * as released when the catalog first stored it, if that was in the window and its artist's other albums were stored
+ * well before it. An artist's whole discography arrives at once the first time anyone views it, so none of it is new;
+ * an album that turns up on a page seen before is.
+ */
 export async function released_albums(ex: Executor, window: ReleaseWindow, limit: number, user_id?: string): Promise<AlbumRow[]> {
+	const year_starts = [...new Set([window.since, window.until].map(date => Date.UTC(date.getUTCFullYear(), 0, 1)))].map(time => new Date(time));
 	const scope: SQL = user_id
 		? sql`and (
 			a.artist_id in (select artist_id from lib)
@@ -38,11 +46,23 @@ export async function released_albums(ex: Executor, window: ReleaseWindow, limit
 		: sql``;
 	const lib = user_id ? sql`lib as (${library_artists(user_id)}),` : sql``;
 	return ex.execute<AlbumRow>(sql`
-		with ${lib} released as (
+		with ${lib} candidates as (
 			select a.id, a.name, a.album_type, a.release_date, a.track_count, a.explicit, a.artist_id
 			from albums_table a
 			where a.release_date >= ${window.since} and a.release_date <= ${window.until} ${scope}
-			order by a.release_date desc, a.id
+			union all
+			select a.id, a.name, a.album_type, a.created_at, a.track_count, a.explicit, a.artist_id
+			from albums_table a
+			where a.release_date in (${sql.join(year_starts.map(date => sql`${date}`), sql`, `)})
+				and a.release_date < ${window.since}
+				and a.created_at >= ${window.since} and a.created_at <= ${window.until}
+				and exists (
+					select 1 from albums_table older
+					where older.artist_id = a.artist_id and older.id <> a.id and older.created_at < a.created_at - interval '1 hour'
+				) ${scope}
+		), released as (
+			select * from candidates
+			order by release_date desc, id
 			limit ${limit}
 		)
 		select r.id, r.name, r.album_type, r.release_date, r.track_count, r.explicit,
@@ -125,10 +145,13 @@ export async function upsert_feed(ex: Executor, rows: readonly FeedRow[]) {
 		});
 }
 
-/** Forgets feed rows that have aged out of the window. */
+/**
+ * Forgets feed rows that have aged out of the window and that the client stopped handing over. An undated row the
+ * feed still shows is kept so it keeps the time it was first seen: dropped, it would come back as new.
+ */
 export async function prune_feed(ex: Executor, user_id: string, window: ReleaseWindow) {
 	await ex.delete(user_release_feed_table)
-		.where(and(eq(user_release_feed_table.user_id, user_id), lt(feed_released_at, window.since)));
+		.where(and(eq(user_release_feed_table.user_id, user_id), lt(feed_released_at, window.since), lt(user_release_feed_table.modified_at, window.since)));
 }
 
 /** The user's feed albums and playlists in the window, newest first. */
