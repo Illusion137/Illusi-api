@@ -163,10 +163,36 @@ def check_alignment_helpers() -> None:
     check(r["repeats"] == [{"start_ms": 500, "end_ms": 1000, "lag_ms": 2000, "strength": 0.912}], "broken repeats are dropped")
 
 
+def check_word_alignment() -> None:
+    """words.align_words on made-up letter probabilities (needs torch and torchaudio, not the models)."""
+    try:
+        import numpy as np
+        from words import Letters, align_words
+        import torchaudio.functional  # noqa: F401
+    except ImportError:
+        print("skip word alignment checks (torch not installed)")
+        return
+    for alphabet, separator in (("-ab", None), ("-|ab", "|")):
+        log_probs = np.full((50, len(alphabet)), -20.0)
+        log_probs[:, 0] = 0.0
+        for frame, c in ((10, "a"), (12, "b"), (20, "|"), (30, "b"), (33, "a")):
+            if c in alphabet:
+                log_probs[frame] = -20.0
+                log_probs[frame, alphabet.index(c)] = 0.0
+        letters = Letters("fake", log_probs, alphabet, separator)
+        words = align_words([(0.0, 1.0, [(" Ab,", 0.0, 0.9, 0.8), (" 42", 0.5, 0.6, 0.7), (" ba", 0.1, 0.95, 0.6)])], letters, 0.02)
+        check([(w, round(s, 3), round(e, 3), p) for w, s, e, p in words]
+              == [(" Ab,", 0.2, 0.26, 0.8), (" 42", 0.5, 0.6, 0.7), (" ba", 0.6, 0.68, 0.6)],
+              f"words are re-timed on the letters, digits keep Whisper's times (separator {separator!r})")
+    words = align_words([(0.0, 0.02, [(" abab", 0.0, 0.02, 0.5)])], Letters("fake", log_probs, "-ab"), 0.02)
+    check(words == [(" abab", 0.0, 0.02, 0.5)], "a segment with more letters than frames keeps Whisper's times")
+
+
 def main() -> None:
     check_ffmpeg_decode()
     check_vocals_helpers()
     check_alignment_helpers()
+    check_word_alignment()
     check(to_short_key("C# major") == "C#", "key: C# major -> C#")
     check(to_short_key("A minor") == "Am", "key: A minor -> Am")
     check(to_short_key("Bb minor") == "A#m", "key: Bb minor -> A#m")

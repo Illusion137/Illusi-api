@@ -14,8 +14,8 @@ If either library's API changes, this is the only file to adjust:
 - Vocals (vocals.py): Essentia's Discogs-EffNet + voice/instrumental head as ONNX files in ANALYZER_MODELS_DIR.
 - Rhythm (rhythm.py): Essentia's RhythmExtractor2013, beat positions over the whole track; returned with `/vocals`
   since both describe the full media file over time.
-- For lining up lyrics, also with `/vocals`: Whisper word timestamps (words.py, faster-whisper), Silero's voice
-  activity (speech.py) and Beat This! beats and downbeats (beat_grid.py).
+- For lining up lyrics, also with `/vocals`: Whisper's words (words.py, faster-whisper) re-timed on MMS_FA's letters,
+  Silero's voice activity (speech.py) and Beat This! beats and downbeats (beat_grid.py).
 - `/alignment` (alignment.py): Demucs stems, the MMS model's letter probabilities and loudness of the vocals stem,
   with Whisper and Beat This! run again on the stems. Minutes of CPU per track, so the API only asks for it on
   tracks users play or keep that have no word-synced lyrics.
@@ -108,9 +108,11 @@ class RealAnalyzer:
 
     def vocals(self, path: str) -> dict:
         import soundfile
+        from alignment import ALPHABET, LETTERS_MODEL
         from beat_grid import SAMPLE_RATE as BEAT_GRID_SAMPLE_RATE
         from rhythm import SAMPLE_RATE as RHYTHM_SAMPLE_RATE
         from vocals import SAMPLE_RATE
+        from words import Letters
 
         with self._lock, tempfile.TemporaryDirectory(prefix="illusi-analyzer-") as tmp:
             wav = decode_to_wav(path, tmp, self._ffmpeg, SAMPLE_RATE)  # DecodeError -> 422
@@ -121,7 +123,7 @@ class RealAnalyzer:
                 audio, _ = soundfile.read(wav, dtype="float32")
                 result = self._vocals.detect(audio)
                 result["speech"] = self._speech.detect(audio)
-                result["words"] = self._words.detect(audio)
+                result["words"] = self._words.detect(audio, Letters(LETTERS_MODEL, self._alignment.letters(audio), ALPHABET))
                 rhythm_audio, _ = soundfile.read(rhythm_wav, dtype="float32")
                 result["rhythm"] = self._rhythm.detect(rhythm_audio)
                 beat_grid_audio, _ = soundfile.read(beat_grid_wav, dtype="float32")
@@ -133,7 +135,8 @@ class RealAnalyzer:
 
     def alignment(self, path: str) -> dict:
         import soundfile
-        from alignment import build_alignment_response, frame_rms, vocal_repeats
+        from alignment import ALPHABET, LETTERS_MODEL, build_alignment_response, frame_rms, vocal_repeats
+        from words import Letters
 
         with self._lock, tempfile.TemporaryDirectory(prefix="illusi-analyzer-") as tmp:
             wav = decode_to_wav(path, tmp, self._ffmpeg, self._alignment.stem_rate, channels=2)  # DecodeError -> 422
@@ -144,7 +147,8 @@ class RealAnalyzer:
                 beat_grid = self._beat_grid.detect(drums)
                 beats_s = [ms / 1000 for ms in beat_grid["beats_ms"]]
                 return build_alignment_response(round(stereo.shape[0] * 1000 / self._alignment.stem_rate), log_probs,
-                                                frame_rms(vocals, len(log_probs)), self._words.detect(vocals), beat_grid,
+                                                frame_rms(vocals, len(log_probs)),
+                                                self._words.detect(vocals, Letters(LETTERS_MODEL, log_probs, ALPHABET)), beat_grid,
                                                 vocal_repeats(vocals, beats_s))
             except Exception as e:
                 raise ModelError(f"{type(e).__name__}: {e}") from e

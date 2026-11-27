@@ -80,6 +80,11 @@ services report the most plays for.
 - `words`: `{"model", "words": [{"text", "start_ms", "end_ms", "probability"}, ...]}`, what Whisper (`small.en`
   through faster-whisper, int8, greedy decoding) heard in the full mix, in order ([`words.py`](./words.py)). Empty
   when it heard nothing. Mishearings are common; the lyrics aligner only needs a few confident words per line.
+  The times are not Whisper's own: each segment's words are force-aligned on MMS_FA's letter probabilities over the
+  same audio (the `/alignment` model, so its CC BY-NC 4.0 weights apply here too), as WhisperX does. On six pop and
+  rap tracks against line-synced lyrics, the median error at the start of a line fell from 0.36 s to 0.10 s, and the
+  share within 0.25 s rose from 38% to 70%. `probability` is still Whisper's, and words with no letters (digits)
+  keep Whisper's times. `model` names both, e.g. `faster-whisper-small.en-int8+mms-fa`.
 - `speech`: `{"model", "hop_ms": 32, "voice": [...]}`, Silero VAD's voice probability of each 32 ms frame
   ([`speech.py`](./speech.py)). Silero is a speech detector, so it is often silent through sung pop; it is sharper
   than `voice` on rap.
@@ -87,7 +92,7 @@ services report the most plays for.
   which follows tempo changes and finds downbeats, unlike `rhythm`.
 
 The last three exist to line up plain lyrics (lib-origin's `LyricsAlign.heard_line_sync`). On 2 threads a 4-minute
-track takes about 30 s more than before, almost all of it Whisper, and the process needs about 2 GB of memory with
+track takes about 30 s more than before, almost all of it Whisper, plus about 20 s for MMS_FA's letters, and the process needs about 2 GB of memory with
 every model loaded.
 
 How it works ([`vocals.py`](./vocals.py)): the file is decoded to 16 kHz mono, turned into the same log-mel
@@ -152,7 +157,7 @@ throws away a result it isn't confident in.
   blank). The client adds the star token back itself.
 - `loudness`: one byte per frame, `round(127.5 * sqrt(min(4, rms / p90)))`, where `p90` is the 90th percentile of the
   vocals stem's frame RMS.
-- `words`: Whisper on the vocals stem, in the same shape as `/vocals`. `beat_grid`: Beat This! on the drums stem.
+- `words`: Whisper on the vocals stem, in the same shape as `/vocals`, re-timed on the `letters` above. `beat_grid`: Beat This! on the drums stem.
 - `repeats`: vocal passages sung again `lag_ms` later, from the beat-synchronous self-similarity of the vocals stem.
   `strength` is the similarity, from 0 to 1.
 
