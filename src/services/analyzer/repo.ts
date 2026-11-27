@@ -21,35 +21,24 @@ export type ResolvedSource = SourceCandidate & { prior: LookupRow | null };
 export async function eligible_track_ids(only?: readonly string[]): Promise<string[]> {
 	if (only?.length === 0) return [];
 	const filter: SQL = only ? sql`and c.track_id in ${[...only]}` : sql``;
+	// Every (track, source, ref) candidate is built in one pass, so the preview join hashes once instead of rescanning
+	// itunes_tracks_table per track (its `id::text` join can't use an index).
 	const rows = await db.execute<{ track_id: string }>(sql`
-		select c.track_id from (
-			select m.track_id from media_table m
-			union
-			select si.illusi_id as track_id from service_ids_table si
+		select distinct c.track_id from (
+			select lm.track_id, 'media'::sample_source as source, lm.resource_id as source_ref from (
+				select distinct on (m.track_id) m.track_id, m.resource_id from media_table m order by m.track_id, m.id desc
+			) lm
+			union all
+			select si.illusi_id, 'itunes_preview'::sample_source, it.preview_url from service_ids_table si
 			join itunes_tracks_table it on it.id::text = si.applemusic_id
 			where it.preview_url is not null
 		) c
 		where not exists (select 1 from track_sample_data_table s where s.id = c.track_id)
 		${filter}
-		and (
-			exists (
-				select 1 from (select m.resource_id from media_table m where m.track_id = c.track_id order by m.id desc limit 1) lm
-				where not exists (
-					select 1 from track_sample_lookups_table l
-					where l.track_id = c.track_id and l.source = 'media' and l.source_ref is not distinct from lm.resource_id
-					and (l.status <> 'ERROR' or l.retry_after > now())
-				)
-			)
-			or exists (
-				select 1 from service_ids_table si
-				join itunes_tracks_table it on it.id::text = si.applemusic_id
-				where si.illusi_id = c.track_id and it.preview_url is not null
-				and not exists (
-					select 1 from track_sample_lookups_table l
-					where l.track_id = c.track_id and l.source = 'itunes_preview' and l.source_ref is not distinct from it.preview_url
-					and (l.status <> 'ERROR' or l.retry_after > now())
-				)
-			)
+		and not exists (
+			select 1 from track_sample_lookups_table l
+			where l.track_id = c.track_id and l.source = c.source and l.source_ref is not distinct from c.source_ref
+			and (l.status <> 'ERROR' or l.retry_after > now())
 		)`, 'objects');
 	return rows.map(r => r.track_id);
 }
