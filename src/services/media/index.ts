@@ -20,7 +20,7 @@ import { parse_range } from './range';
 import { remote_media_url } from './remote';
 import { resource_ext, resource_path } from './resource_id';
 import { MIME_BY_EXT } from './sniff';
-import { backpacked_upload_track_ids, imported_upload_track_ids, pending_upload_track_ids, soundcloud_upload_track_ids, store_upload, token_target, user_can_access_tracks } from './store';
+import { backpacked_upload_track_ids, imported_upload_track_ids, lyrics_upload_track_ids, pending_upload_track_ids, soundcloud_upload_track_ids, store_upload, token_target, user_can_access_tracks } from './store';
 import { M4A_KIND, transcode_to_m4a } from './transcode';
 import { receive_upload } from './upload';
 
@@ -128,11 +128,14 @@ async function upload_actions(user: AuthUser, track_ids: readonly string[]): Pro
 	return issue_actions(user, track_ids.map(track_id => ({ type: 'UPLOAD_MEDIA' as const, track_id })));
 }
 
-/** Pending UPLOAD_MEDIA actions for this user, at most `limit`: backpacked tracks, then imported, then SoundCloud ones. */
+/**
+ * Pending UPLOAD_MEDIA actions for this user, at most `limit`, most wanted first: backpacked, imported, only on
+ * SoundCloud, lyrics not word synced, then every other downloaded track without media.
+ */
 export async function pending_upload_actions(user: AuthUser, limit: number): Promise<ActionType[]> {
 	if (limit <= 0) return [];
 	const ids: string[] = [];
-	for (const next of [backpacked_upload_track_ids, imported_upload_track_ids, soundcloud_upload_track_ids, pending_upload_track_ids]) {
+	for (const next of [backpacked_upload_track_ids, imported_upload_track_ids, soundcloud_upload_track_ids, lyrics_upload_track_ids, pending_upload_track_ids]) {
 		if (ids.length >= limit) break;
 		for (const id of await next(db, user, limit)) if (!ids.includes(id)) ids.push(id);
 	}

@@ -1144,17 +1144,20 @@ The server asks clients to upload audio they've **already downloaded locally**.
 
 - **New action** (§0.1): `{ type: 'UPLOAD_MEDIA', token, track_id }`. It's issued for tracks where:
   - the user's `downloaded_at` is set;
-  - the track is `imported`, `backpacked` (§17) or on SoundCloud (a `soundcloud_id` or `soundcloud_permalink`: uploads
-    there are taken down without warning), or it has lyrics and none of them are word synced (`sync_type` `WORD` or `SYLLABLE`), so
-    vocal detection (§2.11) and alignment can sync them. Other tracks can still be played from a service, so no copy is asked
-    for;
   - the track has **no** `media_table` row yet.
+- **Order**: the copies most wanted go first:
+  1. `imported` or `backpacked` (§17) tracks, which have no other source (backpacked first, longest unavailable first);
+  2. tracks only on SoundCloud (a `soundcloud_id` or `soundcloud_permalink` and no other streaming service's id):
+     uploads there are taken down without warning;
+  3. tracks with lyrics, none of them word synced (`sync_type` `WORD` or `SYLLABLE`), so vocal detection (§2.11) and
+     alignment can sync them;
+  4. every other track.
 - **Where requests come from**:
-  - attached to `/sync/pull` responses, a limited number per pull;
-  - `GET /media/requests`, which returns `{ actions: [...] }` with every pending `UPLOAD_MEDIA` request for the user, in pages.
+  - attached to `/sync/pull` responses, up to 20 per pull, in the order above;
+  - `GET /media/requests`, which returns `{ actions: [...] }` with every pending `UPLOAD_MEDIA` request for the user, in
+    pages (ordered by track id).
 - The upload (`POST /tracks/:id/media`) includes the action `token`, checked as in §0.2. Uploads without a token are accepted only for tracks in the uploader's library (§13.1).
 - As with every action, the client may ignore it. Once any user uploads media for a track, requests stop going out for that track to everyone.
-- Backpacked tracks (§17) are requested first.
 
 ---
 

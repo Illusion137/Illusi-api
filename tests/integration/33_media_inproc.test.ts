@@ -224,6 +224,25 @@ describe('upload requests', () => {
 		expect(asked).toHaveLength(2);
 		expect(new Set((await pending_upload_actions(u, 10)).map(a => a.track_id))).toEqual(new Set([imported, ...wanted]));
 	});
+
+	it('asks in order: imported, only on SoundCloud, lyrics not word synced, then everything else', async () => {
+		const user = await create_user('media-tiers');
+		const created = await contribute(user, mock_album({ artist: unique('Tier Artist'), album: unique('Tier Album'), n: 4 }));
+		const [soundcloud, also_youtube, lyrics, other] = [0, 1, 2, 3].map(i => created.body.refs[`t${i}`] as string);
+		const [imported] = await imported_track(user);
+		await add_to_library(user, [soundcloud, also_youtube, lyrics, other, imported], downloaded());
+		const no_other_services = 'spotify_id = null, amazonmusic_id = null, applemusic_id = null, bandlab_id = null, audiomack_id = null, deezer_id = null, pandora_id = null, tidal_id = null';
+		await query(`update service_ids_table set ${no_other_services}, youtube_id = null, soundcloud_permalink = $2 where illusi_id = $1`, [soundcloud, unique('sc-only')]);
+		// Also on YouTube: a SoundCloud takedown leaves another source, so it waits with everything else.
+		await query(`update service_ids_table set ${no_other_services}, youtube_id = $3, soundcloud_permalink = $2 where illusi_id = $1`,
+			[also_youtube, unique('sc-yt'), uuid().replace(/-/gu, '').slice(0, 11)]);
+		await query(`insert into track_lyrics_table (track_id, service, sync_type, format, raw_content, content_hash) values ($1, 'LRCLIB', 'LINE', 'PLAIN', $2, md5($2) || md5($2))`, [lyrics, `lyrics ${lyrics}`]);
+
+		const asked = (await pending_upload_actions(auth_user(user), 20)).map(a => a.track_id);
+		expect(asked.slice(0, 3)).toEqual([imported, soundcloud, lyrics]);
+		expect(new Set(asked.slice(3))).toEqual(new Set([also_youtube, other]));
+		expect(await pending_upload_actions(auth_user(user), 2)).toHaveLength(2);
+	});
 });
 
 describe('alignment requests', () => {

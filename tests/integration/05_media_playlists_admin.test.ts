@@ -43,13 +43,14 @@ describe('media uploads (§13)', () => {
 		const [t0, t1] = [created.body.refs.t0, created.body.refs.t1];
 		await add_to_library(user, [t0], { downloaded_at: new Date().toISOString() });
 		await add_to_library(user, [t1]);
-		// Downloaded but neither imported nor backpacked: a service can still play it, so no copy is asked for.
+		// Neither imported nor backpacked, but downloaded: asked for too (after the more wanted ones, in sync pulls).
 		const streamed = await contribute(user, mock_album({ artist: unique('Streamed Artist'), album: unique('Streamed Album'), n: 1 }));
-		await add_to_library(user, [streamed.body.refs.t0], { downloaded_at: new Date().toISOString() });
+		const streamed_id: string = streamed.body.refs.t0;
+		await add_to_library(user, [streamed_id], { downloaded_at: new Date().toISOString() });
 
 		const requests = await api('GET', '/media/requests', { token: user.access_token });
-		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id)).toEqual([t0]);
-		const action = requests.body.actions[0];
+		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id).sort()).toEqual([t0, streamed_id].sort());
+		const action = requests.body.actions.find((a: { track_id: string }) => a.track_id === t0);
 		expect(action.type).toBe('UPLOAD_MEDIA');
 
 		const file = wav_bytes(Math.floor(Math.random() * 1000));
@@ -58,7 +59,7 @@ describe('media uploads (§13)', () => {
 		const resource_id: string = stored.body.media.resource_id;
 		// Stored as AAC .m4a, whatever was uploaded.
 		expect(resource_id).toMatch(/\.m4a$/u);
-		expect((await api('GET', '/media/requests', { token: user.access_token })).body.actions).toEqual([]);
+		expect((await api('GET', '/media/requests', { token: user.access_token })).body.actions.map((a: { track_id: string }) => a.track_id)).toEqual([streamed_id]);
 
 		// The first upload sticks: another one (a retry included) is refused before its body is read, with the media kept.
 		const again = await upload(user, t0, file);
@@ -83,7 +84,7 @@ describe('media uploads (§13)', () => {
 		expect(anonymous.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
 	});
 
-	it('asks for downloaded tracks whose lyrics are not word synced', async () => {
+	it('asks for every downloaded track without media, word-synced lyrics or not', async () => {
 		const user = await create_user('media-lyrics');
 		const created = await contribute(user, mock_album({ artist: unique('Lyrics Media'), album: unique('Lyrics Media Album'), n: 4 }));
 		const [plain, synced, both, none] = [0, 1, 2, 3].map(i => created.body.refs[`t${i}`] as string);
@@ -98,7 +99,7 @@ describe('media uploads (§13)', () => {
 		await add_lyrics(both, 'WORD');
 
 		const requests = await api('GET', '/media/requests', { token: user.access_token });
-		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id).sort()).toEqual([plain, synced].sort());
+		expect(requests.body.actions.map((a: { track_id: string }) => a.track_id).sort()).toEqual([plain, synced, both, none].sort());
 	});
 
 	it('serves detected vocals once the analyzer has stored them', async () => {

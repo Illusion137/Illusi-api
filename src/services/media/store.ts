@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq, exists, gt, inArray, isNotNull, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, notExists, or, sql } from 'drizzle-orm';
 import { decodeJwt } from 'jose';
 import { config } from '../../config';
 import { db } from '../../db';
@@ -126,8 +126,8 @@ function downloaded_on(ex: Executor, session_family_id: string) {
 }
 
 /**
- * The track has lyrics, none of them word or syllable synced: its media is wanted so vocal detection can help sync
- * them. Correlated on `user_tracks_table.track_id`.
+ * The track has lyrics, none of them word or syllable synced: vocal detection can help sync them. Correlated on
+ * `user_tracks_table.track_id`.
  */
 function lacks_word_synced_lyrics(ex: Executor) {
 	const lyrics = (word_synced: boolean) => ex.select({ one: sql`1` }).from(track_lyrics_table).where(and(
@@ -138,28 +138,29 @@ function lacks_word_synced_lyrics(ex: Executor) {
 }
 
 /**
- * The track is on SoundCloud, where uploads are taken down without warning: its file is wanted while a device still
- * has it. Correlated on `user_tracks_table.track_id`.
+ * The track is on SoundCloud and no other streaming service. SoundCloud uploads are taken down without warning, which
+ * would leave the device's file the only copy. Correlated on `user_tracks_table.track_id`.
  */
-function on_soundcloud(ex: Executor) {
-	return exists(ex.select({ one: sql`1` }).from(service_ids_table).where(and(
-		eq(service_ids_table.illusi_id, user_tracks_table.track_id),
-		or(isNotNull(service_ids_table.soundcloud_id), isNotNull(service_ids_table.soundcloud_permalink))
+function only_on_soundcloud(ex: Executor) {
+	const ids = service_ids_table;
+	return exists(ex.select({ one: sql`1` }).from(ids).where(and(
+		eq(ids.illusi_id, user_tracks_table.track_id),
+		or(isNotNull(ids.soundcloud_id), isNotNull(ids.soundcloud_permalink)),
+		...[ids.youtube_id, ids.spotify_id, ids.amazonmusic_id, ids.applemusic_id, ids.bandlab_id, ids.audiomack_id, ids.deezer_id,
+			ids.pandora_id, ids.tidal_id].map(c => isNull(c))
 	)));
 }
 
 /**
- * Track ids that need an UPLOAD_MEDIA request for this device (`user.sid`): downloaded on it, without media, and
- * imported, backpacked, on SoundCloud or without word-synced lyrics. Ordered by id for cursor paging.
+ * Track ids that need an UPLOAD_MEDIA request for this device (`user.sid`): every track downloaded on it without
+ * media. Ordered by id for cursor paging; `pending_upload_actions` orders them by how badly each copy is wanted.
  */
 export async function pending_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number, after?: string): Promise<string[]> {
 	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
-		.innerJoin(tracks_table, eq(tracks_table.id, user_tracks_table.track_id))
 		.where(and(
 			eq(user_tracks_table.user_id, user.id),
 			eq(user_tracks_table.deleted, false),
 			downloaded_on(ex, user.sid),
-			or(eq(tracks_table.imported, true), eq(tracks_table.backpacked, true), on_soundcloud(ex), lacks_word_synced_lyrics(ex)),
 			after === undefined ? undefined : gt(user_tracks_table.track_id, after),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
@@ -206,14 +207,29 @@ export async function imported_upload_track_ids(ex: Executor, user: Pick<AuthUse
 	return rows.map(r => r.track_id);
 }
 
-/** Like `pending_upload_track_ids`, limited to SoundCloud tracks: the next takedown may leave the device's file the only copy. */
+/** Like `pending_upload_track_ids`, limited to tracks only on SoundCloud: the next takedown may leave the device's file the only copy. */
 export async function soundcloud_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number): Promise<string[]> {
 	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
 		.where(and(
 			eq(user_tracks_table.user_id, user.id),
 			eq(user_tracks_table.deleted, false),
 			downloaded_on(ex, user.sid),
-			on_soundcloud(ex),
+			only_on_soundcloud(ex),
+			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
+		))
+		.orderBy(asc(user_tracks_table.track_id))
+		.limit(limit);
+	return rows.map(r => r.track_id);
+}
+
+/** Like `pending_upload_track_ids`, limited to tracks whose lyrics aren't word synced: vocal detection can help sync them. */
+export async function lyrics_upload_track_ids(ex: Executor, user: Pick<AuthUser, 'id' | 'sid'>, limit: number): Promise<string[]> {
+	const rows = await ex.select({ track_id: user_tracks_table.track_id }).from(user_tracks_table)
+		.where(and(
+			eq(user_tracks_table.user_id, user.id),
+			eq(user_tracks_table.deleted, false),
+			downloaded_on(ex, user.sid),
+			lacks_word_synced_lyrics(ex),
 			notExists(ex.select({ one: media_table.id }).from(media_table).where(eq(media_table.track_id, user_tracks_table.track_id)))
 		))
 		.orderBy(asc(user_tracks_table.track_id))

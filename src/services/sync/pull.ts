@@ -33,7 +33,7 @@ const log = logger('sync');
 export const PAGE_BUDGET = 2_000;
 const BUNDLE_COST = 5;
 const LYRICS_ACTIONS_PER_PAGE = 10;
-const UPLOAD_ACTIONS_PER_PULL = 10;
+const UPLOAD_ACTIONS_PER_PULL = 20;
 const RESEARCH_ACTIONS_PER_PULL = 5;
 /** Safety margin under the watermark for app-clock `modified_at` values (`$onUpdate`) and clock skew. */
 const WATERMARK_MARGIN = '2 seconds';

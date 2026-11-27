@@ -61,8 +61,9 @@ describe('backpacked tracks', () => {
 		// Research and the device that has the file are both asked right away: the file plays now.
 		expect((await research_requests(reporter)).body.actions).toEqual([expect.objectContaining({ type: 'RESEARCH_TRACK', track_id: target })]);
 		const uploads = (await pull_actions(owner)).filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
-		// Only the backpacked track: the other downloads can still be played from a service.
-		expect(uploads).toEqual([target]);
+		// The backpacked track first, ahead of the other downloads, which a service can still play.
+		expect(uploads[0]).toBe(target);
+		expect(new Set(uploads)).toEqual(new Set(tracks));
 
 		expect((await upload(owner, target, wav_bytes(Math.floor(Math.random() * 1000)))).status).toBe(201);
 		expect((await backpacked(target)).backpacked).toBe(false);
@@ -168,7 +169,7 @@ describe('backpacked tracks', () => {
 		// Dead now too: nothing left to switch to, so it's backpacked and researched.
 		const next = await api('POST', `/tracks/${t0}/unavailable`, { token: owner.access_token, body: { service: 'youtube' } });
 		expect(next.body).toMatchObject({ backpacked: true });
-		expect(await query('select youtube_id from track_youtube_ids_table where track_id = $1 and unavailable_at is not null order by youtube_id', [t0])).toEqual([dead, live].sort().map(youtube_id => ({ youtube_id })));
+		expect(await query('select youtube_id from track_youtube_ids_table where track_id = $1 and unavailable_at is not null order by youtube_id collate "C"', [t0])).toEqual([dead, live].sort().map(youtube_id => ({ youtube_id })));
 	});
 
 	it('hands research actions out on sync pull', async () => {
@@ -182,16 +183,17 @@ describe('backpacked tracks', () => {
 		expect(research).toEqual([expect.objectContaining({ track_id: t0, service: 'youtube' })]);
 	});
 
-	it('asks for a copy of downloaded SoundCloud tracks, after backpacked ones', async () => {
+	it('asks for a copy of downloaded tracks only on SoundCloud after backpacked ones, then the rest', async () => {
 		const owner = await create_user('bp-soundcloud');
 		const created = await contribute(owner, mock_album({ artist: unique('SC Artist'), album: unique('SC Album'), n: 3 }));
 		const [plain, on_soundcloud, reported]: string[] = [created.body.refs.t0, created.body.refs.t1, created.body.refs.t2];
-		await query(`update service_ids_table set soundcloud_permalink = $2 where illusi_id = $1`, [on_soundcloud, unique('sc-up/track')]);
+		await query(`update service_ids_table set soundcloud_permalink = $2, youtube_id = null, spotify_id = null, amazonmusic_id = null, applemusic_id = null,
+			bandlab_id = null, audiomack_id = null, deezer_id = null, pandora_id = null, tidal_id = null where illusi_id = $1`, [on_soundcloud, unique('sc-up/track')]);
 		await add_to_library(owner, [plain, on_soundcloud, reported], { downloaded_at: new Date().toISOString(), downloaded: true });
 		await api('POST', `/tracks/${reported}/unavailable`, { token: owner.access_token, body: { service: 'youtube' } });
 		const uploads = (await pull_actions(owner)).filter(a => a.type === 'UPLOAD_MEDIA').map(a => a.track_id);
-		// The plain track can still be played from a service, so no copy of it is asked for
-		expect(uploads).toEqual([reported, on_soundcloud]);
+		// The plain track can still be played from a service, so it comes last
+		expect(uploads).toEqual([reported, on_soundcloud, plain]);
 	});
 
 	it('flags only for reporters who have the track in their library', async () => {
