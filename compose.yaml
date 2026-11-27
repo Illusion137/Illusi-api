@@ -163,6 +163,8 @@ services:
       ANALYZER_URL: http://0.0.0.0:8765
       ANALYZER_ALLOW_REMOTE: "1"
       ANALYZER_PATH_ROOTS: /data/analyzer_tmp:/data/media
+      # One job runs at a time; its models use this many cores (leave some for the API, Postgres and backups).
+      ANALYZER_VOCALS_THREADS: ${ANALYZER_VOCALS_THREADS:-4}
     volumes:
       # Same absolute paths as in the api container: the API sends absolute file paths.
       - ${DATA_DIR:-./data}/media:/data/media:ro
