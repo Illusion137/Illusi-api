@@ -83,6 +83,13 @@ describe('format_line', () => {
 		expect(JSON.parse(format_line('info', 's', 'm', { n: 5n })).data).toEqual({ n: '5' });
 	});
 
+	it('keeps an error\'s code and cause', () => {
+		const pg = Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' });
+		const data = JSON.parse(format_line('error', 's', 'm', new Error('Failed query: select 1', { cause: pg }))).data;
+		expect(data).toMatchObject({ message: 'Failed query: select 1', cause: { message: 'canceling statement due to statement timeout', code: '57014' } });
+		expect(data).not.toHaveProperty('code');
+	});
+
 	it('lets extra fields override', () => {
 		expect(JSON.parse(format_line('access', 's', undefined, undefined, { status: 200 })).status).toBe(200);
 	});

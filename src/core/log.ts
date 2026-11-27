@@ -71,8 +71,13 @@ export class FileSink {
 // Read from the environment directly so logging works before (and without) the validated config.
 const sink = new FileSink(process.env.LOG_DIR ?? '', process.env.LOG_SERVICE ?? 'app', Number(process.env.LOG_RETENTION_DAYS ?? 7));
 
+/** Errors keep their `code` (pg's SQLSTATE) and `cause`: a DrizzleQueryError's message is only the SQL, the cause says why. */
 function serialize(data: unknown): unknown {
-	if (data instanceof Error) return { name: data.name, message: data.message, stack: data.stack };
+	if (data instanceof Error) {
+		const code = (data as { code?: unknown }).code;
+		return { name: data.name, message: data.message, ...(code === undefined ? {} : { code }), stack: data.stack,
+			...(data.cause === undefined ? {} : { cause: serialize(data.cause) }) };
+	}
 	return data;
 }
 
